@@ -9,11 +9,14 @@ import pandas as pd
 import plotly.graph_objects as go
 from typing import Dict, Any, Optional
 from utils.callbacks import ProgressBarCallback
+
 from core.visualization import TradingVisualizer
+
 from core.base_agent import UnifiedTradingAgent
 import os
 import numpy as np
 from utils.stock_utils import parse_stock_list
+
 
 def display_training_tab():
     """
@@ -25,7 +28,7 @@ def display_training_tab():
     st.subheader("Training Options")
     stock_names = st.text_input("Training Stock Symbol", value="AAPL")
     st.session_state.stock_names = parse_stock_list(stock_names)
-    
+
     # Environment parameters
     st.header("Environment Parameters")
     col1, col2 = st.columns(2)
@@ -34,8 +37,8 @@ def display_training_tab():
 
     with col2:
         transaction_cost = st.number_input("Transaction Cost",
-                                         value=0.01,
-                                         step=0.001)
+                                           value=0.01,
+                                           step=0.001)
 
     st.session_state.env_params = {
         'initial_balance': initial_balance,
@@ -50,14 +53,14 @@ def display_training_tab():
     train_col1, train_col2 = st.columns(2)
     with train_col1:
         train_start_date = datetime.combine(
-                                         st.date_input("Training Start Date",
-                                         value=datetime.now() - timedelta(days=365 * 5)),
-                                         datetime.min.time())
+            st.date_input("Training Start Date",
+                          value=datetime.now() - timedelta(days=365 * 5)),
+            datetime.min.time())
     with train_col2:
         train_end_date = datetime.combine(
-                                         st.date_input("Training End Date",
-                                         value=datetime.now() - timedelta(days=365 + 1)),
-                                         datetime.min.time())
+            st.date_input("Training End Date",
+                          value=datetime.now() - timedelta(days=365 + 1)),
+            datetime.min.time())
 
     st.session_state.train_start_date = train_start_date
     st.session_state.train_end_date = train_end_date
@@ -67,24 +70,28 @@ def display_training_tab():
     with tab1:
         st.header("Agent Parameters")
         use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                      value=False)
+                                        value=False)
         if not use_optuna_params:
             ppo_params = get_parameters(use_optuna_params)
             if st.button("Start Training"):
-                run_training(ppo_params)    
+                run_training(ppo_params)
         else:
             if st.button("Start Training"):
                 if st.session_state.ppo_params is None:
-                    st.warning("Please run hyperparameter tuning before training model.")
+                    st.warning(
+                        "Please run hyperparameter tuning before training model."
+                    )
                 else:
-                    # Note that this will only work in the optimizaiton has already been run so that it has 
+                    # Note that this will only work in the optimizaiton has already been run so that it has
                     run_training(st.session_state.ppo_params)
-                
+
     with tab2:
         hyperparameter_tuning()
-        
+
     if st.session_state.ppo_params is not None:
-        display_testing_interface(st.session_state.ppo_params, use_optuna_params)
+        display_testing_interface(st.session_state.ppo_params,
+                                  use_optuna_params)
+
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
     """
@@ -108,8 +115,8 @@ def get_parameters(use_optuna_params) -> Dict[str, Any]:
         col3, col4 = st.columns(2)
         with col3:
             learning_rate = st.number_input("Learning Rate",
-                                          value=3e-4,
-                                          format="%.1e")
+                                            value=3e-4,
+                                            format="%.1e")
             ppo_steps = st.number_input("PPO Steps Per Update", value=512)
             batch_size = st.number_input("Batch Size", value=128)
             n_epochs = st.number_input("Number of Epochs", value=5)
@@ -128,6 +135,7 @@ def get_parameters(use_optuna_params) -> Dict[str, Any]:
             'target_kl': target_kl
         }
 
+
 def run_training(ppo_params: Dict[str, Any]) -> None:
     """
     Executes the training process and displays results
@@ -137,16 +145,18 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     status_placeholder = st.empty()
 
     progress_callback = ProgressBarCallback(
-        total_timesteps=(st.session_state.train_start_date - st.session_state.train_end_date).days,
+        total_timesteps=(st.session_state.train_start_date -
+                         st.session_state.train_end_date).days,
         progress_bar=progress_bar,
         status_placeholder=status_placeholder)
 
-    metrics = st.session_state.model.train(stock_names=st.session_state.stock_names,
-                                         start_date= st.session_state.train_start_date,
-                                         end_date=st.session_state.train_end_date,
-                                         env_params=st.session_state.env_params,
-                                         ppo_params=ppo_params,
-                                         callback=progress_callback)
+    metrics = st.session_state.model.train(
+        stock_names=st.session_state.stock_names,
+        start_date=st.session_state.train_start_date,
+        end_date=st.session_state.train_end_date,
+        env_params=st.session_state.env_params,
+        ppo_params=ppo_params,
+        callback=progress_callback)
 
     if metrics:
         # Display parameters used for testing, automatically sorting into columns:
@@ -155,7 +165,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
         index_col = 0
         all_cols = [col1, col2, col3]
         for param, value in ppo_params.items():
-            with all_cols[index_col%3]:
+            with all_cols[index_col % 3]:
                 st.metric(param, value)
                 index_col += 1
 
@@ -163,6 +173,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
 
     st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")
+
 
 def display_training_metrics(metrics: Dict[str, float]) -> None:
     """
@@ -179,6 +190,7 @@ def display_training_metrics(metrics: Dict[str, float]) -> None:
         st.metric("Total Return", f"{metrics['total_return']:.2%}")
         st.metric("Final Portfolio Value", f"${metrics['final_value']:,.2f}")
 
+
 def hyperparameter_tuning() -> None:
     """
     Interface for hyperparameter optimization using Optuna
@@ -193,9 +205,9 @@ def hyperparameter_tuning() -> None:
 
     with st.expander("Tuning Configuration", expanded=True):
         trials_number = st.number_input("Number of Trials",
-                                      min_value=1,
-                                      value=20,
-                                      step=1)
+                                        min_value=1,
+                                        value=20,
+                                        step=1)
         pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
 
         st.subheader("Parameter Search Ranges")
@@ -203,11 +215,11 @@ def hyperparameter_tuning() -> None:
         col1, col2 = st.columns(2)
         with col1:
             lr_min = st.number_input("Learning Rate Min",
-                                   value=1e-5,
-                                   format="%.1e")
+                                     value=1e-5,
+                                     format="%.1e")
             lr_max = st.number_input("Learning Rate Max",
-                                   value=5e-4,
-                                   format="%.1e")
+                                     value=5e-4,
+                                     format="%.1e")
             steps_min = st.number_input("Steps Min", value=512, step=64)
             steps_max = st.number_input("Steps Max", value=2048, step=64)
             batch_min = st.number_input("Batch Size Min", value=64, step=32)
@@ -215,27 +227,27 @@ def hyperparameter_tuning() -> None:
 
         with col2:
             epochs_min = st.number_input("Training Epochs Min",
-                                       value=3,
-                                       step=1)
+                                         value=3,
+                                         step=1)
             epochs_max = st.number_input("Training Epochs Max",
-                                       value=10,
-                                       step=1)
+                                         value=10,
+                                         step=1)
             gamma_min = st.number_input("Gamma Min",
+                                        value=0.90,
+                                        step=0.01,
+                                        format="%.3f")
+            gamma_max = st.number_input("Gamma Max",
+                                        value=0.999,
+                                        step=0.001,
+                                        format="%.3f")
+            gae_min = st.number_input("GAE Lambda Min",
                                       value=0.90,
                                       step=0.01,
-                                      format="%.3f")
-            gamma_max = st.number_input("Gamma Max",
-                                      value=0.999,
-                                      step=0.001,
-                                      format="%.3f")
-            gae_min = st.number_input("GAE Lambda Min",
-                                    value=0.90,
-                                    step=0.01,
-                                    format="%.2f")
+                                      format="%.2f")
             gae_max = st.number_input("GAE Lambda Max",
-                                    value=0.99,
-                                    step=0.01,
-                                    format="%.2f")
+                                      value=0.99,
+                                      step=0.01,
+                                      format="%.2f")
 
         optimization_metric = st.selectbox(
             "Optimization Metric",
@@ -275,12 +287,11 @@ def hyperparameter_tuning() -> None:
                 trial_model = UnifiedTradingAgent()
 
                 # Train with current parameters
-                metrics = trial_model.train(
-                    stock_names=stock_names,
-                    start_date=train_start_date,
-                    end_date=train_end_date,
-                    env_params=env_params,
-                    ppo_params=ppo_params)
+                metrics = trial_model.train(stock_names=stock_names,
+                                            start_date=train_start_date,
+                                            end_date=train_end_date,
+                                            env_params=env_params,
+                                            ppo_params=ppo_params)
 
                 # Use selected optimization metric
                 trial_value = metrics.get(optimization_metric, float('-inf'))
@@ -324,7 +335,7 @@ def hyperparameter_tuning() -> None:
                           f"{study.best_value:.6f}")
                 # Save best parameters
                 st.session_state.ppo_params = study.best_params
-                
+
             with tab2:
                 st.subheader("Trial History")
                 history_fig = go.Figure()
@@ -373,7 +384,8 @@ def hyperparameter_tuning() -> None:
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
             logger.exception("Hyperparameter optimization error")
-    
+
+
 def display_testing_interface(ppo_params, use_optuna_params=False):
     """
     Displays the testing interface and visualization options in a scrollable container
@@ -384,7 +396,7 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
         with test_col1:
             test_start_date = datetime.combine(
                 st.date_input("Test Start Date",
-                             value=datetime.now() - timedelta(days=365)),
+                              value=datetime.now() - timedelta(days=365)),
                 datetime.min.time())
         with test_col2:
             test_end_date = datetime.combine(
@@ -403,7 +415,8 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                     border-radius: 4px;
                 }
             </style>
-        """, unsafe_allow_html=True)
+        """,
+                    unsafe_allow_html=True)
 
         if st.button("Test Model"):
             if not os.path.exists("trained_model.zip"):
@@ -411,48 +424,53 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
             else:
                 if use_optuna_params:
                     ppo_params = st.session_state.ppo_params
-                    
+
                 test_results = st.session_state.model.test(
                     stock_names=st.session_state.stock_names,
                     start_date=st.session_state.test_start_date,
                     end_date=st.session_state.test_end_date,
                     env_params=st.session_state.env_params)
-    
+
             # Display test metrics
             if test_results and 'metrics' in test_results:
                 test_results_container = st.container()
                 with test_results_container:
                     # st.markdown('<div class="test-results">', unsafe_allow_html=True)
                     st.subheader("Test Metrics")
-    
+
                     # Display parameters used for testing, automatically sorting into columns:
                     st.subheader("Parameters Used for Testing")
                     col1, col2, col3 = st.columns(3)
                     index_col = 0
                     all_cols = [col1, col2, col3]
                     for param, value in ppo_params.items():
-                        with all_cols[index_col%3]:
+                        with all_cols[index_col % 3]:
                             st.metric(param, value)
                             index_col += 1
-    
+
                     # Now display the metrics:
                     metrics = test_results['metrics']
-    
+
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                        st.metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
+                        st.metric("Sharpe Ratio",
+                                  f"{metrics['sharpe_ratio']:.2f}")
+                        st.metric("Max Drawdown",
+                                  f"{metrics['max_drawdown']:.2%}")
                     with col2:
-                        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                        st.metric("Sortino Ratio",
+                                  f"{metrics['sortino_ratio']:.2f}")
                         st.metric("Volatility", f"{metrics['volatility']:.2%}")
                     with col3:
                         if 'information_ratio' in metrics:
-                            st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
-    
+                            st.metric("Information Ratio",
+                                      f"{metrics['information_ratio']:.2f}")
+
                     # Display performance charts
                     if 'combined_plot' in test_results:
                         st.plotly_chart(test_results['combined_plot'])
                     st.markdown('</div>', unsafe_allow_html=True)
+
 
 # def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
 #                         rsi_period: int) -> None:

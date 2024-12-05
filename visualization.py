@@ -139,7 +139,7 @@ class TradingVisualizer:
                                 name='Buy',
                                 marker=dict(
                                     symbol='triangle-up',
-                                    size=25,
+                                    size=8,
                                     color='green',
                                     line=dict(color='white', width=2)
                                 )
@@ -158,7 +158,7 @@ class TradingVisualizer:
                                 name='Sell',
                                 marker=dict(
                                     symbol='triangle-down',
-                                    size=25,
+                                    size=8,
                                     color='red',
                                     line=dict(color='white', width=2)
                                 )

@@ -19,4 +19,5 @@ dependencies = [
     "yfinance>=0.2.50",
     "gymnasium>=0.29.1",
     "torch>=2.5.1",
+    "tqdm",
 ]

@@ -7,7 +7,14 @@ import pandas as pd
 class SimpleTradingEnv(gym.Env):
     def __init__(self):
         super().__init__()
-        self.action_space = gym.spaces.Discrete(3)  # -1, 0, 1 for sell, hold, buy
+        # Define action space as continuous values between -1 and 1
+        self.action_space = gym.spaces.Box(
+            low=-1.0,
+            high=1.0,
+            shape=(1,),
+            dtype=np.float32
+        )
+        # Define observation space
         self.observation_space = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,

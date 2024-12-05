@@ -1,11 +1,16 @@
 import numpy as np
+from typing import Optional, Dict, Any
+import numpy as np
 import pandas as pd
 from typing import Dict, Any, Optional
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.callbacks import BaseCallback
+from tqdm.auto import tqdm
 from stable_baselines3.common.monitor import Monitor
 import os
+import torch
 
 class TradingAgent:
     def __init__(
@@ -24,6 +29,9 @@ class TradingAgent:
         self.portfolio_value = 1.0
         self.positions = {}
         self.trades_history = []
+        self.action_history = []
+        self.reward_history = []
+        self.state_history = []
         self.evaluation_metrics = {
             'returns': [],
             'sharpe_ratio': None,
@@ -66,7 +74,7 @@ class TradingAgent:
         
         # Default policy network configuration
         default_policy_kwargs = {
-            'net_arch': [dict(pi=[64, 64], vf=[64, 64])],
+            'net_arch': dict(pi=[64, 64], vf=[64, 64]),
             'activation_fn': torch.nn.Tanh,
             'ortho_init': True
         }
@@ -77,17 +85,28 @@ class TradingAgent:
         if policy_kwargs:
             default_policy_kwargs.update(policy_kwargs)
         
-        # Initialize environment with monitoring
-        self.env = DummyVecEnv([lambda: Monitor(env)])
-        
-        # Initialize PPO model with enhanced parameters
-        self.model = PPO(
-            policy_type,
-            self.env,
-            tensorboard_log=tensorboard_log,
-            policy_kwargs=default_policy_kwargs,
-            **default_params
-        )
+        try:
+            # Initialize environment with monitoring
+            print("Initializing environment with monitoring...")
+            self.env = DummyVecEnv([lambda: Monitor(env)])
+            
+            # Validate action and observation spaces
+            print(f"Action space: {self.env.action_space}")
+            print(f"Observation space: {self.env.observation_space}")
+            
+            # Initialize PPO model with enhanced parameters
+            print("Initializing PPO model with parameters:", default_params)
+            self.model = PPO(
+                policy_type,
+                self.env,
+                tensorboard_log=tensorboard_log,
+                policy_kwargs=default_policy_kwargs,
+                **default_params
+            )
+            print("PPO model initialized successfully")
+        except Exception as e:
+            print(f"Error during initialization: {str(e)}")
+            raise
     
     def train(
         self,
@@ -133,11 +152,15 @@ class TradingAgent:
             )
             callbacks.append(eval_callback)
         
-        # Train the model with callbacks
+        # Add progress bar callback
+        from callbacks import ProgressBarCallback
+        progress_callback = ProgressBarCallback(total_timesteps)
+        callbacks.append(progress_callback)
+        
+        # Train the model with enhanced callbacks
         self.model.learn(
             total_timesteps=total_timesteps,
-            callback=callbacks,
-            progress_bar=True
+            callback=callbacks
         )
         
         # Update training metrics
@@ -158,12 +181,15 @@ class TradingAgent:
     
     def predict(self, observation, deterministic: bool = True):
         """
-        Make a prediction and update state
+        Make a prediction and update state history
         """
         action, _states = self.model.predict(
             observation,
             deterministic=deterministic
         )
+        # Track state and action history
+        self.state_history.append(observation)
+        self.action_history.append(action)
         return action
     
     def update_state(self, portfolio_value: float, positions: Dict[str, float]):

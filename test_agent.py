@@ -24,24 +24,73 @@ class SimpleTradingEnv(gym.Env):
         self.current_step = 0
         self.max_steps = 100
         
-    def reset(self, seed=None):
-        super().reset(seed=seed)
-        self.current_step = 0
-        observation = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
-        return observation, {}
+    def reset(self, seed=None, options=None):
+        """
+        Reset the environment to initial state.
+        
+        Args:
+            seed (int, optional): Random seed
+            options (dict, optional): Additional options for reset
+            
+        Returns:
+            tuple: (observation, info)
+        """
+        try:
+            super().reset(seed=seed)
+            self.current_step = 0
+            
+            # Generate initial observation
+            observation = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+            
+            info = {
+                'initial_state': True,
+                'step': self.current_step
+            }
+            
+            return observation, info
+            
+        except Exception as e:
+            print(f"Error in reset method: {str(e)}")
+            raise
         
     def step(self, action):
-        self.current_step += 1
-        done = self.current_step >= self.max_steps
+        """
+        Execute one step in the environment.
         
-        # Map discrete action to -1, 0, 1
-        action_map = {0: -1, 1: 0, 2: 1}
-        mapped_action = action_map[action]
-        
-        reward = float(mapped_action)  # Simple reward based on action
-        next_state = np.array(np.random.randn(4), dtype=np.float32)
-        
-        return next_state, reward, done, False, {}
+        Args:
+            action (numpy.ndarray): Continuous action in range [-1, 1]
+            
+        Returns:
+            tuple: (observation, reward, terminated, truncated, info)
+        """
+        try:
+            self.current_step += 1
+            terminated = self.current_step >= self.max_steps
+            truncated = False
+            
+            # Validate action
+            if not isinstance(action, np.ndarray):
+                action = np.array(action)
+            if not np.all(np.logical_and(action >= -1, action <= 1)):
+                raise ValueError("Action values must be in range [-1, 1]")
+            
+            # Use continuous action directly
+            action_value = float(action.flatten()[0])  # Extract single action value
+            reward = action_value  # Simple reward based on action
+            
+            # Generate next state
+            next_state = np.array(np.random.randn(4), dtype=np.float32)
+            
+            info = {
+                'step': self.current_step,
+                'action_value': action_value
+            }
+            
+            return next_state, reward, terminated, truncated, info
+            
+        except Exception as e:
+            print(f"Error in step method: {str(e)}")
+            raise
 
 # Create test environment
 env = SimpleTradingEnv()

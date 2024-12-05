@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine
+from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -20,7 +20,7 @@ class StockData(Base):
     
     __table_args__ = (
         # Composite unique constraint on symbol and date
-        sqlalchemy.UniqueConstraint('symbol', 'date', name='uix_symbol_date'),
+        UniqueConstraint('symbol', 'date', name='uix_symbol_date'),
     )
 
 # Database setup

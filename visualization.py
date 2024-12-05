@@ -4,9 +4,15 @@ import pandas as pd
 
 class TradingVisualizer:
     def __init__(self):
-        self.fig = None
+        self.figs = {}
         
-    def create_chart(self, data, trades=None):
+    def create_charts(self, portfolio_data, trades=None):
+        """Create interactive trading charts for multiple stocks"""
+        for symbol, data in portfolio_data.items():
+            self.create_single_chart(symbol, data, trades.get(symbol) if trades else None)
+        return self.figs
+        
+    def create_single_chart(self, symbol, data, trades=None):
         """Create interactive trading chart"""
         self.fig = make_subplots(
             rows=2, cols=1,

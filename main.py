@@ -25,7 +25,15 @@ if 'visualizer' not in st.session_state:
 st.sidebar.title("Trading Parameters")
 
 # Symbol selection
-symbol = st.sidebar.text_input("Stock Symbol", value="AAPL")
+default_symbols = "AAPL,MSFT,GOOGL"
+symbols_input = st.sidebar.text_input("Stock Symbols (comma-separated)", value=default_symbols)
+symbols = [s.strip() for s in symbols_input.split(",")]
+
+# Portfolio weights
+st.sidebar.subheader("Portfolio Weights")
+weights = {}
+for symbol in symbols:
+    weights[symbol] = st.sidebar.slider(f"{symbol} Weight (%)", 0, 100, 100 // len(symbols)) / 100
 
 # Date range
 end_date = datetime.now()
@@ -43,49 +51,69 @@ st.title("Reinforcement Learning Trading Platform")
 # Data loading
 if st.sidebar.button("Fetch Data & Train"):
     with st.spinner("Fetching data..."):
-        data = st.session_state.data_handler.fetch_data(symbol, start_date, end_date)
-        data = st.session_state.data_handler.prepare_data()
+        portfolio_data = st.session_state.data_handler.fetch_data(symbols, start_date, end_date)
+        portfolio_data = st.session_state.data_handler.prepare_data()
         
-        # Create environment and agent
-        env = TradingEnvironment(data, initial_balance)
-        agent = TradingAgent(env)
+        # Create environments and agents for each stock
+        environments = {}
+        agents = {}
+        all_trades = {}
         
-        # Train agent
-        with st.spinner("Training agent..."):
-            agent.train(training_steps)
+        for symbol, data in portfolio_data.items():
+            # Allocate initial balance based on weights
+            symbol_balance = initial_balance * weights[symbol]
+            environments[symbol] = TradingEnvironment(data, symbol_balance)
+            agents[symbol] = TradingAgent(environments[symbol])
             
-        # Run evaluation episode
-        obs = env.reset()
-        done = False
-        trades = []
-        
-        while not done:
-            action = agent.predict(obs)
-            obs, reward, done, _ = env.step(action)
+            # Train agent
+            with st.spinner(f"Training agent for {symbol}..."):
+                agents[symbol].train(training_steps)
+                
+            # Run evaluation episode
+            obs = environments[symbol].reset()
+            done = False
+            trades = []
             
-            if abs(action[0]) > 0.1:  # Record significant trades
-                trades.append({
-                    'timestamp': data.index[env.current_step],
-                    'action': action[0],
-                    'price': data.iloc[env.current_step]['Close']
-                })
-        
-        trades_df = pd.DataFrame(trades).set_index('timestamp')
+            while not done:
+                action = agents[symbol].predict(obs)
+                obs, reward, done, _ = environments[symbol].step(action)
+                
+                if abs(action[0]) > 0.1:  # Record significant trades
+                    trades.append({
+                        'timestamp': data.index[environments[symbol].current_step],
+                        'action': action[0],
+                        'price': data.iloc[environments[symbol].current_step]['Close']
+                    })
+            
+            all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
         
         # Visualize results
-        fig = st.session_state.visualizer.create_chart(data)
-        st.session_state.visualizer.add_trades(trades_df)
-        st.plotly_chart(fig, use_container_width=True)
+        figs = st.session_state.visualizer.create_charts(portfolio_data, all_trades)
         
-        # Display performance metrics
-        col1, col2, col3 = st.columns(3)
+        # Display charts
+        for symbol, fig in figs.items():
+            st.subheader(f"{symbol} Analysis")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Display performance metrics
+            col1, col2, col3 = st.columns(3)
+            
+            final_balance = environments[symbol].net_worth
+            symbol_initial_balance = initial_balance * weights[symbol]
+            returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
+            
+            col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
+            col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
+            col3.metric(f"{symbol} Number of Trades", len(all_trades[symbol]))
+            
+        # Display portfolio summary
+        st.subheader("Portfolio Summary")
+        total_value = sum(env.net_worth for env in environments.values())
+        portfolio_return = (total_value - initial_balance) / initial_balance * 100
         
-        final_balance = env.net_worth
-        returns = (final_balance - initial_balance) / initial_balance * 100
-        
-        col1.metric("Final Balance", f"${final_balance:,.2f}")
-        col2.metric("Returns", f"{returns:.2f}%")
-        col3.metric("Number of Trades", len(trades))
+        col1, col2 = st.columns(2)
+        col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
+        col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")
 
 # Instructions
 if 'data' not in locals():

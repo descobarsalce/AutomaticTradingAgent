@@ -15,6 +15,10 @@ author = "agent"
 task = "workflow.run"
 args = "Trading Platform"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Agent Tests"
+
 [[workflows.workflow]]
 name = "Trading Platform"
 author = "agent"
@@ -29,6 +33,20 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "streamlit run main.py --server.port 5000"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Agent Tests"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_agent.py"
 
 [deployment]
 run = ["sh", "-c", "streamlit run main.py --server.port 5000"]

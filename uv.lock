@@ -1142,6 +1142,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "stable-baselines3" },
     { name = "streamlit" },
+    { name = "ta" },
     { name = "yfinance" },
 ]
 
@@ -1155,6 +1156,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.36" },
     { name = "stable-baselines3", specifier = ">=2.3.2" },
     { name = "streamlit", specifier = ">=1.40.2" },
+    { name = "ta", specifier = ">=0.11.0" },
     { name = "yfinance", specifier = ">=0.2.50" },
 ]
 
@@ -1390,6 +1392,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/ca/99/5a5b6f19ff9f08367
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/fe/81695a1aa331a842b582453b605175f419fe8540355886031328089d840a/sympy-1.13.1-py3-none-any.whl", hash = "sha256:db36cdc64bf61b9b24578b6f7bab1ecdd2452cf008f34faa33776680c26d66f8", size = 6189177 },
 ]
+
+[[package]]
+name = "ta"
+version = "0.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e0/9a/37d92a6b470dc9088612c2399a68f1a9ac22872d4e1eff416818e22ab11b/ta-0.11.0.tar.gz", hash = "sha256:de86af43418420bd6b088a2ea9b95483071bf453c522a8441bc2f12bcf8493fd", size = 25308 }
 
 [[package]]
 name = "tenacity"

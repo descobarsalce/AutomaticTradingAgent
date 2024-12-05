@@ -1,10 +1,12 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
+import ta
 
 class TradingVisualizer:
     def __init__(self):
         self.figs = {}
+        self.rsi_period = 14  # Default RSI period
         
     def create_charts(self, portfolio_data, trades=None):
         """Create interactive trading charts for multiple stocks"""
@@ -13,12 +15,17 @@ class TradingVisualizer:
         return self.figs
         
     def create_single_chart(self, symbol, data, trades=None):
-        """Create interactive trading chart"""
+        """Create interactive trading chart with RSI indicator"""
+        # Calculate RSI
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=self.rsi_period).rsi()
+        
+        # Create figure with secondary y-axis
         self.fig = make_subplots(
-            rows=2, cols=1,
+            rows=3, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
-            row_heights=[0.7, 0.3]
+            row_heights=[0.5, 0.25, 0.25],
+            subplot_titles=(f'{symbol} Price', 'Volume', 'RSI')
         )
         
         # Candlestick chart
@@ -67,14 +74,56 @@ class TradingVisualizer:
                 row=1, col=1
             )
             
-        # Update layout
+        # Add RSI
+        self.fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=data['RSI'],
+                name='RSI',
+                line=dict(color='purple')
+            ),
+            row=3, col=1
+        )
+        
+        # Add RSI overbought/oversold lines
+        self.fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
+        self.fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
+        
+        # Update layout with interactive features
         self.fig.update_layout(
-            title='Trading Chart',
+            title=dict(
+                text='Trading Chart',
+                x=0.5
+            ),
             yaxis_title='Price',
             yaxis2_title='Volume',
+            yaxis3_title='RSI',
             xaxis_rangeslider_visible=False,
-            height=800,
-            template='plotly_dark'
+            height=1000,
+            template='plotly_dark',
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            ),
+            hovermode='x unified'
+        )
+        
+        # Add range selector
+        self.fig.update_xaxes(
+            rangeslider_visible=False,
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1d", step="day", stepmode="backward"),
+                    dict(count=7, label="1w", step="day", stepmode="backward"),
+                    dict(count=1, label="1m", step="month", stepmode="backward"),
+                    dict(count=3, label="3m", step="month", stepmode="backward"),
+                    dict(step="all")
+                ])
+            ),
+            row=1, col=1
         )
         
         return self.fig

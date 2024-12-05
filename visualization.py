@@ -10,8 +10,24 @@ class TradingVisualizer:
         
     def create_charts(self, portfolio_data, trades=None):
         """Create interactive trading charts for multiple stocks"""
+        self.figs = {}  # Reset figures dictionary
+        if not portfolio_data:
+            print("Debug: No portfolio data provided to create_charts")
+            return self.figs
+            
         for symbol, data in portfolio_data.items():
-            self.create_single_chart(symbol, data, trades.get(symbol) if trades else None)
+            if data is None or data.empty:
+                print(f"Debug: Empty or None data for symbol {symbol}")
+                continue
+                
+            print(f"Debug: Creating chart for {symbol} with data shape {data.shape}")
+            fig = self.create_single_chart(symbol, data, trades.get(symbol) if trades else None)
+            if fig:
+                self.figs[symbol] = fig
+            else:
+                print(f"Debug: Failed to create figure for {symbol}")
+                
+        print(f"Debug: Created figures for {list(self.figs.keys())}")
         return self.figs
         
     def create_single_chart(self, symbol, data, trades=None):
@@ -20,7 +36,7 @@ class TradingVisualizer:
         data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=self.rsi_period).rsi()
         
         # Create figure with secondary y-axis
-        self.fig = make_subplots(
+        fig = make_subplots(
             rows=3, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.03,
@@ -29,7 +45,7 @@ class TradingVisualizer:
         )
         
         # Candlestick chart
-        self.fig.add_trace(
+        fig.add_trace(
             go.Candlestick(
                 x=data.index,
                 open=data['Open'],
@@ -42,7 +58,7 @@ class TradingVisualizer:
         )
         
         # Volume bars
-        self.fig.add_trace(
+        fig.add_trace(
             go.Bar(
                 x=data.index,
                 y=data['Volume'],
@@ -53,7 +69,7 @@ class TradingVisualizer:
         
         # Add moving averages
         if 'SMA_20' in data.columns:
-            self.fig.add_trace(
+            fig.add_trace(
                 go.Scatter(
                     x=data.index,
                     y=data['SMA_20'],
@@ -64,7 +80,7 @@ class TradingVisualizer:
             )
             
         if 'SMA_50' in data.columns:
-            self.fig.add_trace(
+            fig.add_trace(
                 go.Scatter(
                     x=data.index,
                     y=data['SMA_50'],
@@ -75,7 +91,7 @@ class TradingVisualizer:
             )
             
         # Add RSI
-        self.fig.add_trace(
+        fig.add_trace(
             go.Scatter(
                 x=data.index,
                 y=data['RSI'],
@@ -86,13 +102,13 @@ class TradingVisualizer:
         )
         
         # Add RSI overbought/oversold lines
-        self.fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-        self.fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
         
         # Update layout with interactive features
-        self.fig.update_layout(
+        fig.update_layout(
             title=dict(
-                text='Trading Chart',
+                text=f'{symbol} Trading Chart',
                 x=0.5
             ),
             yaxis_title='Price',
@@ -112,7 +128,7 @@ class TradingVisualizer:
         )
         
         # Add range selector
-        self.fig.update_xaxes(
+        fig.update_xaxes(
             rangeslider_visible=False,
             rangeselector=dict(
                 buttons=list([
@@ -126,41 +142,42 @@ class TradingVisualizer:
             row=1, col=1
         )
         
-        return self.fig
-        
-    def add_trades(self, trades):
-        """Add trade markers to the chart"""
-        if self.fig is None:
-            raise ValueError("Create chart first before adding trades")
+        # Add trades if provided
+        if trades is not None:
+            # Add buy markers
+            buys = trades[trades['action'] > 0]
+            if not buys.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=buys.index,
+                        y=buys['price'],
+                        mode='markers',
+                        name='Buy',
+                        marker=dict(
+                            symbol='triangle-up',
+                            size=15,
+                            color='green'
+                        )
+                    ),
+                    row=1, col=1
+                )
             
-        # Add buy markers
-        self.fig.add_trace(
-            go.Scatter(
-                x=trades[trades['action'] > 0].index,
-                y=trades[trades['action'] > 0]['price'],
-                mode='markers',
-                name='Buy',
-                marker=dict(
-                    symbol='triangle-up',
-                    size=15,
-                    color='green'
+            # Add sell markers
+            sells = trades[trades['action'] < 0]
+            if not sells.empty:
+                fig.add_trace(
+                    go.Scatter(
+                        x=sells.index,
+                        y=sells['price'],
+                        mode='markers',
+                        name='Sell',
+                        marker=dict(
+                            symbol='triangle-down',
+                            size=15,
+                            color='red'
+                        )
+                    ),
+                    row=1, col=1
                 )
-            ),
-            row=1, col=1
-        )
         
-        # Add sell markers
-        self.fig.add_trace(
-            go.Scatter(
-                x=trades[trades['action'] < 0].index,
-                y=trades[trades['action'] < 0]['price'],
-                mode='markers',
-                name='Sell',
-                marker=dict(
-                    symbol='triangle-down',
-                    size=15,
-                    color='red'
-                )
-            ),
-            row=1, col=1
-        )
+        return fig

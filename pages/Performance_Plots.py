@@ -44,10 +44,14 @@ if st.sidebar.button("Generate Charts"):
         
         # Fetch data for selected symbols
         portfolio_data = st.session_state.data_handler.fetch_data(symbols, start_date, end_date)
+        st.write("Debug: Data fetched for symbols:", list(portfolio_data.keys()) if portfolio_data else "No data")
+        
         portfolio_data = st.session_state.data_handler.prepare_data()
+        st.write("Debug: Prepared data shape:", {symbol: data.shape for symbol, data in portfolio_data.items()} if portfolio_data else "No prepared data")
         
         # Generate charts
         figs = st.session_state.visualizer.create_charts(portfolio_data)
+        st.write("Debug: Generated figures for symbols:", list(figs.keys()) if figs else "No figures generated")
         
         # Display charts for each symbol
         for symbol, fig in figs.items():

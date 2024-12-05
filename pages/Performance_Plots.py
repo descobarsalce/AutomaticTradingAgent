@@ -24,9 +24,9 @@ st.title("Performance Plots")
 st.sidebar.header("Chart Controls")
 
 # Symbol selection
-default_symbols = "AAPL,MSFT,GOOGL"
-symbols_input = st.sidebar.text_input("Stock Symbols (comma-separated)", value=default_symbols)
-symbols = [s.strip() for s in symbols_input.split(",")]
+available_symbols = ["AAPL", "MSFT", "GOOGL"]  # Default available symbols
+selected_symbol = st.sidebar.selectbox("Select Symbol", available_symbols, index=0)
+symbols = [selected_symbol]  # Keep as list for compatibility with existing code
 
 # Date range selection
 end_date = datetime.now()
@@ -65,16 +65,34 @@ if st.sidebar.button("Generate Charts"):
                 st.error("Error preparing data for visualization.")
                 st.stop()
             
-            # Generate charts
-            figs = st.session_state.visualizer.create_charts(portfolio_data)
+            # Generate charts with progress indication
+            st.text("Generating interactive charts...")
+            progress_bar = st.progress(0)
+            figs = {}
+            
+            for i, (symbol, data) in enumerate(portfolio_data.items()):
+                try:
+                    fig = st.session_state.visualizer.create_single_chart(symbol, data)
+                    if fig:
+                        figs[symbol] = fig
+                    else:
+                        st.warning(f"Could not generate chart for {symbol}")
+                except Exception as e:
+                    st.error(f"Error generating chart for {symbol}: {str(e)}")
+                progress_bar.progress((i + 1) / len(portfolio_data))
+            
             if not figs:
-                st.error("Error generating charts.")
+                st.error("Could not generate any charts. Please check the data and try again.")
                 st.stop()
             
             # Display charts for each symbol
             for symbol, fig in figs.items():
                 st.subheader(f"{symbol} Technical Analysis")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={
+                    'scrollZoom': True,
+                    'displayModeBar': True,
+                    'modeBarButtonsToAdd': ['drawline', 'drawopenpath', 'eraseshape']
+                })
                 
                 # Calculate and display basic statistics
                 if symbol in portfolio_data:

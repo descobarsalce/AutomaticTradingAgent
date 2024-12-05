@@ -1,0 +1,140 @@
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+
+class TradingVisualizer:
+    def __init__(self):
+        self.figs = {}
+        
+    def create_charts(self, portfolio_data, trades=None):
+        """Create interactive trading charts for multiple stocks"""
+        for symbol, data in portfolio_data.items():
+            fig = self.create_single_chart(symbol, data, trades.get(symbol) if trades else None)
+            self.figs[symbol] = fig
+        return self.figs
+        
+    def create_single_chart(self, symbol, data, trades=None):
+        """Create interactive trading chart"""
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.7, 0.3]
+        )
+        
+        # Candlestick chart with enhanced hover information
+        fig.add_trace(
+            go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name='OHLC',
+                hovertemplate=(
+                    'Date: %{x}<br>'
+                    'Open: %{open}<br>'
+                    'High: %{high}<br>'
+                    'Low: %{low}<br>'
+                    'Close: %{close}<extra></extra>'
+                )
+            ),
+            row=1, col=1
+        )
+        
+        # Color for volume bars based on price movement
+        colors = ['green' if c >= pc else 'red' for c, pc in zip(
+            data['Close'], data['Close'].shift(1).fillna(data['Close'][0])
+        )]
+        
+        # Volume bars with enhanced hover information
+        fig.add_trace(
+            go.Bar(
+                x=data.index,
+                y=data['Volume'],
+                name='Volume',
+                marker_color=colors,
+                hovertemplate='Date: %{x}<br>Volume: %{y}<extra></extra>'
+            ),
+            row=2, col=1
+        )
+        
+        # Add moving averages with togglable visibility
+        if 'SMA_20' in data.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=data.index,
+                    y=data['SMA_20'],
+                    name='SMA 20',
+                    line=dict(color='orange'),
+                    hovertemplate='Date: %{x}<br>SMA 20: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+                
+        if 'SMA_50' in data.columns:
+            fig.add_trace(
+                go.Scatter(
+                    x=data.index,
+                    y=data['SMA_50'],
+                    name='SMA 50',
+                    line=dict(color='blue'),
+                    hovertemplate='Date: %{x}<br>SMA 50: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+        
+        # Add trade markers if trades are provided
+        if trades is not None:
+            # Add buy markers
+            fig.add_trace(
+                go.Scatter(
+                    x=trades[trades['action'] > 0].index,
+                    y=trades[trades['action'] > 0]['price'],
+                    mode='markers',
+                    name='Buy',
+                    marker=dict(
+                        symbol='triangle-up',
+                        size=10,
+                        color='green'
+                    ),
+                    hovertemplate='Buy<br>Date: %{x}<br>Price: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+            
+            # Add sell markers
+            fig.add_trace(
+                go.Scatter(
+                    x=trades[trades['action'] < 0].index,
+                    y=trades[trades['action'] < 0]['price'],
+                    mode='markers',
+                    name='Sell',
+                    marker=dict(
+                        symbol='triangle-down',
+                        size=10,
+                        color='red'
+                    ),
+                    hovertemplate='Sell<br>Date: %{x}<br>Price: %{y}<extra></extra>'
+                ),
+                row=1, col=1
+            )
+        
+        # Update layout with enhanced interactivity
+        fig.update_layout(
+            title=f'Trading Chart for {symbol}',
+            yaxis_title='Price',
+            yaxis2_title='Volume',
+            xaxis_rangeslider_visible=False,
+            height=800,
+            template='plotly_dark',
+            legend=dict(
+                itemclick="toggleothers",
+                itemdoubleclick="toggle"
+            )
+        )
+        
+        # Hide weekends and non-trading days
+        fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
+        
+        return fig

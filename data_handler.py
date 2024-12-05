@@ -84,7 +84,23 @@ class DataHandler:
                     volume=row['Volume'],
                     last_updated=datetime.utcnow()
                 )
-                self.session.merge(stock_data)
+                # Handle conflict resolution by using merge with unique constraint
+                existing = self.session.query(StockData).filter(
+                    StockData.symbol == symbol,
+                    StockData.date == date
+                ).first()
+                
+                if existing:
+                    # Update existing record
+                    existing.open = row['Open']
+                    existing.high = row['High']
+                    existing.low = row['Low']
+                    existing.close = row['Close']
+                    existing.volume = row['Volume']
+                    existing.last_updated = datetime.utcnow()
+                else:
+                    # Insert new record
+                    self.session.add(stock_data)
             
             self.session.commit()
             

@@ -19,8 +19,8 @@ class StockData(Base):
     last_updated = Column(DateTime, default=datetime.utcnow)
     
     __table_args__ = (
-        # Composite unique constraint
-        {'sqlite_on_conflict': 'REPLACE'}
+        # Composite unique constraint on symbol and date
+        sqlalchemy.UniqueConstraint('symbol', 'date', name='uix_symbol_date'),
     )
 
 # Database setup

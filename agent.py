@@ -1,12 +1,8 @@
-import os
 import numpy as np
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import EvalCallback
-from stable_baselines3.common.monitor import Monitor
 from callbacks import ProgressBarCallback
-import gymnasium as gym
 
 class TradingAgent:
     def __init__(
@@ -19,7 +15,7 @@ class TradingAgent:
         seed: Optional[int] = None
     ):
         """
-        Initialize the trading agent with basic configuration.
+        Initialize the trading agent with advanced configuration and state tracking.
         
         Args:
             env: Gymnasium environment
@@ -29,73 +25,92 @@ class TradingAgent:
             tensorboard_log: Directory for tensorboard logs
             seed: Random seed for reproducibility
         """
-        # Create tensorboard log directory if it doesn't exist
-        os.makedirs(tensorboard_log, exist_ok=True)
-        
-        # Validate environment
-        if not isinstance(env.action_space, gym.spaces.Box):
-            raise ValueError("Environment must have continuous action space (Box)")
-        
-        # Default PPO parameters
-        default_params = {
-            'learning_rate': 0.0003,
-            'n_steps': 2048,
-            'batch_size': 64,
-            'n_epochs': 10,
-            'gamma': 0.99,
-            'gae_lambda': 0.95,
-            'clip_range': 0.2,
-            'ent_coef': 0.01,
-            'vf_coef': 0.5,
-            'max_grad_norm': 0.5,
-            'verbose': 1,
-            'seed': seed
+        # Initialize state tracking
+        self.portfolio_history = []
+        self.positions_history = []
+        self.evaluation_metrics = {
+            'returns': [],
+            'sharpe_ratio': 0.0,
+            'max_drawdown': 0.0,
+            'total_trades': 0,
+            'win_rate': 0.0
         }
         
-        if ppo_params:
-            default_params.update(ppo_params)
+        # Set up default PPO parameters if none provided
+        if ppo_params is None:
+            ppo_params = {
+                'learning_rate': 3e-4,
+                'n_steps': 2048,
+                'batch_size': 64,
+                'n_epochs': 10,
+                'gamma': 0.99,
+                'gae_lambda': 0.95,
+                'clip_range': 0.2,
+                'clip_range_vf': None,
+                'ent_coef': 0.01,
+                'vf_coef': 0.5,
+                'max_grad_norm': 0.5,
+                'use_sde': False,
+                'sde_sample_freq': -1,
+                'target_kl': None,
+            }
+            
+        # Set up default policy network parameters if none provided
+        if policy_kwargs is None:
+            policy_kwargs = {
+                'net_arch': [dict(pi=[64, 64], vf=[64, 64])]
+            }
             
         try:
-            # Initialize environment with monitoring
-            print("Action space:", env.action_space)
-            print("Observation space:", env.observation_space)
-            self.env = DummyVecEnv([lambda: Monitor(env)])
-            
-            # Initialize PPO model with parameters
-            print("Initializing PPO model with parameters:", default_params)
+            # Initialize PPO model with advanced configuration
             self.model = PPO(
                 policy_type,
-                self.env,
+                env,
+                learning_rate=ppo_params['learning_rate'],
+                n_steps=ppo_params['n_steps'],
+                batch_size=ppo_params['batch_size'],
+                n_epochs=ppo_params['n_epochs'],
+                gamma=ppo_params['gamma'],
+                gae_lambda=ppo_params['gae_lambda'],
+                clip_range=ppo_params['clip_range'],
+                clip_range_vf=ppo_params['clip_range_vf'],
+                ent_coef=ppo_params['ent_coef'],
+                vf_coef=ppo_params['vf_coef'],
+                max_grad_norm=ppo_params['max_grad_norm'],
+                use_sde=ppo_params['use_sde'],
+                sde_sample_freq=ppo_params['sde_sample_freq'],
+                target_kl=ppo_params['target_kl'],
                 tensorboard_log=tensorboard_log,
                 policy_kwargs=policy_kwargs,
-                **default_params
+                seed=seed,
+                verbose=1
             )
+            
         except Exception as e:
-            print(f"Error during initialization: {str(e)}")
+            print(f"Error initializing PPO model: {str(e)}")
             raise
-
-    def train(self, total_timesteps: int, eval_freq: int = 10000):
+            
+    def train(self, total_timesteps: int):
         """
-        Train the agent.
+        Train the agent for a specified number of timesteps.
         
         Args:
-            total_timesteps: Total number of timesteps to train
-            eval_freq: Evaluation frequency in timesteps
+            total_timesteps: Number of timesteps to train for
         """
         try:
-            # Setup callbacks
+            # Set up callbacks
             eval_callback = EvalCallback(
-                self.env,
+                self.model.get_env(),
                 best_model_save_path='./best_model/',
                 log_path='./eval_logs/',
-                eval_freq=eval_freq,
+                eval_freq=1000,
                 deterministic=True,
                 render=False
             )
             
             progress_callback = ProgressBarCallback(total_timesteps)
             
-            # Train the model
+            # Train the model with callbacks
             self.model.learn(
                 total_timesteps=total_timesteps,
                 callback=[eval_callback, progress_callback]
@@ -104,7 +119,7 @@ class TradingAgent:
         except Exception as e:
             print(f"Error during training: {str(e)}")
             raise
-
+            
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:
         """
         Make a prediction based on the current observation.
@@ -126,11 +141,53 @@ class TradingAgent:
         except Exception as e:
             print(f"Error in predict method: {str(e)}")
             raise
-
+            
+    def update_state(self, portfolio_value: float, positions: Dict[str, float]):
+        """
+        Update agent's state tracking with new portfolio information.
+        
+        Args:
+            portfolio_value: Current portfolio value
+            positions: Dictionary of current positions (symbol: weight)
+        """
+        self.portfolio_history.append(portfolio_value)
+        self.positions_history.append(positions)
+        self._update_metrics()
+        
+    def _update_metrics(self):
+        """Update evaluation metrics based on current state"""
+        if len(self.portfolio_history) > 1:
+            # Calculate returns
+            returns = np.diff(self.portfolio_history) / self.portfolio_history[:-1]
+            self.evaluation_metrics['returns'] = returns.tolist()
+            
+            # Calculate Sharpe ratio (assuming daily returns)
+            if len(returns) > 1:
+                avg_return = np.mean(returns)
+                std_return = np.std(returns)
+                self.evaluation_metrics['sharpe_ratio'] = (avg_return / std_return) * np.sqrt(252) if std_return > 0 else 0
+            
+            # Calculate maximum drawdown
+            peak = self.portfolio_history[0]
+            max_dd = 0
+            for value in self.portfolio_history[1:]:
+                if value > peak:
+                    peak = value
+                dd = (peak - value) / peak
+                max_dd = max(max_dd, dd)
+            self.evaluation_metrics['max_drawdown'] = max_dd
+            
+            # Update trade statistics
+            self.evaluation_metrics['total_trades'] = len(self.positions_history)
+            
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get current evaluation metrics"""
+        return self.evaluation_metrics.copy()
+        
     def save(self, path: str):
         """Save the model"""
         self.model.save(path)
-
+        
     def load(self, path: str):
         """Load the model"""
         self.model = PPO.load(path)

@@ -62,7 +62,15 @@ if st.sidebar.button("Fetch Data & Train"):
         for symbol, data in portfolio_data.items():
             # Allocate initial balance based on weights
             symbol_balance = initial_balance * weights[symbol]
-            environments[symbol] = TradingEnvironment(data, symbol_balance)
+            environments[symbol] = TradingEnvironment(
+                data=data,
+                initial_balance=symbol_balance
+            )
+            
+            # Debug logging for action space verification
+            print(f"Environment action space for {symbol}:", environments[symbol].action_space)
+            
+            # Initialize agent with environment
             agents[symbol] = TradingAgent(environments[symbol])
             
             # Train agent

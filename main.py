@@ -8,12 +8,14 @@ from agent import TradingAgent
 from data_handler import DataHandler
 from visualization import TradingVisualizer
 
+import warnings
+
+warnings.filterwarnings("ignore", message=".*missing ScriptRunContext.*")
+
 # Page config
-st.set_page_config(
-    page_title="RL Trading Platform",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="RL Trading Platform",
+                   layout="wide",
+                   initial_sidebar_state="expanded")
 
 # Initialize session state
 if 'data_handler' not in st.session_state:
@@ -26,14 +28,16 @@ st.sidebar.title("Trading Parameters")
 
 # Symbol selection
 default_symbols = "AAPL,MSFT,GOOGL"
-symbols_input = st.sidebar.text_input("Stock Symbols (comma-separated)", value=default_symbols)
+symbols_input = st.sidebar.text_input("Stock Symbols (comma-separated)",
+                                      value=default_symbols)
 symbols = [s.strip() for s in symbols_input.split(",")]
 
 # Portfolio weights
 st.sidebar.subheader("Portfolio Weights")
 weights = {}
 for symbol in symbols:
-    weights[symbol] = st.sidebar.slider(f"{symbol} Weight (%)", 0, 100, 100 // len(symbols)) / 100
+    weights[symbol] = st.sidebar.slider(f"{symbol} Weight (%)", 0, 100,
+                                        100 // len(symbols)) / 100
 
 # Date range
 end_date = datetime.now()
@@ -43,7 +47,9 @@ end_date = st.sidebar.date_input("End Date", value=end_date)
 
 # Training parameters
 initial_balance = st.sidebar.number_input("Initial Balance ($)", value=100000)
-training_steps = st.sidebar.number_input("Training Steps", value=10000, step=1000)
+training_steps = st.sidebar.number_input("Training Steps",
+                                         value=10000,
+                                         step=1000)
 
 # Main content
 st.title("Reinforcement Learning Trading Platform")
@@ -51,66 +57,73 @@ st.title("Reinforcement Learning Trading Platform")
 # Data loading
 if st.sidebar.button("Fetch Data & Train"):
     with st.spinner("Fetching data..."):
-        portfolio_data = st.session_state.data_handler.fetch_data(symbols, start_date, end_date)
+        portfolio_data = st.session_state.data_handler.fetch_data(
+            symbols, start_date, end_date)
         portfolio_data = st.session_state.data_handler.prepare_data()
-        
+
         # Create environments and agents for each stock
         environments = {}
         agents = {}
         all_trades = {}
-        
+
         for symbol, data in portfolio_data.items():
             # Allocate initial balance based on weights
             symbol_balance = initial_balance * weights[symbol]
             environments[symbol] = TradingEnvironment(data, symbol_balance)
-            agents[symbol] = TradingAgent(environments[symbol])
-            
+            agents[symbol] = TradingAgent(environments[symbol], model_name=f"trading_model_{symbol}")
+
             # Train agent
             with st.spinner(f"Training agent for {symbol}..."):
                 agents[symbol].train(training_steps)
-                
+
             # Run evaluation episode
             obs = environments[symbol].reset()
             done = False
             trades = []
-            
+
             while not done:
                 action = agents[symbol].predict(obs)
                 obs, reward, done, _ = environments[symbol].step(action)
-                
+
                 if abs(action[0]) > 0.1:  # Record significant trades
                     trades.append({
-                        'timestamp': data.index[environments[symbol].current_step],
-                        'action': action[0],
-                        'price': data.iloc[environments[symbol].current_step]['Close']
+                        'timestamp':
+                        data.index[environments[symbol].current_step],
+                        'action':
+                        action[0],
+                        'price':
+                        data.iloc[environments[symbol].current_step]['Close']
                     })
-            
+
             all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
-        
+
         # Visualize results
-        figs = st.session_state.visualizer.create_charts(portfolio_data, all_trades)
-        
+        figs = st.session_state.visualizer.create_charts(
+            portfolio_data, all_trades)
+
         # Display charts
         for symbol, fig in figs.items():
             st.subheader(f"{symbol} Analysis")
             st.plotly_chart(fig, use_container_width=True)
-            
+
             # Display performance metrics
             col1, col2, col3 = st.columns(3)
-            
+
             final_balance = environments[symbol].net_worth
             symbol_initial_balance = initial_balance * weights[symbol]
-            returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
-            
+            returns = (final_balance -
+                       symbol_initial_balance) / symbol_initial_balance * 100
+
             col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
             col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
             col3.metric(f"{symbol} Number of Trades", len(all_trades[symbol]))
-            
+
         # Display portfolio summary
         st.subheader("Portfolio Summary")
         total_value = sum(env.net_worth for env in environments.values())
-        portfolio_return = (total_value - initial_balance) / initial_balance * 100
-        
+        portfolio_return = (total_value -
+                            initial_balance) / initial_balance * 100
+
         col1, col2 = st.columns(2)
         col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
         col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")

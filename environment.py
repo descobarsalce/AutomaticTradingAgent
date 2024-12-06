@@ -1,6 +1,6 @@
-import gym
+import gymnasium as gym
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 import pandas as pd
 
 class TradingEnvironment(gym.Env):
@@ -101,6 +101,4 @@ class TradingEnvironment(gym.Env):
         
     def step(self, action):
         """Execute one step in the environment using continuous action value."""
-        obs, reward, terminated, truncated, info = self._step_impl(action)
-        done = terminated or truncated  # Combine flags for gym compatibility
-        return obs, reward, done, info
+        return self._step_impl(action)  # Already returns the correct Gymnasium format

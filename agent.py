@@ -25,21 +25,36 @@ if not logger.handlers:
     logger.addHandler(ch)
 
 class TradingAgent:
-    # Default PPO parameters
+    # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
-        'learning_rate': 3e-4,
-        'n_steps': 2048,
-        'batch_size': 64,
-        'n_epochs': 10,
-        'gamma': 0.99,
-        'gae_lambda': 0.95,
-        'clip_range': 0.2,
-        'ent_coef': 0.01,
-        'vf_coef': 0.5,
-        'max_grad_norm': 0.5,
-        'use_sde': False,
-        'sde_sample_freq': -1,
-        'target_kl': None
+        'learning_rate': 1e-4,  # Lower learning rate for more stable training
+        'n_steps': 1024,  # Shorter trajectory for more frequent updates
+        'batch_size': 128,  # Larger batch size for better gradient estimates
+        'n_epochs': 5,    # Reduced epochs to prevent overfitting
+        'gamma': 0.99,    # High discount factor for long-term rewards
+        'gae_lambda': 0.98,  # Higher lambda for better advantage estimation
+        'clip_range': 0.1,   # Smaller clip range for more conservative updates
+        'ent_coef': 0.005,   # Lower entropy coefficient for more focused exploitation
+        'vf_coef': 0.8,      # Higher value function coefficient for better value estimation
+        'max_grad_norm': 0.3, # Lower grad norm for more stable updates
+        'use_sde': True,     # Enable state-dependent exploration
+        'sde_sample_freq': 4, # Sample frequency for SDE
+        'target_kl': 0.015   # Conservative KL divergence target
+    }
+
+    # Parameter ranges for optimization
+    PARAM_RANGES = {
+        'learning_rate': (5e-5, 5e-4),
+        'n_steps': (512, 2048),
+        'batch_size': (64, 256),
+        'n_epochs': (3, 10),
+        'gamma': (0.95, 0.999),
+        'gae_lambda': (0.9, 0.99),
+        'clip_range': (0.1, 0.3),
+        'ent_coef': (0.001, 0.02),
+        'vf_coef': (0.4, 0.9),
+        'max_grad_norm': (0.3, 0.8),
+        'target_kl': (0.01, 0.03)
     }
 
     # Default policy network parameters
@@ -55,7 +70,8 @@ class TradingAgent:
         policy_type: str = "MlpPolicy",
         policy_kwargs: Optional[Dict[str, Any]] = None,
         tensorboard_log: str = "./tensorboard_logs/",
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        optimize_for_sharpe: bool = True
     ) -> None:
         """
         Initialize the trading agent with advanced configuration and state tracking.
@@ -93,13 +109,27 @@ class TradingAgent:
             'win_rate': 0.0
         }
 
-        # Set up default PPO parameters if none provided
+        # Set up and validate PPO parameters
         if ppo_params is None:
             ppo_params = self.DEFAULT_PPO_PARAMS.copy()
+        else:
+            # Validate parameter ranges
+            for param, value in ppo_params.items():
+                if param in self.PARAM_RANGES:
+                    min_val, max_val = self.PARAM_RANGES[param]
+                    if not (min_val <= value <= max_val):
+                        logger.warning(f"Parameter {param} value {value} outside recommended range [{min_val}, {max_val}]")
+                        ppo_params[param] = max(min_val, min(value, max_val))
             
         # Set up default policy network parameters if none provided
         if policy_kwargs is None:
-            policy_kwargs = self.DEFAULT_POLICY_KWARGS.copy()
+            if optimize_for_sharpe:
+                # Deeper network for better feature extraction
+                policy_kwargs = {
+                    'net_arch': [dict(pi=[128, 128, 64], vf=[128, 128, 64])]
+                }
+            else:
+                policy_kwargs = self.DEFAULT_POLICY_KWARGS.copy()
             
         try:
             # Initialize PPO model with advanced configuration

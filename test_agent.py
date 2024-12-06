@@ -146,7 +146,8 @@ def run_tests():
     
     # Test 4: Metrics calculation
     print("\nTest 4: Testing metrics calculation...")
-    agent.calculate_metrics()
+    # Get metrics using the correct method
+    metrics = agent.get_metrics()
     
     print("\nEvaluation metrics:")
     print(f"Sharpe Ratio: {agent.evaluation_metrics['sharpe_ratio']:.4f}")

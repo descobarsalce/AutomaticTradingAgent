@@ -78,14 +78,13 @@ if st.sidebar.button("Fetch Data & Train"):
                 agents[symbol].train(training_steps)
                 
             # Run evaluation episode
-            obs = environments[symbol].reset()
+            obs, info = environments[symbol].reset()
             done = False
             trades = []
             
             while not done:
                 action = agents[symbol].predict(obs)
-                obs, reward, terminated, truncated, info = environments[symbol].step(action)
-                done = terminated or truncated
+                obs, reward, done, info = environments[symbol].step(action)
                 
                 if abs(action[0]) > 0.1:  # Record significant trades
                     trades.append({

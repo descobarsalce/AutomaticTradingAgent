@@ -57,6 +57,13 @@ end_date = st.sidebar.date_input("End Date", value=end_date)
 initial_balance = st.sidebar.number_input("Initial Balance ($)", value=100000)
 training_steps = st.sidebar.number_input("Training Steps", value=10000, step=1000)
 
+# Hyperparameter optimization settings
+st.sidebar.subheader("Hyperparameter Optimization")
+enable_optimization = st.sidebar.checkbox("Enable Grid Search", value=False)
+if enable_optimization:
+    n_eval_episodes = st.sidebar.number_input("Evaluation Episodes per Combination", value=3, min_value=1, max_value=10)
+    optimization_steps = st.sidebar.number_input("Steps per Combination", value=5000, step=1000)
+
 # Main content
 st.title("Reinforcement Learning Trading Platform")
 
@@ -129,10 +136,13 @@ train_model = st.sidebar.button(
     disabled=st.session_state.portfolio_data is None
 )
 
+from hyperparameter_optimizer import HyperparameterOptimizer
+
 if train_model:
     st.session_state.environments = {}
     st.session_state.trained_agents = {}
     st.session_state.all_trades = {}
+    st.session_state.optimization_results = {}
     
     progress_placeholder = st.empty()
     progress_bar = st.progress(0)
@@ -149,8 +159,29 @@ if train_model:
             initial_balance=symbol_balance
         )
         
-        # Initialize agent with environment
-        st.session_state.trained_agents[symbol] = TradingAgent(st.session_state.environments[symbol])
+        if enable_optimization:
+            # Initialize hyperparameter optimizer
+            optimizer = HyperparameterOptimizer(st.session_state.environments[symbol])
+            
+            with st.spinner(f"Optimizing hyperparameters for {symbol}..."):
+                try:
+                    best_params, results = optimizer.optimize(
+                        total_timesteps=optimization_steps,
+                        n_eval_episodes=n_eval_episodes
+                    )
+                    st.session_state.optimization_results[symbol] = optimizer.get_optimization_summary()
+                    
+                    # Initialize agent with best parameters
+                    st.session_state.trained_agents[symbol] = TradingAgent(
+                        st.session_state.environments[symbol],
+                        ppo_params=best_params
+                    )
+                except Exception as e:
+                    st.error(f"Error during hyperparameter optimization for {symbol}: {str(e)}")
+                    continue
+        else:
+            # Initialize agent with default parameters
+            st.session_state.trained_agents[symbol] = TradingAgent(st.session_state.environments[symbol])
         
         # Train agent with progress tracking
         training_progress = st.progress(0)
@@ -241,6 +272,17 @@ if st.session_state.training_completed:
     for symbol, fig in figs.items():
         st.subheader(f"{symbol} Analysis")
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Display optimization results if available
+        if enable_optimization and symbol in st.session_state.optimization_results:
+            st.subheader(f"{symbol} Hyperparameter Optimization Results")
+            opt_results = st.session_state.optimization_results[symbol]
+            
+            st.write("Best Parameters Found:")
+            st.json(opt_results["best_params"])
+            
+            st.write("Top 5 Parameter Combinations:")
+            st.dataframe(pd.DataFrame(opt_results["top_5_results"]))
         
         # Display performance metrics
         col1, col2, col3 = st.columns(3)

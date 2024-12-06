@@ -20,6 +20,16 @@ if 'data_handler' not in st.session_state:
     st.session_state.data_handler = DataHandler()
 if 'visualizer' not in st.session_state:
     st.session_state.visualizer = TradingVisualizer()
+if 'portfolio_data' not in st.session_state:
+    st.session_state.portfolio_data = None
+if 'trained_agents' not in st.session_state:
+    st.session_state.trained_agents = {}
+if 'environments' not in st.session_state:
+    st.session_state.environments = {}
+if 'all_trades' not in st.session_state:
+    st.session_state.all_trades = {}
+if 'training_completed' not in st.session_state:
+    st.session_state.training_completed = False
 
 # Sidebar
 st.sidebar.title("Trading Parameters")
@@ -48,115 +58,176 @@ training_steps = st.sidebar.number_input("Training Steps", value=10000, step=100
 # Main content
 st.title("Reinforcement Learning Trading Platform")
 
-# Data loading
-if st.sidebar.button("Fetch Data & Train"):
-    with st.spinner("Fetching data..."):
-        portfolio_data = st.session_state.data_handler.fetch_data(symbols, start_date, end_date)
-        portfolio_data = st.session_state.data_handler.prepare_data()
+# Step 1: Data Fetching
+fetch_data = st.sidebar.button("1. Fetch Market Data")
+if fetch_data:
+    with st.spinner("Fetching and preparing market data..."):
+        try:
+            st.session_state.portfolio_data = st.session_state.data_handler.fetch_data(symbols, start_date, end_date)
+            st.session_state.portfolio_data = st.session_state.data_handler.prepare_data()
+            st.success("✅ Market data fetched and prepared successfully!")
+        except Exception as e:
+            st.error(f"Error fetching data: {str(e)}")
+            st.session_state.portfolio_data = None
+
+# Show data preview if available
+if st.session_state.portfolio_data is not None:
+    st.subheader("Market Data Preview")
+    for symbol, data in st.session_state.portfolio_data.items():
+        with st.expander(f"{symbol} Data Preview"):
+            st.dataframe(data.head())
+            st.text(f"Total records: {len(data)}")
+
+# Step 2: Training
+train_model = st.sidebar.button(
+    "2. Train Model",
+    disabled=st.session_state.portfolio_data is None
+)
+
+if train_model:
+    st.session_state.environments = {}
+    st.session_state.trained_agents = {}
+    st.session_state.all_trades = {}
+    
+    progress_placeholder = st.empty()
+    progress_bar = st.progress(0)
+    
+    for idx, (symbol, data) in enumerate(st.session_state.portfolio_data.items()):
+        progress = idx / len(st.session_state.portfolio_data)
+        progress_placeholder.text(f"Processing {symbol}...")
+        progress_bar.progress(progress)
         
-        # Create environments and agents for each stock
-        environments = {}
-        agents = {}
-        all_trades = {}
+        # Allocate initial balance based on weights
+        symbol_balance = initial_balance * weights[symbol]
+        st.session_state.environments[symbol] = TradingEnvironment(
+            data=data,
+            initial_balance=symbol_balance
+        )
         
-        for symbol, data in portfolio_data.items():
-            # Allocate initial balance based on weights
-            symbol_balance = initial_balance * weights[symbol]
-            environments[symbol] = TradingEnvironment(
-                data=data,
-                initial_balance=symbol_balance
+        # Initialize agent with environment
+        st.session_state.trained_agents[symbol] = TradingAgent(st.session_state.environments[symbol])
+        
+        # Train agent with progress tracking
+        training_progress = st.progress(0)
+        training_status = st.empty()
+        
+        def training_callback(step, total_steps):
+            progress = min(step / total_steps, 1.0)
+            training_progress.progress(progress)
+            training_status.text(f"Training {symbol}: {step}/{total_steps} steps")
+        
+        with st.spinner(f"Training agent for {symbol}..."):
+            st.session_state.trained_agents[symbol].train(
+                training_steps,
+                callback=training_callback
             )
             
-            # Debug logging for action space verification
-            print(f"Environment action space for {symbol}:", environments[symbol].action_space)
+        # Run evaluation episode
+        obs, info = st.session_state.environments[symbol].reset()
+        done = False
+        trades = []
+        
+        eval_progress = st.progress(0)
+        eval_status = st.empty()
+        
+        while not done:
+            action = st.session_state.trained_agents[symbol].predict(obs)
+            obs, reward, terminated, truncated, info = st.session_state.environments[symbol].step(action)
+            done = terminated or truncated
             
-            # Initialize agent with environment
-            agents[symbol] = TradingAgent(environments[symbol])
+            # Update evaluation progress
+            progress = st.session_state.environments[symbol].current_step / len(data)
+            eval_progress.progress(progress)
+            eval_status.text(f"Evaluating {symbol}: Step {st.session_state.environments[symbol].current_step}")
             
-            # Train agent
-            with st.spinner(f"Training agent for {symbol}..."):
-                agents[symbol].train(training_steps)
-                
-            # Run evaluation episode
-            obs, info = environments[symbol].reset()
-            done = False
-            trades = []
-            
-            while not done:
-                action = agents[symbol].predict(obs)
-                obs, reward, terminated, truncated, info = environments[symbol].step(action)
-                done = terminated or truncated
-                
-                if abs(action[0]) > 0.1:  # Record significant trades
-                    try:
-                        trade_data = {
-                            'timestamp': data.index[environments[symbol].current_step],
-                            'action': action[0],
-                            'price': data.iloc[environments[symbol].current_step]['Close']
-                        }
-                        # Validate timestamp exists and is valid
-                        if trade_data['timestamp'] is not None:
-                            trades.append(trade_data)
-                        else:
-                            st.warning(f"Invalid timestamp for trade at step {environments[symbol].current_step}")
-                    except IndexError as e:
-                        st.error(f"Error recording trade: Index out of bounds at step {environments[symbol].current_step}")
-                        continue
-                    except Exception as e:
-                        st.error(f"Unexpected error recording trade: {str(e)}")
-                        continue
-                
-                # Update agent's state tracking
-                agents[symbol].update_state(
-                    portfolio_value=info['net_worth'],
-                    positions={symbol: info['shares_held']}
-                )
-            
-            try:
-                if trades:  # Verify trades list is not empty
-                    # Verify all trades have timestamp field
-                    if all('timestamp' in trade for trade in trades):
-                        all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
+            if abs(action[0]) > 0.1:  # Record significant trades
+                try:
+                    trade_data = {
+                        'timestamp': data.index[st.session_state.environments[symbol].current_step],
+                        'action': action[0],
+                        'price': data.iloc[st.session_state.environments[symbol].current_step]['Close']
+                    }
+                    # Validate timestamp exists and is valid
+                    if trade_data['timestamp'] is not None:
+                        trades.append(trade_data)
                     else:
-                        # Fallback: Create DataFrame without index if timestamps are missing
-                        st.warning(f"Missing timestamps in trades for {symbol}. Using default index.")
-                        all_trades[symbol] = pd.DataFrame(trades)
+                        st.warning(f"Invalid timestamp for trade at step {st.session_state.environments[symbol].current_step}")
+                except IndexError as e:
+                    st.error(f"Error recording trade: Index out of bounds at step {st.session_state.environments[symbol].current_step}")
+                    continue
+                except Exception as e:
+                    st.error(f"Unexpected error recording trade: {str(e)}")
+                    continue
+            
+            # Update agent's state tracking
+            st.session_state.trained_agents[symbol].update_state(
+                portfolio_value=info['net_worth'],
+                positions={symbol: info['shares_held']}
+            )
+        
+        try:
+            if trades:  # Verify trades list is not empty
+                # Verify all trades have timestamp field
+                if all('timestamp' in trade for trade in trades):
+                    st.session_state.all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
                 else:
-                    # Handle case where no trades were made
-                    st.info(f"No significant trades recorded for {symbol}")
-                    all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
-            except Exception as e:
-                st.error(f"Error creating trades DataFrame for {symbol}: {str(e)}")
-                all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
+                    # Fallback: Create DataFrame without index if timestamps are missing
+                    st.warning(f"Missing timestamps in trades for {symbol}. Using default index.")
+                    st.session_state.all_trades[symbol] = pd.DataFrame(trades)
+            else:
+                # Handle case where no trades were made
+                st.info(f"No significant trades recorded for {symbol}")
+                st.session_state.all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
+        except Exception as e:
+            st.error(f"Error creating trades DataFrame for {symbol}: {str(e)}")
+            st.session_state.all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
         
-        # Visualize results
-        figs = st.session_state.visualizer.create_charts(portfolio_data, all_trades)
+    st.session_state.training_completed = True
+
+# Step 3: View Results
+if st.session_state.training_completed:
+    st.sidebar.success("✅ Training completed! View results below.")
+    
+    # Visualize results
+    figs = st.session_state.visualizer.create_charts(
+        st.session_state.portfolio_data, 
+        st.session_state.all_trades
+    )
+    
+    # Display charts
+    for symbol, fig in figs.items():
+        st.subheader(f"{symbol} Analysis")
+        st.plotly_chart(fig, use_container_width=True)
         
-        # Display charts
-        for symbol, fig in figs.items():
-            st.subheader(f"{symbol} Analysis")
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Display performance metrics
-            col1, col2, col3 = st.columns(3)
-            
-            final_balance = environments[symbol].net_worth
-            symbol_initial_balance = initial_balance * weights[symbol]
-            returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
-            
-            col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
-            col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
-            col3.metric(f"{symbol} Number of Trades", len(all_trades[symbol]))
-            
-        # Display portfolio summary
-        st.subheader("Portfolio Summary")
-        total_value = sum(env.net_worth for env in environments.values())
-        portfolio_return = (total_value - initial_balance) / initial_balance * 100
+        # Display performance metrics
+        col1, col2, col3 = st.columns(3)
         
-        col1, col2 = st.columns(2)
-        col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
-        col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")
+        final_balance = st.session_state.environments[symbol].net_worth
+        symbol_initial_balance = initial_balance * weights[symbol]
+        returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
+        
+        col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
+        col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
+        col3.metric(f"{symbol} Number of Trades", len(st.session_state.all_trades[symbol]))
+        
+    # Display portfolio summary
+    st.subheader("Portfolio Summary")
+    total_value = sum(env.net_worth for env in st.session_state.environments.values())
+    portfolio_return = (total_value - initial_balance) / initial_balance * 100
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
+    col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")
+    
+    # Add reset button
+    if st.sidebar.button("Reset Session"):
+        st.session_state.portfolio_data = None
+        st.session_state.trained_agents = {}
+        st.session_state.environments = {}
+        st.session_state.all_trades = {}
+        st.session_state.training_completed = False
+        st.experimental_rerun()
 
 # Instructions
-if 'data' not in locals():
-    st.info("Enter a stock symbol and click 'Fetch Data & Train' to begin.")
+if st.session_state.portfolio_data is None:
+    st.info("Select symbols and click '1. Fetch Market Data' to begin.")

@@ -27,19 +27,19 @@ if not logger.handlers:
 class TradingAgent:
     # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
-        'learning_rate': 1e-4,  # Lower learning rate for more stable training
-        'n_steps': 1024,  # Shorter trajectory for more frequent updates
-        'batch_size': 128,  # Larger batch size for better gradient estimates
-        'n_epochs': 5,    # Reduced epochs to prevent overfitting
-        'gamma': 0.99,    # High discount factor for long-term rewards
-        'gae_lambda': 0.98,  # Higher lambda for better advantage estimation
-        'clip_range': 0.1,   # Smaller clip range for more conservative updates
-        'ent_coef': 0.005,   # Lower entropy coefficient for more focused exploitation
-        'vf_coef': 0.8,      # Higher value function coefficient for better value estimation
-        'max_grad_norm': 0.3, # Lower grad norm for more stable updates
-        'use_sde': True,     # Enable state-dependent exploration
-        'sde_sample_freq': 4, # Sample frequency for SDE
-        'target_kl': 0.015   # Conservative KL divergence target
+        'learning_rate': 2e-4,  # Adjusted for more gradual learning
+        'n_steps': 1024,  # Maintain trajectory length
+        'batch_size': 256,  # Increased for better gradient estimates
+        'n_epochs': 5,    # Maintain epochs setting
+        'gamma': 0.99,    # Keep high discount factor
+        'gae_lambda': 0.98,  # Keep high lambda for good advantage estimation
+        'clip_range': 0.1,   # Maintain conservative updates
+        'ent_coef': 0.01,    # Increased to encourage better exploration
+        'vf_coef': 0.8,      # Keep high value coefficient
+        'max_grad_norm': 0.3, # Maintain stable updates
+        'use_sde': True,     # Keep state-dependent exploration
+        'sde_sample_freq': 4, # Maintain sample frequency
+        'target_kl': 0.015   # Keep conservative KL target
     }
 
     # Parameter ranges for optimization
@@ -124,9 +124,9 @@ class TradingAgent:
         # Set up default policy network parameters if none provided
         if policy_kwargs is None:
             if optimize_for_sharpe:
-                # Deeper network for better feature extraction
+                # Deeper network with three equal-sized layers
                 policy_kwargs = {
-                    'net_arch': [dict(pi=[128, 128, 64], vf=[128, 128, 64])]
+                    'net_arch': [dict(pi=[128, 128, 128], vf=[128, 128, 128])]
                 }
             else:
                 policy_kwargs = self.DEFAULT_POLICY_KWARGS.copy()

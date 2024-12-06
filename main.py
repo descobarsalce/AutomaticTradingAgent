@@ -88,11 +88,23 @@ if st.sidebar.button("Fetch Data & Train"):
                 done = terminated or truncated
                 
                 if abs(action[0]) > 0.1:  # Record significant trades
-                    trades.append({
-                        'timestamp': data.index[environments[symbol].current_step],
-                        'action': action[0],
-                        'price': data.iloc[environments[symbol].current_step]['Close']
-                    })
+                    try:
+                        trade_data = {
+                            'timestamp': data.index[environments[symbol].current_step],
+                            'action': action[0],
+                            'price': data.iloc[environments[symbol].current_step]['Close']
+                        }
+                        # Validate timestamp exists and is valid
+                        if trade_data['timestamp'] is not None:
+                            trades.append(trade_data)
+                        else:
+                            st.warning(f"Invalid timestamp for trade at step {environments[symbol].current_step}")
+                    except IndexError as e:
+                        st.error(f"Error recording trade: Index out of bounds at step {environments[symbol].current_step}")
+                        continue
+                    except Exception as e:
+                        st.error(f"Unexpected error recording trade: {str(e)}")
+                        continue
                 
                 # Update agent's state tracking
                 agents[symbol].update_state(
@@ -100,7 +112,22 @@ if st.sidebar.button("Fetch Data & Train"):
                     positions={symbol: info['shares_held']}
                 )
             
-            all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
+            try:
+                if trades:  # Verify trades list is not empty
+                    # Verify all trades have timestamp field
+                    if all('timestamp' in trade for trade in trades):
+                        all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
+                    else:
+                        # Fallback: Create DataFrame without index if timestamps are missing
+                        st.warning(f"Missing timestamps in trades for {symbol}. Using default index.")
+                        all_trades[symbol] = pd.DataFrame(trades)
+                else:
+                    # Handle case where no trades were made
+                    st.info(f"No significant trades recorded for {symbol}")
+                    all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
+            except Exception as e:
+                st.error(f"Error creating trades DataFrame for {symbol}: {str(e)}")
+                all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
         
         # Visualize results
         figs = st.session_state.visualizer.create_charts(portfolio_data, all_trades)

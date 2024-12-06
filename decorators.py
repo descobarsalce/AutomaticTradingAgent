@@ -100,7 +100,14 @@ def type_check(func: Callable) -> Callable:
                 return result
                 
             return_type = hints['return']
-            if not check_type(result, return_type):
+            # Special handling for None return type
+            if return_type is type(None):
+                if result is not None:
+                    raise TypeError(
+                        f"Function should return None, "
+                        f"got {type(result).__name__} instead"
+                    )
+            elif not check_type(result, return_type):
                 if hasattr(return_type, "__origin__"):
                     type_str = str(return_type)
                 else:

@@ -208,31 +208,149 @@ class TradingAgent:
         self.positions_history.append(positions)
         self._update_metrics()
         
-    def _update_metrics(self):
-        """Update evaluation metrics based on current state"""
-        if len(self.portfolio_history) > 1:
-            # Calculate returns
-            returns = np.diff(self.portfolio_history) / self.portfolio_history[:-1]
-            self.evaluation_metrics['returns'] = returns.tolist()
+    def _calculate_returns(self) -> np.ndarray:
+        """
+        Calculate returns from portfolio history with improved error handling
+        and validation.
+        
+        Returns:
+            numpy.ndarray: Array of returns or empty array if calculation fails
+        """
+        if len(self.portfolio_history) <= 1:
+            print("Insufficient data points for returns calculation")
+            return np.array([])
             
-            # Calculate Sharpe ratio (assuming daily returns)
-            if len(returns) > 1:
-                avg_return = np.mean(returns)
-                std_return = np.std(returns)
-                self.evaluation_metrics['sharpe_ratio'] = (avg_return / std_return) * np.sqrt(252) if std_return > 0 else 0
+        try:
+            # Validate portfolio values
+            portfolio_array = np.array(self.portfolio_history)
+            if not np.all(np.isfinite(portfolio_array)):
+                print("Warning: Non-finite values found in portfolio history")
+                portfolio_array = portfolio_array[np.isfinite(portfolio_array)]
             
-            # Calculate maximum drawdown
+            if len(portfolio_array) <= 1:
+                return np.array([])
+                
+            # Calculate returns with validation
+            denominator = portfolio_array[:-1]
+            if np.any(denominator == 0):
+                print("Warning: Zero values found in portfolio history")
+                return np.array([])
+                
+            returns = np.diff(portfolio_array) / denominator
+            
+            # Filter out extreme values
+            returns = returns[np.isfinite(returns)]
+            if len(returns) > 0:
+                # Remove extreme outliers (beyond 5 standard deviations)
+                mean, std = np.mean(returns), np.std(returns)
+                returns = returns[np.abs(returns - mean) <= 5 * std]
+                
+            return returns
+            
+        except Exception as e:
+            print(f"Error calculating returns: {str(e)}")
+            return np.array([])
+
+    def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
+        """
+        Calculate Sharpe ratio from returns with improved error handling
+        and validation.
+        
+        Args:
+            returns: numpy.ndarray of return values
+            
+        Returns:
+            float: Annualized Sharpe ratio or 0.0 if calculation fails
+        """
+        if not isinstance(returns, np.ndarray):
+            print("Invalid input type for returns calculation")
+            return 0.0
+            
+        if len(returns) <= 252:  # Minimum one year of data for meaningful Sharpe ratio
+            print(f"Insufficient data points for reliable Sharpe ratio: {len(returns)}")
+            return 0.0
+            
+        try:
+            # Remove any remaining non-finite values
+            valid_returns = returns[np.isfinite(returns)]
+            if len(valid_returns) <= 1:
+                return 0.0
+                
+            # Calculate with improved precision
+            avg_return = np.mean(valid_returns)
+            std_return = np.std(valid_returns, ddof=1)  # Use unbiased estimator
+            
+            # Check for numerical stability
+            if not np.isfinite(avg_return) or not np.isfinite(std_return):
+                print("Non-finite values in Sharpe ratio calculation")
+                return 0.0
+                
+            # Calculate annualized Sharpe ratio with validation
+            if std_return > 1e-8:  # Avoid division by very small numbers
+                annualization_factor = np.sqrt(252)  # Assuming daily returns
+                sharpe = (avg_return / std_return) * annualization_factor
+                return float(np.clip(sharpe, -100, 100))  # Limit extreme values
+            else:
+                print("Standard deviation too small for reliable Sharpe ratio")
+                return 0.0
+                
+        except Exception as e:
+            print(f"Error calculating Sharpe ratio: {str(e)}")
+            return 0.0
+
+    def _calculate_maximum_drawdown(self) -> float:
+        """Calculate maximum drawdown from portfolio history"""
+        if len(self.portfolio_history) <= 1:
+            return 0.0
+        try:
             peak = self.portfolio_history[0]
-            max_dd = 0
+            max_dd = 0.0
             for value in self.portfolio_history[1:]:
+                if not isinstance(value, (int, float)) or value < 0:
+                    continue
                 if value > peak:
                     peak = value
-                dd = (peak - value) / peak
+                dd = (peak - value) / peak if peak > 0 else 0
                 max_dd = max(max_dd, dd)
-            self.evaluation_metrics['max_drawdown'] = max_dd
+            return max_dd
+        except Exception as e:
+            print(f"Error calculating maximum drawdown: {str(e)}")
+            return 0.0
+
+    def _update_metrics(self) -> None:
+        """Update evaluation metrics based on current state with improved error handling"""
+        try:
+            # Calculate and validate returns
+            returns = self._calculate_returns()
+            if len(returns) > 0:
+                self.evaluation_metrics['returns'] = returns.tolist()
             
-            # Update trade statistics
-            self.evaluation_metrics['total_trades'] = len(self.positions_history)
+            # Calculate Sharpe ratio
+            self.evaluation_metrics['sharpe_ratio'] = self._calculate_sharpe_ratio(returns)
+            
+            # Calculate maximum drawdown
+            self.evaluation_metrics['max_drawdown'] = self._calculate_maximum_drawdown()
+            
+            # Update trade statistics with validation
+            valid_positions = [p for p in self.positions_history if isinstance(p, dict)]
+            self.evaluation_metrics['total_trades'] = len(valid_positions)
+            
+            # Calculate win rate if there are any trades
+            if valid_positions:
+                profitable_trades = sum(1 for i in range(1, len(valid_positions))
+                                     if sum(valid_positions[i].values()) > sum(valid_positions[i-1].values()))
+                self.evaluation_metrics['win_rate'] = profitable_trades / len(valid_positions)
+                
+        except Exception as e:
+            print(f"Error updating metrics: {str(e)}")
+            # Ensure metrics maintain valid values even on error
+            self.evaluation_metrics.update({
+                'returns': [],
+                'sharpe_ratio': 0.0,
+                'max_drawdown': 0.0,
+                'total_trades': 0,
+                'win_rate': 0.0
+            })
             
     @type_check
     def get_metrics(self) -> Dict[str, Union[float, List[float], int]]:

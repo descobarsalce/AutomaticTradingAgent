@@ -85,6 +85,8 @@ class TradingAgent:
         self.evaluation_metrics = {
             'returns': [],
             'sharpe_ratio': 0.0,
+            'sortino_ratio': 0.0,
+            'information_ratio': 0.0,
             'max_drawdown': 0.0,
             'total_trades': 0,
             'win_rate': 0.0
@@ -265,6 +267,125 @@ class TradingAgent:
             return np.array([])
 
     def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
+    def _calculate_sortino_ratio(self, returns: np.ndarray) -> float:
+        """
+        Calculate Sortino ratio from returns with error handling and validation.
+        Similar to Sharpe ratio but only penalizes downside volatility.
+        
+        Args:
+            returns: numpy.ndarray of return values
+            
+        Returns:
+            float: Annualized Sortino ratio or 0.0 if calculation fails
+        """
+        if not isinstance(returns, np.ndarray):
+            logger.warning("Invalid input type for Sortino ratio calculation")
+            return 0.0
+            
+        if len(returns) <= 252:  # Minimum one year of data for meaningful ratio
+            logger.debug(f"Insufficient data points for reliable Sortino ratio: {len(returns)}")
+            return 0.0
+            
+        try:
+            # Remove any non-finite values
+            valid_returns = returns[np.isfinite(returns)]
+            if len(valid_returns) <= 1:
+                logger.debug("Insufficient valid return values for Sortino ratio calculation")
+                return 0.0
+                
+            # Calculate average return
+            avg_return = np.mean(valid_returns)
+            
+            # Calculate downside deviation (only negative returns)
+            negative_returns = valid_returns[valid_returns < 0]
+            if len(negative_returns) == 0:
+                logger.debug("No negative returns found for Sortino ratio calculation")
+                return float('inf') if avg_return > 0 else 0.0
+                
+            downside_std = np.std(negative_returns, ddof=1)
+            
+            # Check for numerical stability
+            if not np.isfinite(avg_return) or not np.isfinite(downside_std):
+                logger.warning("Non-finite values in Sortino ratio calculation")
+                return 0.0
+                
+            # Calculate annualized Sortino ratio with validation
+            if downside_std > 1e-8:  # Avoid division by very small numbers
+                annualization_factor = np.sqrt(252)  # Assuming daily returns
+                sortino = (avg_return / downside_std) * annualization_factor
+                sortino_clipped = float(np.clip(sortino, -100, 100))  # Limit extreme values
+                logger.debug(f"Calculated Sortino ratio: {sortino_clipped}")
+                return sortino_clipped
+            else:
+                logger.warning("Downside deviation too small for reliable Sortino ratio")
+                return 0.0
+                
+        except Exception as e:
+            logger.exception("Error calculating Sortino ratio")
+            return 0.0
+
+    def _calculate_information_ratio(self, returns: np.ndarray, benchmark_returns: Optional[np.ndarray] = None) -> float:
+        """
+        Calculate Information ratio from returns with error handling and validation.
+        Measures risk-adjusted excess returns relative to a benchmark.
+        
+        Args:
+            returns: numpy.ndarray of return values
+            benchmark_returns: Optional numpy.ndarray of benchmark return values
+            
+        Returns:
+            float: Information ratio or 0.0 if calculation fails
+        """
+        if not isinstance(returns, np.ndarray):
+            logger.warning("Invalid input type for Information ratio calculation")
+            return 0.0
+            
+        if len(returns) <= 252:  # Minimum one year of data
+            logger.debug(f"Insufficient data points for reliable Information ratio: {len(returns)}")
+            return 0.0
+            
+        try:
+            # If no benchmark provided, use risk-free rate of 0
+            if benchmark_returns is None:
+                benchmark_returns = np.zeros_like(returns)
+            
+            # Ensure arrays are the same length
+            min_length = min(len(returns), len(benchmark_returns))
+            returns = returns[:min_length]
+            benchmark_returns = benchmark_returns[:min_length]
+            
+            # Calculate excess returns
+            excess_returns = returns - benchmark_returns
+            
+            # Remove any non-finite values
+            valid_returns = excess_returns[np.isfinite(excess_returns)]
+            if len(valid_returns) <= 1:
+                logger.debug("Insufficient valid return values for Information ratio calculation")
+                return 0.0
+                
+            # Calculate average excess return and tracking error
+            avg_excess_return = np.mean(valid_returns)
+            tracking_error = np.std(valid_returns, ddof=1)
+            
+            # Check for numerical stability
+            if not np.isfinite(avg_excess_return) or not np.isfinite(tracking_error):
+                logger.warning("Non-finite values in Information ratio calculation")
+                return 0.0
+                
+            # Calculate Information ratio with validation
+            if tracking_error > 1e-8:  # Avoid division by very small numbers
+                information_ratio = avg_excess_return / tracking_error
+                information_ratio_clipped = float(np.clip(information_ratio, -100, 100))
+                logger.debug(f"Calculated Information ratio: {information_ratio_clipped}")
+                return information_ratio_clipped
+            else:
+                logger.warning("Tracking error too small for reliable Information ratio")
+                return 0.0
+                
+        except Exception as e:
+            logger.exception("Error calculating Information ratio")
+            return 0.0
+
         """
         Calculate Sharpe ratio from returns with improved error handling
         and validation.
@@ -356,6 +477,12 @@ class TradingAgent:
             
             # Calculate Sharpe ratio
             self.evaluation_metrics['sharpe_ratio'] = self._calculate_sharpe_ratio(returns)
+            
+            # Calculate Sortino ratio
+            self.evaluation_metrics['sortino_ratio'] = self._calculate_sortino_ratio(returns)
+            
+            # Calculate Information ratio (using zero benchmark for now)
+            self.evaluation_metrics['information_ratio'] = self._calculate_information_ratio(returns)
             
             # Calculate maximum drawdown
             self.evaluation_metrics['max_drawdown'] = self._calculate_maximum_drawdown()

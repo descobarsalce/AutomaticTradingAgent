@@ -95,6 +95,10 @@ def type_check(func: Callable) -> Callable:
         
         # Check return value
         if 'return' in hints:
+            # Skip return type check for __init__ methods
+            if func.__name__ == '__init__':
+                return result
+                
             return_type = hints['return']
             if not check_type(result, return_type):
                 if hasattr(return_type, "__origin__"):

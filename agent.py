@@ -40,6 +40,17 @@ class TradingAgent:
             raise ValueError("seed must be a positive integer if provided")
         if not isinstance(tensorboard_log, str):
             raise TypeError("tensorboard_log must be a string")
+            
+        # Initialize instance variables
+        self.portfolio_history = []
+        self.positions_history = []
+        self.evaluation_metrics = {
+            'returns': [],
+            'sharpe_ratio': 0.0,
+            'max_drawdown': 0.0,
+            'total_trades': 0,
+            'win_rate': 0.0
+        }
         """
         Initialize the trading agent with advanced configuration and state tracking.
         
@@ -110,6 +121,7 @@ class TradingAgent:
                 seed=seed,
                 verbose=1
             )
+            return None  # Explicitly return None
             
         except Exception as e:
             print(f"Error initializing PPO model: {str(e)}")

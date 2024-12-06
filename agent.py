@@ -121,7 +121,6 @@ class TradingAgent:
                 seed=seed,
                 verbose=1
             )
-            return None  # Explicitly return None
             
         except Exception as e:
             print(f"Error initializing PPO model: {str(e)}")

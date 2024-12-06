@@ -30,6 +30,8 @@ if 'all_trades' not in st.session_state:
     st.session_state.all_trades = {}
 if 'training_completed' not in st.session_state:
     st.session_state.training_completed = False
+if 'data_validated' not in st.session_state:
+    st.session_state.data_validated = False
 
 # Sidebar
 st.sidebar.title("Trading Parameters")
@@ -78,9 +80,52 @@ if st.session_state.portfolio_data is not None:
             st.dataframe(data.head())
             st.text(f"Total records: {len(data)}")
 
-# Step 2: Training
+# Step 2: Data Validation
+if st.session_state.portfolio_data is not None:
+    st.subheader("Data Validation")
+    
+    for symbol, data in st.session_state.portfolio_data.items():
+        with st.expander(f"{symbol} Data Validation"):
+            # Calculate basic statistics
+            missing_values = data.isnull().sum()
+            data_completeness = (1 - missing_values / len(data)) * 100
+            
+            # Display data quality metrics
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Data Points", len(data))
+            col2.metric("Data Completeness", f"{data_completeness.mean():.2f}%")
+            
+            # Check for price anomalies
+            price_std = data['Close'].std()
+            price_mean = data['Close'].mean()
+            anomalies = data[abs(data['Close'] - price_mean) > 3 * price_std]
+            col3.metric("Price Anomalies", len(anomalies))
+            
+            # Display statistical summary
+            st.write("Statistical Summary:")
+            st.dataframe(data.describe())
+            
+            # Show missing values if any
+            if missing_values.sum() > 0:
+                st.warning("Missing Values Detected:")
+                st.write(missing_values[missing_values > 0])
+            
+            # Visualize price distribution
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.add_trace(go.Histogram(x=data['Close'], name='Price Distribution'))
+            fig.update_layout(title=f"{symbol} Price Distribution", xaxis_title="Price", yaxis_title="Frequency")
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Data quality warnings
+            if len(anomalies) > 0:
+                st.warning(f"Found {len(anomalies)} potential price anomalies")
+            if data_completeness.mean() < 95:
+                st.warning(f"Data completeness below 95% threshold")
+
+# Step 3: Training
 train_model = st.sidebar.button(
-    "2. Train Model",
+    "3. Train Model",
     disabled=st.session_state.portfolio_data is None
 )
 

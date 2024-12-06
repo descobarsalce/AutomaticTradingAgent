@@ -112,58 +112,102 @@ custom_params = {
     'target_kl': None
 }
 
-def run_tests():
-    print("Starting agent tests...")
-    
-    # Test 1: Initialize agent with custom parameters
-    print("\nTest 1: Initializing agent with custom parameters...")
-    agent = TradingAgent(env, ppo_params=custom_params)
-    print("Agent initialized successfully")
-    
-    # Test 2: Training
-    print("\nTest 2: Training agent...")
-    agent.train(total_timesteps=5000)  # Small number for testing
-    print("Training completed")
-    
-    # Test 3: State tracking
-    print("\nTest 3: Testing state tracking...")
-    initial_portfolio = 10000.0
-    positions = {'AAPL': 0.6, 'GOOGL': 0.4}
-    
-    agent.update_state(
-        portfolio_value=initial_portfolio,
-        positions=positions
-    )
-    
-    # Update state multiple times to generate history
-    for i in range(5):
-        new_portfolio = initial_portfolio * (1 + np.random.normal(0, 0.01))
-        agent.update_state(
-            portfolio_value=new_portfolio,
-            positions={'AAPL': 0.6 + np.random.normal(0, 0.01),
-                      'GOOGL': 0.4 + np.random.normal(0, 0.01)}
-        )
-    
-    # Test 4: Metrics calculation
-    print("\nTest 4: Testing metrics calculation...")
-    # Get metrics using the correct method
-    metrics = agent.get_metrics()
-    
-    print("\nEvaluation metrics:")
-    print(f"Sharpe Ratio: {agent.evaluation_metrics['sharpe_ratio']:.4f}")
-    print(f"Max Drawdown: {agent.evaluation_metrics['max_drawdown']:.4f}")
-    print(f"Number of returns tracked: {len(agent.evaluation_metrics['returns'])}")
-    
-    # Test 5: Save and load
-    print("\nTest 5: Testing save and load functionality...")
-    save_path = "test_agent_model"
-    agent.save(save_path)
-    
-    # Load the saved model
-    new_agent = TradingAgent(env)
-    new_agent.load(save_path)
-    
-    print("Tests completed successfully!")
+class TestTradingAgent(unittest.TestCase):
+    def setUp(self):
+        """Set up test environment before each test"""
+        self.env = SimpleTradingEnv()
+        self.custom_params = custom_params
 
-if __name__ == "__main__":
-    run_tests()
+    def test_initialization(self):
+        """Test agent initialization with valid parameters"""
+        agent = TradingAgent(self.env, ppo_params=self.custom_params)
+        self.assertIsNotNone(agent.model)
+        self.assertEqual(len(agent.portfolio_history), 0)
+        self.assertEqual(len(agent.positions_history), 0)
+
+    def test_initialization_invalid_env(self):
+        """Test agent initialization with invalid environment"""
+        with self.assertRaises(TypeError):
+            TradingAgent("not_an_env")
+
+    def test_initialization_invalid_seed(self):
+        """Test agent initialization with invalid seed"""
+        with self.assertRaises(ValueError):
+            TradingAgent(self.env, seed=-1)
+
+    def test_predict_invalid_observation(self):
+        """Test predict method with invalid observation"""
+        agent = TradingAgent(self.env)
+        with self.assertRaises(TypeError):
+            agent.predict([1, 2, 3, 4])  # Not a numpy array
+
+    def test_predict_wrong_shape(self):
+        """Test predict method with wrong observation shape"""
+        agent = TradingAgent(self.env)
+        wrong_shape = np.array([1, 2])
+        with self.assertRaises(ValueError):
+            agent.predict(wrong_shape)
+
+    def test_update_state_validation(self):
+        """Test update_state method input validation"""
+        agent = TradingAgent(self.env)
+        
+        # Test invalid portfolio value type
+        with self.assertRaises(TypeError):
+            agent.update_state("not_a_number", {})
+            
+        # Test negative portfolio value
+        with self.assertRaises(ValueError):
+            agent.update_state(-1000, {})
+            
+        # Test invalid positions type
+        with self.assertRaises(TypeError):
+            agent.update_state(1000, "not_a_dict")
+            
+        # Test invalid position values
+        with self.assertRaises(TypeError):
+            agent.update_state(1000, {'AAPL': 'not_a_number'})
+
+    def test_save_load_validation(self):
+        """Test save and load methods input validation"""
+        agent = TradingAgent(self.env)
+        
+        # Test invalid path type
+        with self.assertRaises(TypeError):
+            agent.save(123)
+            
+        # Test empty path
+        with self.assertRaises(ValueError):
+            agent.save("")
+            
+        # Test invalid path type for load
+        with self.assertRaises(TypeError):
+            agent.load(123)
+            
+        # Test empty path for load
+        with self.assertRaises(ValueError):
+            agent.load("")
+
+    def test_valid_workflow(self):
+        """Test a valid workflow with proper inputs"""
+        agent = TradingAgent(self.env)
+        
+        # Test valid predict
+        obs = np.zeros(4, dtype=np.float32)
+        action = agent.predict(obs)
+        self.assertIsInstance(action, np.ndarray)
+        
+        # Test valid update_state
+        agent.update_state(10000.0, {'AAPL': 0.6, 'GOOGL': 0.4})
+        self.assertEqual(len(agent.portfolio_history), 1)
+        self.assertEqual(len(agent.positions_history), 1)
+        
+        # Test metrics
+        metrics = agent.get_metrics()
+        self.assertIsInstance(metrics, dict)
+        self.assertIn('returns', metrics)
+        self.assertIn('sharpe_ratio', metrics)
+        self.assertIn('max_drawdown', metrics)
+
+if __name__ == '__main__':
+    unittest.main()

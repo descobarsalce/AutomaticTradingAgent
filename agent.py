@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 from typing import Dict, Any, Optional, List, Union, Tuple
 from gymnasium import Env
 from stable_baselines3 import PPO
@@ -7,7 +8,44 @@ from callbacks import ProgressBarCallback
 from numpy.typing import NDArray
 from decorators import type_check
 
+# Configure logging at the module level
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# Create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handlers to the logger
+if not logger.handlers:
+    logger.addHandler(ch)
+
 class TradingAgent:
+    # Default PPO parameters
+    DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
+        'learning_rate': 3e-4,
+        'n_steps': 2048,
+        'batch_size': 64,
+        'n_epochs': 10,
+        'gamma': 0.99,
+        'gae_lambda': 0.95,
+        'clip_range': 0.2,
+        'ent_coef': 0.01,
+        'vf_coef': 0.5,
+        'max_grad_norm': 0.5,
+        'use_sde': False,
+        'sde_sample_freq': -1,
+        'target_kl': None
+    }
+
+    # Default policy network parameters
+    DEFAULT_POLICY_KWARGS: Dict[str, Any] = {
+        'net_arch': [dict(pi=[64, 64], vf=[64, 64])]
+    }
     @type_check
     def __init__(
         self,
@@ -51,51 +89,13 @@ class TradingAgent:
             'total_trades': 0,
             'win_rate': 0.0
         }
-        """
-        Initialize the trading agent with advanced configuration and state tracking.
-        
-        Args:
-            env: Gymnasium environment
-            ppo_params: Optional PPO algorithm parameters
-            policy_type: Type of policy network to use
-            policy_kwargs: Optional policy network parameters
-            tensorboard_log: Directory for tensorboard logs
-            seed: Random seed for reproducibility
-        """
-        # Initialize state tracking
-        self.portfolio_history = []
-        self.positions_history = []
-        self.evaluation_metrics = {
-            'returns': [],
-            'sharpe_ratio': 0.0,
-            'max_drawdown': 0.0,
-            'total_trades': 0,
-            'win_rate': 0.0
-        }
-        
         # Set up default PPO parameters if none provided
         if ppo_params is None:
-            ppo_params = {
-                'learning_rate': 3e-4,
-                'n_steps': 2048,
-                'batch_size': 64,
-                'n_epochs': 10,
-                'gamma': 0.99,
-                'gae_lambda': 0.95,
-                'clip_range': 0.2,
-                'ent_coef': 0.01,
-                'vf_coef': 0.5,
-                'max_grad_norm': 0.5,
-                'use_sde': False,
-                'sde_sample_freq': -1,
-                'target_kl': None
-            }
+            ppo_params = self.DEFAULT_PPO_PARAMS.copy()
             
         # Set up default policy network parameters if none provided
         if policy_kwargs is None:
-            policy_kwargs = {
-                'net_arch': [dict(pi=[64, 64], vf=[64, 64])]
-            }
+            policy_kwargs = self.DEFAULT_POLICY_KWARGS.copy()
             
         try:
             # Initialize PPO model with advanced configuration
@@ -123,7 +123,7 @@ class TradingAgent:
             )
             
         except Exception as e:
-            print(f"Error initializing PPO model: {str(e)}")
+            logger.exception("Failed to initialize PPO model")
             raise
             
     @type_check
@@ -160,7 +160,7 @@ class TradingAgent:
             )
             
         except Exception as e:
-            print(f"Error during training: {str(e)}")
+            logger.exception("Error during training")
             raise
             
     @type_check
@@ -191,11 +191,11 @@ class TradingAgent:
             return action
             
         except Exception as e:
-            print(f"Error in predict method: {str(e)}")
+            logger.exception("Error in predict method")
             raise
             
     @type_check
-    def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
+    def update_state(self, portfolio_value: Union[int, float], positions: Dict[str, Union[int, float]]) -> None:
         """
         Update agent's state tracking with new portfolio information.
         
@@ -228,23 +228,24 @@ class TradingAgent:
             numpy.ndarray: Array of returns or empty array if calculation fails
         """
         if len(self.portfolio_history) <= 1:
-            print("Insufficient data points for returns calculation")
+            logger.debug("Insufficient data points for returns calculation")
             return np.array([])
             
         try:
             # Validate portfolio values
             portfolio_array = np.array(self.portfolio_history)
             if not np.all(np.isfinite(portfolio_array)):
-                print("Warning: Non-finite values found in portfolio history")
+                logger.warning("Non-finite values found in portfolio history")
                 portfolio_array = portfolio_array[np.isfinite(portfolio_array)]
             
             if len(portfolio_array) <= 1:
+                logger.debug("Insufficient valid data points after filtering")
                 return np.array([])
                 
             # Calculate returns with validation
             denominator = portfolio_array[:-1]
             if np.any(denominator == 0):
-                print("Warning: Zero values found in portfolio history")
+                logger.warning("Zero values found in portfolio history")
                 return np.array([])
                 
             returns = np.diff(portfolio_array) / denominator
@@ -255,11 +256,12 @@ class TradingAgent:
                 # Remove extreme outliers (beyond 5 standard deviations)
                 mean, std = np.mean(returns), np.std(returns)
                 returns = returns[np.abs(returns - mean) <= 5 * std]
+                logger.debug(f"Calculated returns with {len(returns)} valid data points")
                 
             return returns
             
         except Exception as e:
-            print(f"Error calculating returns: {str(e)}")
+            logger.exception("Error calculating returns")
             return np.array([])
 
     def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
@@ -274,17 +276,18 @@ class TradingAgent:
             float: Annualized Sharpe ratio or 0.0 if calculation fails
         """
         if not isinstance(returns, np.ndarray):
-            print("Invalid input type for returns calculation")
+            logger.warning("Invalid input type for returns calculation")
             return 0.0
             
         if len(returns) <= 252:  # Minimum one year of data for meaningful Sharpe ratio
-            print(f"Insufficient data points for reliable Sharpe ratio: {len(returns)}")
+            logger.debug(f"Insufficient data points for reliable Sharpe ratio: {len(returns)}")
             return 0.0
             
         try:
             # Remove any remaining non-finite values
             valid_returns = returns[np.isfinite(returns)]
             if len(valid_returns) <= 1:
+                logger.debug("Insufficient valid return values for Sharpe ratio calculation")
                 return 0.0
                 
             # Calculate with improved precision
@@ -293,39 +296,54 @@ class TradingAgent:
             
             # Check for numerical stability
             if not np.isfinite(avg_return) or not np.isfinite(std_return):
-                print("Non-finite values in Sharpe ratio calculation")
+                logger.warning("Non-finite values in Sharpe ratio calculation")
                 return 0.0
                 
             # Calculate annualized Sharpe ratio with validation
             if std_return > 1e-8:  # Avoid division by very small numbers
                 annualization_factor = np.sqrt(252)  # Assuming daily returns
                 sharpe = (avg_return / std_return) * annualization_factor
-                return float(np.clip(sharpe, -100, 100))  # Limit extreme values
+                sharpe_clipped = float(np.clip(sharpe, -100, 100))  # Limit extreme values
+                logger.debug(f"Calculated Sharpe ratio: {sharpe_clipped}")
+                return sharpe_clipped
             else:
-                print("Standard deviation too small for reliable Sharpe ratio")
+                logger.warning("Standard deviation too small for reliable Sharpe ratio")
                 return 0.0
                 
         except Exception as e:
-            print(f"Error calculating Sharpe ratio: {str(e)}")
+            logger.exception("Error calculating Sharpe ratio")
             return 0.0
 
     def _calculate_maximum_drawdown(self) -> float:
-        """Calculate maximum drawdown from portfolio history"""
+        """
+        Calculate maximum drawdown from portfolio history with improved validation
+        and error handling.
+        
+        Returns:
+            float: Maximum drawdown value between 0.0 and 1.0
+        """
         if len(self.portfolio_history) <= 1:
+            logger.debug("Insufficient data points for drawdown calculation")
             return 0.0
         try:
-            peak = self.portfolio_history[0]
-            max_dd = 0.0
-            for value in self.portfolio_history[1:]:
-                if not isinstance(value, (int, float)) or value < 0:
-                    continue
-                if value > peak:
-                    peak = value
-                dd = (peak - value) / peak if peak > 0 else 0
-                max_dd = max(max_dd, dd)
+            # Convert to numpy array for efficient calculation
+            values = np.array([v for v in self.portfolio_history if isinstance(v, (int, float)) and v >= 0])
+            if len(values) <= 1:
+                logger.warning("No valid values for drawdown calculation after filtering")
+                return 0.0
+                
+            # Calculate running maximum
+            peak = np.maximum.accumulate(values)
+            # Calculate drawdown for each point
+            drawdowns = (peak - values) / peak
+            # Get maximum drawdown
+            max_dd = float(np.nanmax(drawdowns))
+            
+            logger.debug(f"Calculated maximum drawdown: {max_dd:.4f}")
             return max_dd
+            
         except Exception as e:
-            print(f"Error calculating maximum drawdown: {str(e)}")
+            logger.exception("Error calculating maximum drawdown")
             return 0.0
 
     def _update_metrics(self) -> None:
@@ -353,7 +371,7 @@ class TradingAgent:
                 self.evaluation_metrics['win_rate'] = profitable_trades / len(valid_positions)
                 
         except Exception as e:
-            print(f"Error updating metrics: {str(e)}")
+            logger.exception("Error updating metrics")
             # Ensure metrics maintain valid values even on error
             self.evaluation_metrics.update({
                 'returns': [],

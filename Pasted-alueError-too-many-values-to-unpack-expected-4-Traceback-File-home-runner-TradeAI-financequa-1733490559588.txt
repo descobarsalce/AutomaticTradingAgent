@@ -1,0 +1,32 @@
+alueError: too many values to unpack (expected 4)
+Traceback:
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/exec_code.py", line 88, in exec_func_with_error_handling
+    result = func()
+             ^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 579, in code_to_exec
+    exec(code, module.__dict__)
+File "/home/runner/TradeAI-financequant/main.py", line 78, in <module>
+    agents[symbol].train(training_steps)
+File "/home/runner/TradeAI-financequant/agent.py", line 114, in train
+    self.model.learn(
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/ppo/ppo.py", line 315, in learn
+    return super().learn(
+           ^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 300, in learn
+    continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 195, in collect_rollouts
+    new_obs, rewards, dones, infos = env.step(clipped_actions)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/base_vec_env.py", line 206, in step
+    return self.step_wait()
+           ^^^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 58, in step_wait
+    obs, self.buf_rews[env_idx], terminated, truncated, self.buf_infos[env_idx] = self.envs[env_idx].step(
+                                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/monitor.py", line 94, in step
+    observation, reward, terminated, truncated, info = self.env.step(action)
+                                                       ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/TradeAI-financequant/.pythonlibs/lib/python3.11/site-packages/shimmy/openai_gym_compatibility.py", line 251, in step
+    obs, reward, done, info = self.gym_env.step(action)
+    ^^^^^^^^^^^^^^^^^^^^^^^

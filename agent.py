@@ -46,13 +46,12 @@ class TradingAgent:
                 'gamma': 0.99,
                 'gae_lambda': 0.95,
                 'clip_range': 0.2,
-                'clip_range_vf': None,
                 'ent_coef': 0.01,
                 'vf_coef': 0.5,
                 'max_grad_norm': 0.5,
                 'use_sde': False,
                 'sde_sample_freq': -1,
-                'target_kl': None,
+                'target_kl': None
             }
             
         # Set up default policy network parameters if none provided
@@ -73,7 +72,7 @@ class TradingAgent:
                 gamma=ppo_params['gamma'],
                 gae_lambda=ppo_params['gae_lambda'],
                 clip_range=ppo_params['clip_range'],
-                clip_range_vf=ppo_params['clip_range_vf'],
+                clip_range_vf=None,
                 ent_coef=ppo_params['ent_coef'],
                 vf_coef=ppo_params['vf_coef'],
                 max_grad_norm=ppo_params['max_grad_norm'],
@@ -98,7 +97,7 @@ class TradingAgent:
             total_timesteps: Number of timesteps to train for
         """
         try:
-            # Set up callbacks
+            # Set up callbacks for training monitoring
             eval_callback = EvalCallback(
                 self.model.get_env(),
                 best_model_save_path='./best_model/',

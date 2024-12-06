@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 from agent import TradingAgent
 import pandas as pd
+import unittest
 
 # Create a simple custom environment for testing
 class SimpleTradingEnv(gym.Env):

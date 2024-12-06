@@ -5,8 +5,10 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 from callbacks import ProgressBarCallback
 from numpy.typing import NDArray
+from decorators import type_check
 
 class TradingAgent:
+    @type_check
     def __init__(
         self,
         env: Env,
@@ -113,6 +115,7 @@ class TradingAgent:
             print(f"Error initializing PPO model: {str(e)}")
             raise
             
+    @type_check
     def train(self, total_timesteps: int) -> None:
         """
         Train the agent for a specified number of timesteps.
@@ -149,6 +152,7 @@ class TradingAgent:
             print(f"Error during training: {str(e)}")
             raise
             
+    @type_check
     def predict(self, observation: NDArray, deterministic: bool = True) -> NDArray:
         """
         Make a prediction based on the current observation.
@@ -179,6 +183,7 @@ class TradingAgent:
             print(f"Error in predict method: {str(e)}")
             raise
             
+    @type_check
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """
         Update agent's state tracking with new portfolio information.
@@ -229,6 +234,7 @@ class TradingAgent:
             # Update trade statistics
             self.evaluation_metrics['total_trades'] = len(self.positions_history)
             
+    @type_check
     def get_metrics(self) -> Dict[str, Union[float, List[float], int]]:
         """
         Get current evaluation metrics.
@@ -243,6 +249,7 @@ class TradingAgent:
         """
         return self.evaluation_metrics.copy()
         
+    @type_check
     def save(self, path: str) -> None:
         """
         Save the model to the specified path.
@@ -260,6 +267,7 @@ class TradingAgent:
             raise ValueError("path cannot be empty")
         self.model.save(path)
         
+    @type_check
     def load(self, path: str) -> None:
         """
         Load the model from the specified path.

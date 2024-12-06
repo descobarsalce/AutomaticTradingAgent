@@ -27,13 +27,22 @@ class TradingEnvironment(gym.Env):
             dtype=np.float32
         )
         
-    def reset(self):
+    def reset(self, seed=None, options=None):
+        """Reset the environment to initial state."""
+        super().reset(seed=seed)  # Reset the base env with seed
         self.current_step = 0
         self.balance = self.initial_balance
         self.shares_held = 0
         self.net_worth = self.initial_balance
         self.cost_basis = 0
-        return self._get_observation()
+        
+        observation = self._get_observation()
+        info = {
+            'initial_balance': self.initial_balance,
+            'net_worth': self.net_worth,
+            'shares_held': self.shares_held
+        }
+        return observation, info
         
     def _get_observation(self):
         obs = np.array([
@@ -47,8 +56,8 @@ class TradingEnvironment(gym.Env):
         ], dtype=np.float32)
         return obs
         
-    def step(self, action):
-        """Execute one step in the environment using continuous action value."""
+    def _step_impl(self, action):
+        """Core step logic implementation."""
         current_price = self.data.iloc[self.current_step]['Close']
         
         # Ensure action is in correct format and range
@@ -76,7 +85,7 @@ class TradingEnvironment(gym.Env):
         
         # Update state
         self.current_step += 1
-        done = self.current_step >= len(self.data) - 1
+        terminated = self.current_step >= len(self.data) - 1
         truncated = False  # Required for gymnasium compatibility
         
         obs = self._get_observation()
@@ -88,4 +97,10 @@ class TradingEnvironment(gym.Env):
             'current_price': current_price
         }
         
-        return obs, reward, done, truncated, info
+        return obs, reward, terminated, truncated, info
+        
+    def step(self, action):
+        """Execute one step in the environment using continuous action value."""
+        obs, reward, terminated, truncated, info = self._step_impl(action)
+        done = terminated or truncated  # Combine flags for gym compatibility
+        return obs, reward, done, info

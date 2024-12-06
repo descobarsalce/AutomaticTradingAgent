@@ -46,6 +46,7 @@ class TradingAgent:
     DEFAULT_POLICY_KWARGS: Dict[str, Any] = {
         'net_arch': [dict(pi=[64, 64], vf=[64, 64])]
     }
+
     @type_check
     def __init__(
         self,
@@ -91,6 +92,7 @@ class TradingAgent:
             'total_trades': 0,
             'win_rate': 0.0
         }
+
         # Set up default PPO parameters if none provided
         if ppo_params is None:
             ppo_params = self.DEFAULT_PPO_PARAMS.copy()
@@ -267,6 +269,55 @@ class TradingAgent:
             return np.array([])
 
     def _calculate_sharpe_ratio(self, returns: np.ndarray) -> float:
+        """
+        Calculate Sharpe ratio from returns with improved error handling
+        and validation.
+        
+        Args:
+            returns: numpy.ndarray of return values
+            
+        Returns:
+            float: Annualized Sharpe ratio or 0.0 if calculation fails
+        """
+        if not isinstance(returns, np.ndarray):
+            logger.warning("Invalid input type for returns calculation")
+            return 0.0
+            
+        if len(returns) <= 252:  # Minimum one year of data for meaningful Sharpe ratio
+            logger.debug(f"Insufficient data points for reliable Sharpe ratio: {len(returns)}")
+            return 0.0
+            
+        try:
+            # Remove any remaining non-finite values
+            valid_returns = returns[np.isfinite(returns)]
+            if len(valid_returns) <= 1:
+                logger.debug("Insufficient valid return values for Sharpe ratio calculation")
+                return 0.0
+                
+            # Calculate with improved precision
+            avg_return = np.mean(valid_returns)
+            std_return = np.std(valid_returns, ddof=1)  # Use unbiased estimator
+            
+            # Check for numerical stability
+            if not np.isfinite(avg_return) or not np.isfinite(std_return):
+                logger.warning("Non-finite values in Sharpe ratio calculation")
+                return 0.0
+                
+            # Calculate annualized Sharpe ratio with validation
+            if std_return > 1e-8:  # Avoid division by very small numbers
+                annualization_factor = np.sqrt(252)  # Assuming daily returns
+                sharpe = (avg_return / std_return) * annualization_factor
+                sharpe_clipped = float(np.clip(sharpe, -100, 100))  # Limit extreme values
+                logger.debug(f"Calculated Sharpe ratio: {sharpe_clipped}")
+                return sharpe_clipped
+            else:
+                logger.warning("Standard deviation too small for reliable Sharpe ratio")
+                return 0.0
+                
+        except Exception as e:
+            logger.exception("Error calculating Sharpe ratio")
+            return 0.0
+
     def _calculate_sortino_ratio(self, returns: np.ndarray) -> float:
         """
         Calculate Sortino ratio from returns with error handling and validation.
@@ -386,55 +437,6 @@ class TradingAgent:
             logger.exception("Error calculating Information ratio")
             return 0.0
 
-        """
-        Calculate Sharpe ratio from returns with improved error handling
-        and validation.
-        
-        Args:
-            returns: numpy.ndarray of return values
-            
-        Returns:
-            float: Annualized Sharpe ratio or 0.0 if calculation fails
-        """
-        if not isinstance(returns, np.ndarray):
-            logger.warning("Invalid input type for returns calculation")
-            return 0.0
-            
-        if len(returns) <= 252:  # Minimum one year of data for meaningful Sharpe ratio
-            logger.debug(f"Insufficient data points for reliable Sharpe ratio: {len(returns)}")
-            return 0.0
-            
-        try:
-            # Remove any remaining non-finite values
-            valid_returns = returns[np.isfinite(returns)]
-            if len(valid_returns) <= 1:
-                logger.debug("Insufficient valid return values for Sharpe ratio calculation")
-                return 0.0
-                
-            # Calculate with improved precision
-            avg_return = np.mean(valid_returns)
-            std_return = np.std(valid_returns, ddof=1)  # Use unbiased estimator
-            
-            # Check for numerical stability
-            if not np.isfinite(avg_return) or not np.isfinite(std_return):
-                logger.warning("Non-finite values in Sharpe ratio calculation")
-                return 0.0
-                
-            # Calculate annualized Sharpe ratio with validation
-            if std_return > 1e-8:  # Avoid division by very small numbers
-                annualization_factor = np.sqrt(252)  # Assuming daily returns
-                sharpe = (avg_return / std_return) * annualization_factor
-                sharpe_clipped = float(np.clip(sharpe, -100, 100))  # Limit extreme values
-                logger.debug(f"Calculated Sharpe ratio: {sharpe_clipped}")
-                return sharpe_clipped
-            else:
-                logger.warning("Standard deviation too small for reliable Sharpe ratio")
-                return 0.0
-                
-        except Exception as e:
-            logger.exception("Error calculating Sharpe ratio")
-            return 0.0
-
     def _calculate_maximum_drawdown(self) -> float:
         """
         Calculate maximum drawdown from portfolio history with improved validation
@@ -503,6 +505,8 @@ class TradingAgent:
             self.evaluation_metrics.update({
                 'returns': [],
                 'sharpe_ratio': 0.0,
+                'sortino_ratio': 0.0,
+                'information_ratio': 0.0,
                 'max_drawdown': 0.0,
                 'total_trades': 0,
                 'win_rate': 0.0
@@ -517,6 +521,8 @@ class TradingAgent:
             Dictionary containing evaluation metrics with specific types:
             - 'returns': List[float]
             - 'sharpe_ratio': float
+            - 'sortino_ratio': float
+            - 'information_ratio': float
             - 'max_drawdown': float
             - 'total_trades': int
             - 'win_rate': float

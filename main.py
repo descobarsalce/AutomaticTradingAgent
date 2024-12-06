@@ -84,7 +84,8 @@ if st.sidebar.button("Fetch Data & Train"):
             
             while not done:
                 action = agents[symbol].predict(obs)
-                obs, reward, done, _ = environments[symbol].step(action)
+                obs, reward, terminated, truncated, info = environments[symbol].step(action)
+                done = terminated or truncated
                 
                 if abs(action[0]) > 0.1:  # Record significant trades
                     trades.append({
@@ -92,6 +93,12 @@ if st.sidebar.button("Fetch Data & Train"):
                         'action': action[0],
                         'price': data.iloc[environments[symbol].current_step]['Close']
                     })
+                
+                # Update agent's state tracking
+                agents[symbol].update_state(
+                    portfolio_value=info['net_worth'],
+                    positions={symbol: info['shares_held']}
+                )
             
             all_trades[symbol] = pd.DataFrame(trades).set_index('timestamp')
         

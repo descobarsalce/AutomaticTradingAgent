@@ -111,16 +111,14 @@ if train_model:
         training_progress = st.progress(0)
         training_status = st.empty()
         
-        def training_callback(step, total_steps):
-            progress = min(step / total_steps, 1.0)
-            training_progress.progress(progress)
-            training_status.text(f"Training {symbol}: {step}/{total_steps} steps")
-        
         with st.spinner(f"Training agent for {symbol}..."):
-            st.session_state.trained_agents[symbol].train(
-                training_steps,
-                callback=training_callback
-            )
+            try:
+                st.session_state.trained_agents[symbol].train(training_steps)
+                training_progress.progress(1.0)
+                training_status.text(f"Training completed for {symbol}")
+            except Exception as e:
+                st.error(f"Error training agent for {symbol}: {str(e)}")
+                continue
             
         # Run evaluation episode
         obs, info = st.session_state.environments[symbol].reset()

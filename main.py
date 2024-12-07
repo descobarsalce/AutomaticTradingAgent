@@ -278,11 +278,24 @@ if st.session_state.training_completed:
             st.subheader(f"{symbol} Hyperparameter Optimization Results")
             opt_results = st.session_state.optimization_results[symbol]
             
-            st.write("Best Parameters Found:")
-            st.json(opt_results["best_params"])
-            
-            st.write("Top 5 Parameter Combinations:")
-            st.dataframe(pd.DataFrame(opt_results["top_5_results"]))
+            if opt_results["status"] == "No optimization results available":
+                st.warning("No optimization results available. The optimization process may have failed or been interrupted.")
+            else:
+                if opt_results.get("best_params"):
+                    st.write("Best Parameters Found:")
+                    st.json(opt_results["best_params"])
+                else:
+                    st.info("No best parameters found. Using default configuration.")
+                
+                if opt_results.get("top_5_results"):
+                    st.write("Top 5 Parameter Combinations:")
+                    st.dataframe(pd.DataFrame(opt_results["top_5_results"]))
+                else:
+                    st.info("No parameter combinations evaluated.")
+                
+                st.metric("Total Combinations Tested", opt_results.get("total_combinations_tested", 0))
+                if opt_results.get("best_reward") is not None:
+                    st.metric("Best Reward Achieved", f"{opt_results['best_reward']:.2f}")
         
         # Display performance metrics
         col1, col2, col3 = st.columns(3)

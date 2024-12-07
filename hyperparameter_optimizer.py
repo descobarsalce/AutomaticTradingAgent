@@ -211,10 +211,17 @@ class HyperparameterOptimizer:
             Dictionary containing optimization summary
         """
         if not self.results:
-            return {"status": "No optimization results available"}
+            return {
+                "status": "No optimization results available",
+                "best_params": {},
+                "best_reward": 0.0,
+                "total_combinations_tested": 0,
+                "top_5_results": []
+            }
         
         return {
-            "best_params": self.best_params,
+            "status": "Optimization completed",
+            "best_params": self.best_params if self.best_params is not None else {},
             "best_reward": self.best_reward,
             "total_combinations_tested": len(self.results),
             "top_5_results": self.results[:5]

@@ -26,15 +26,11 @@ class HyperparameterOptimizer:
         # Use default parameter grid if none provided
         if param_grid is None:
             self.param_grid = {
-                'learning_rate': [1e-4, 2e-4, 3e-4],
-                'n_steps': [1024, 2048],
-                'batch_size': [64, 128, 256],
-                'n_epochs': [5, 10],
-                'gamma': [0.95, 0.99],
-                'gae_lambda': [0.9, 0.95],
+                'learning_rate': [1e-5, 3e-4, 1e-3],
+                'n_steps': [512, 1024, 2048],
+                'batch_size': [32, 64, 128],
                 'clip_range': [0.1, 0.2, 0.3],
-                'ent_coef': [0.01, 0.02],
-                'vf_coef': [0.5, 0.8],
+                'ent_coef': [0.0, 0.01, 0.05],
             }
         else:
             self.param_grid = param_grid

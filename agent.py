@@ -27,8 +27,8 @@ if not logger.handlers:
 class TradingAgent:
     # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
-        'learning_rate': 2e-4,  # Adjusted for more gradual learning
-        'n_steps': 1024,  # Maintain trajectory length
+        'learning_rate': 5e-3,  # Adjusted for more gradual learning
+        'n_steps': 256,  # Maintain trajectory length
         'batch_size': 256,  # Increased for better gradient estimates
         'n_epochs': 5,    # Maintain epochs setting
         'gamma': 0.99,    # Keep high discount factor

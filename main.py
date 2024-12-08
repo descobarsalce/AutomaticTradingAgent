@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 
-from environment import TradingEnvironment
-from agent import TradingAgent
+from environment import SimpleTradingEnv
+from core import TradingAgent
 from data_handler import DataHandler
 from visualization import TradingVisualizer
 
@@ -154,7 +154,7 @@ if train_model:
         
         # Allocate initial balance based on weights
         symbol_balance = initial_balance * weights[symbol]
-        st.session_state.environments[symbol] = TradingEnvironment(
+        st.session_state.environments[symbol] = SimpleTradingEnv(
             data=data,
             initial_balance=symbol_balance
         )

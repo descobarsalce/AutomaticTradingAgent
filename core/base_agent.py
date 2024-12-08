@@ -6,13 +6,7 @@ from callbacks import ProgressBarCallback
 import numpy as np
 from numpy.typing import NDArray
 from decorators import type_check
-from metrics.metrics_calculator import (
-    calculate_returns,
-    calculate_sharpe_ratio,
-    calculate_sortino_ratio,
-    calculate_information_ratio,
-    calculate_maximum_drawdown
-)
+from .metrics import MetricsCalculator
 import logging
 
 # Configure logging
@@ -184,15 +178,21 @@ class BaseAgent:
     def _update_metrics(self) -> None:
         """Update evaluation metrics based on current state."""
         try:
-            returns = calculate_returns(self.portfolio_history)
+            # Use MetricsCalculator for all metrics calculations
+            metrics_calc = MetricsCalculator()
+            
+            # Calculate returns
+            returns = metrics_calc.calculate_returns(self.portfolio_history)
             if len(returns) > 0:
                 self.evaluation_metrics['returns'] = returns.tolist()
             
-            self.evaluation_metrics['sharpe_ratio'] = calculate_sharpe_ratio(returns)
-            self.evaluation_metrics['sortino_ratio'] = calculate_sortino_ratio(returns)
-            self.evaluation_metrics['information_ratio'] = calculate_information_ratio(returns)
-            self.evaluation_metrics['max_drawdown'] = calculate_maximum_drawdown(self.portfolio_history)
+            # Calculate risk-adjusted metrics
+            self.evaluation_metrics['sharpe_ratio'] = metrics_calc.calculate_sharpe_ratio(returns)
+            self.evaluation_metrics['sortino_ratio'] = metrics_calc.calculate_sortino_ratio(returns)
+            self.evaluation_metrics['information_ratio'] = metrics_calc.calculate_information_ratio(returns)
+            self.evaluation_metrics['max_drawdown'] = metrics_calc.calculate_maximum_drawdown(self.portfolio_history)
             
+            # Update trade statistics
             valid_positions = [p for p in self.positions_history if isinstance(p, dict)]
             self.evaluation_metrics['total_trades'] = len(valid_positions)
             

@@ -218,6 +218,9 @@ def format_money(value: float, currency: str = '$') -> str:
         str: Formatted monetary string
     """
     try:
+        # Handle negative values by placing minus sign before currency
+        if value < 0:
+            return f"-{currency}{abs(value):,.2f}"
         return f"{currency}{value:,.2f}"
     except Exception as e:
         logger.error(f"Error formatting monetary value: {str(e)}")
@@ -229,7 +232,13 @@ MIN_POSITION_SIZE = -1.0
 DEFAULT_STOP_LOSS = 0.02
 DEFAULT_TAKE_PROFIT = 0.05
 RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
-TRADING_DAYS_PER_YEAR = 252
+# Trading Constants
+TRADING_DAYS_PER_YEAR = 252  # Standard number of trading days in a year
+MIN_DATA_POINTS = 252  # Minimum data points for reliable statistics
+ANNUALIZATION_FACTOR = np.sqrt(TRADING_DAYS_PER_YEAR)
+CORRELATION_THRESHOLD = 0.7  # Threshold for significant correlation
+MAX_TRADES_PER_DAY = 10
+RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
 MAX_LEVERAGE = 2.0
 MIN_TRADE_SIZE = 0.01
 PRICE_PRECISION = 2

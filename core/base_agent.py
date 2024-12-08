@@ -187,7 +187,10 @@ class BaseAgent:
             # Calculate returns
             returns = metrics_calc.calculate_returns(self.portfolio_history)
             if len(returns) > 0:
-                self.evaluation_metrics['returns'] = returns.tolist()
+                # Store mean return instead of returns list for easier comparison
+                self.evaluation_metrics['returns'] = float(np.mean(returns))
+            else:
+                self.evaluation_metrics['returns'] = 0.0
             
             # Calculate risk-adjusted metrics
             self.evaluation_metrics['sharpe_ratio'] = metrics_calc.calculate_sharpe_ratio(returns)
@@ -207,7 +210,7 @@ class BaseAgent:
         except Exception as e:
             logger.exception("Error updating metrics")
             self.evaluation_metrics.update({
-                'returns': [],
+                'returns': 0.0,
                 'sharpe_ratio': 0.0,
                 'sortino_ratio': 0.0,
                 'information_ratio': 0.0,

@@ -72,6 +72,9 @@ class BaseAgent:
         if not isinstance(tensorboard_log, str):
             raise TypeError("tensorboard_log must be a string")
             
+        # Store environment
+        self.env = env
+            
         # Initialize instance variables
         self.portfolio_history = []
         self.positions_history = []

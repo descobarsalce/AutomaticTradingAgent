@@ -70,12 +70,13 @@ def validate_dataframe(df: pd.DataFrame, required_columns: List[str]) -> bool:
         logger.error(f"Error validating DataFrame: {str(e)}")
         return False
 
-def calculate_returns(values: np.ndarray) -> np.ndarray:
+def calculate_returns(values: np.ndarray, round_precision: Optional[int] = None) -> np.ndarray:
     """
     Calculate returns from a series of values.
     
     Args:
         values: Array of values
+        round_precision: Optional number of decimal places for rounding
         
     Returns:
         np.ndarray: Calculated returns
@@ -83,7 +84,10 @@ def calculate_returns(values: np.ndarray) -> np.ndarray:
     try:
         if len(values) < 2:
             return np.array([])
-        return np.diff(values) / values[:-1]
+        returns = np.diff(values) / values[:-1]
+        if round_precision is not None:
+            returns = np.round(returns, round_precision)
+        return returns
     except Exception as e:
         logger.error(f"Error calculating returns: {str(e)}")
         return np.array([])
@@ -137,6 +141,88 @@ def validate_trading_params(params: Dict[str, Any]) -> bool:
         logger.error(f"Error validating trading parameters: {str(e)}")
         return False
 
+def calculate_volatility(returns: np.ndarray, annualize: bool = True) -> float:
+    """
+    Calculate the volatility of returns.
+    
+    Args:
+        returns: Array of returns
+        annualize: Whether to annualize the volatility
+        
+    Returns:
+        float: Calculated volatility
+    """
+    try:
+        if len(returns) < 2:
+            return 0.0
+        vol = np.std(returns, ddof=1)
+        if annualize:
+            vol = vol * np.sqrt(TRADING_DAYS_PER_YEAR)
+        return float(vol)
+    except Exception as e:
+        logger.error(f"Error calculating volatility: {str(e)}")
+        return 0.0
+
+def calculate_beta(returns: np.ndarray, market_returns: np.ndarray) -> float:
+    """
+    Calculate the beta of returns against market returns.
+    
+    Args:
+        returns: Array of asset returns
+        market_returns: Array of market returns
+        
+    Returns:
+        float: Calculated beta
+    """
+    try:
+        if len(returns) != len(market_returns) or len(returns) < 2:
+            return 0.0
+        covariance = np.cov(returns, market_returns)[0][1]
+        market_variance = np.var(market_returns, ddof=1)
+        return float(covariance / market_variance if market_variance != 0 else 0.0)
+    except Exception as e:
+        logger.error(f"Error calculating beta: {str(e)}")
+        return 0.0
+
+def validate_portfolio_weights(weights: Dict[str, float]) -> bool:
+    """
+    Validate portfolio weights sum to 1 and are valid.
+    
+    Args:
+        weights: Dictionary of asset weights
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    try:
+        if not weights:
+            return False
+        if not all(isinstance(w, (int, float)) for w in weights.values()):
+            return False
+        if not all(0 <= w <= 1 for w in weights.values()):
+            return False
+        return abs(sum(weights.values()) - 1.0) < 1e-6
+    except Exception as e:
+        logger.error(f"Error validating portfolio weights: {str(e)}")
+        return False
+
+def format_money(value: float, currency: str = '$') -> str:
+    """
+    Format monetary values with proper separators and currency symbol.
+    
+    Args:
+        value: Monetary value to format
+        currency: Currency symbol to use
+        
+    Returns:
+        str: Formatted monetary string
+    """
+    try:
+        return f"{currency}{value:,.2f}"
+    except Exception as e:
+        logger.error(f"Error formatting monetary value: {str(e)}")
+        return f"{currency}0.00"
+
 # Trading Constants
 MAX_POSITION_SIZE = 1.0
 MIN_POSITION_SIZE = -1.0
@@ -144,3 +230,7 @@ DEFAULT_STOP_LOSS = 0.02
 DEFAULT_TAKE_PROFIT = 0.05
 RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
 TRADING_DAYS_PER_YEAR = 252
+MAX_LEVERAGE = 2.0
+MIN_TRADE_SIZE = 0.01
+PRICE_PRECISION = 2
+POSITION_PRECISION = 4

@@ -20,6 +20,56 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(validate_numeric(-1, min_value=0))
         self.assertFalse(validate_numeric(11, max_value=10))
         self.assertFalse(validate_numeric("not a number"))
+        
+    def test_calculate_volatility(self):
+        """Test volatility calculation"""
+        returns = np.array([0.01, -0.02, 0.03, -0.01, 0.02])
+        vol = calculate_volatility(returns, annualize=False)
+        self.assertIsInstance(vol, float)
+        self.assertTrue(vol > 0)
+        
+        # Test empty array
+        self.assertEqual(calculate_volatility(np.array([])), 0.0)
+        
+        # Test annualization
+        annual_vol = calculate_volatility(returns, annualize=True)
+        self.assertTrue(annual_vol > vol)  # Annualized should be larger
+        
+    def test_calculate_beta(self):
+        """Test beta calculation"""
+        returns = np.array([0.01, -0.02, 0.03, -0.01, 0.02])
+        market_returns = np.array([0.005, -0.01, 0.015, -0.005, 0.01])
+        beta = calculate_beta(returns, market_returns)
+        self.assertIsInstance(beta, float)
+        
+        # Test mismatched arrays
+        self.assertEqual(calculate_beta(returns, market_returns[:-1]), 0.0)
+        
+        # Test empty arrays
+        self.assertEqual(calculate_beta(np.array([]), np.array([])), 0.0)
+        
+    def test_validate_portfolio_weights(self):
+        """Test portfolio weights validation"""
+        valid_weights = {'AAPL': 0.4, 'GOOGL': 0.6}
+        self.assertTrue(validate_portfolio_weights(valid_weights))
+        
+        # Test invalid sum
+        invalid_weights = {'AAPL': 0.5, 'GOOGL': 0.6}
+        self.assertFalse(validate_portfolio_weights(invalid_weights))
+        
+        # Test negative weights
+        negative_weights = {'AAPL': -0.1, 'GOOGL': 1.1}
+        self.assertFalse(validate_portfolio_weights(negative_weights))
+        
+        # Test empty dict
+        self.assertFalse(validate_portfolio_weights({}))
+        
+    def test_format_money(self):
+        """Test money formatting"""
+        self.assertEqual(format_money(1234.5678), '$1,234.57')
+        self.assertEqual(format_money(0), '$0.00')
+        self.assertEqual(format_money(-1234.56), '-$1,234.56')
+        self.assertEqual(format_money(1234.5678, '€'), '€1,234.57')
 
     def test_validate_dataframe(self):
         """Test DataFrame validation function"""

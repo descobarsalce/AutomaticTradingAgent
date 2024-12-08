@@ -19,6 +19,45 @@ if not logger.handlers:
     logger.addHandler(ch)
 
 def calculate_returns(portfolio_history: List[float]) -> np.ndarray:
+def calculate_volatility(returns: np.ndarray, annualize: bool = True) -> float:
+    """
+    Calculate return volatility (standard deviation) with optional annualization.
+    
+    Args:
+        returns: numpy.ndarray of return values
+        annualize: bool, whether to annualize the volatility
+        
+    Returns:
+        float: Volatility value or 0.0 if calculation fails
+    """
+    if not isinstance(returns, np.ndarray):
+        logger.warning("Invalid input type for volatility calculation")
+        return 0.0
+        
+    if len(returns) <= 1:
+        logger.debug("Insufficient data points for volatility calculation")
+        return 0.0
+        
+    try:
+        # Remove any non-finite values
+        valid_returns = returns[np.isfinite(returns)]
+        if len(valid_returns) <= 1:
+            logger.debug("Insufficient valid return values for volatility calculation")
+            return 0.0
+            
+        # Calculate standard deviation
+        vol = np.std(valid_returns, ddof=1)
+        
+        # Annualize if requested (assuming daily data)
+        if annualize:
+            vol = vol * np.sqrt(252)
+            
+        return float(vol)
+        
+    except Exception as e:
+        logger.exception("Error calculating volatility")
+        return 0.0
+
     """
     Calculate returns from portfolio history with improved error handling
     and validation.

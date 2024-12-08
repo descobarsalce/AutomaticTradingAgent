@@ -8,10 +8,12 @@ from utils.data_utils import (
     validate_portfolio_weights,
     normalize_data
 )
-from utils.market_utils import (
+from metrics.metrics_calculator import (
     calculate_returns,
-    calculate_beta,
     calculate_volatility,
+    calculate_beta
+)
+from utils.market_utils import (
     calculate_moving_average,
     calculate_ema,
     calculate_correlation,

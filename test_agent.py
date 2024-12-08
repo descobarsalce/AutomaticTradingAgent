@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
-from agent import TradingAgent
-from environment.simple_trading_env import SimpleTradingEnv
+from core import TradingAgent
+from environment import SimpleTradingEnv
 
 # Create test environment
 env = SimpleTradingEnv()

@@ -92,6 +92,32 @@ def calculate_rsi(data: np.ndarray, period: int = 14) -> np.ndarray:
         logger.error(f"Error calculating RSI: {str(e)}")
         return np.array([])
 
+def calculate_macd(data: np.ndarray, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> Tuple[np.ndarray, np.ndarray]:
+    """Calculate Moving Average Convergence Divergence (MACD)."""
+    try:
+        if len(data) < slow_period + signal_period:
+            return np.array([]), np.array([])
+            
+        # Calculate EMAs
+        def calculate_ema(data: np.ndarray, span: int) -> np.ndarray:
+            return pd.Series(data).ewm(span=span, adjust=False).mean().to_numpy()
+            
+        fast_ema = calculate_ema(data, span=fast_period)
+        slow_ema = calculate_ema(data, span=slow_period)
+        
+        macd_line = fast_ema - slow_ema
+        signal_line = calculate_ema(macd_line, span=signal_period)
+        
+        # Ensure both arrays are the same length
+        min_length = min(len(macd_line), len(signal_line))
+        macd_line = macd_line[-min_length:]
+        signal_line = signal_line[-min_length:]
+        
+        return macd_line, signal_line
+    except Exception as e:
+        logger.error(f"Error calculating MACD: {str(e)}")
+        return np.array([]), np.array([])
+
 def is_market_hours(timestamp: Union[str, datetime], market_open: str = "09:30", market_close: str = "16:00") -> bool:
     """Check if given timestamp is during market hours."""
     try:

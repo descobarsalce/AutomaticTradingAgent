@@ -1,8 +1,8 @@
 from typing import Dict, Any, Optional, Union
 from gymnasium import Env
 from .base_agent import BaseAgent
+from utils.data_utils import validate_numeric
 from utils.common import (
-    validate_numeric,
     validate_trading_params,
     MAX_POSITION_SIZE,
     MIN_POSITION_SIZE,

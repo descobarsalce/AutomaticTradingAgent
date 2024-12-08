@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from agent import TradingAgent
+from core.base_agent import BaseAgent
 from environment.simple_trading_env import SimpleTradingEnv
 
 # Create test environment
@@ -23,7 +23,7 @@ custom_params = {
     'target_kl': 0.02       # Within range (0.01, 0.03)
 }
 
-class TestTradingAgent(unittest.TestCase):
+class TestBaseAgent(unittest.TestCase):
     def setUp(self):
         """Set up test environment before each test"""
         self.env = SimpleTradingEnv()
@@ -31,7 +31,7 @@ class TestTradingAgent(unittest.TestCase):
 
     def test_initialization(self):
         """Test agent initialization with valid parameters"""
-        agent = TradingAgent(self.env, ppo_params=self.custom_params)
+        agent = BaseAgent(self.env, ppo_params=self.custom_params)
         self.assertIsNotNone(agent.model)
         self.assertEqual(len(agent.portfolio_history), 0)
         self.assertEqual(len(agent.positions_history), 0)
@@ -39,29 +39,29 @@ class TestTradingAgent(unittest.TestCase):
     def test_initialization_invalid_env(self):
         """Test agent initialization with invalid environment"""
         with self.assertRaises(TypeError):
-            TradingAgent("not_an_env")
+            BaseAgent("not_an_env")
 
     def test_initialization_invalid_seed(self):
         """Test agent initialization with invalid seed"""
         with self.assertRaises(ValueError):
-            TradingAgent(self.env, seed=-1)
+            BaseAgent(self.env, seed=-1)
 
     def test_predict_invalid_observation(self):
         """Test predict method with invalid observation"""
-        agent = TradingAgent(self.env)
+        agent = BaseAgent(self.env)
         with self.assertRaises(TypeError):
             agent.predict([1, 2, 3, 4])  # Not a numpy array
 
     def test_predict_wrong_shape(self):
         """Test predict method with wrong observation shape"""
-        agent = TradingAgent(self.env)
+        agent = BaseAgent(self.env)
         wrong_shape = np.array([1, 2])
         with self.assertRaises(ValueError):
             agent.predict(wrong_shape)
 
     def test_update_state_validation(self):
         """Test update_state method input validation"""
-        agent = TradingAgent(self.env)
+        agent = BaseAgent(self.env)
         
         # Test invalid portfolio value type
         with self.assertRaises(TypeError):
@@ -81,7 +81,7 @@ class TestTradingAgent(unittest.TestCase):
 
     def test_save_load_validation(self):
         """Test save and load methods input validation"""
-        agent = TradingAgent(self.env)
+        agent = BaseAgent(self.env)
         
         # Test invalid path type
         with self.assertRaises(TypeError):
@@ -101,7 +101,7 @@ class TestTradingAgent(unittest.TestCase):
 
     def test_valid_workflow(self):
         """Test a valid workflow with proper inputs"""
-        agent = TradingAgent(self.env)
+        agent = BaseAgent(self.env)
         
         # Test valid predict
         obs = np.zeros(4, dtype=np.float32)

@@ -46,7 +46,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 -m pytest test_agent.py -v"
+args = "python3 -m pytest -v"
 
 [deployment]
 run = ["sh", "-c", "streamlit run main.py --server.port 5000"]

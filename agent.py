@@ -24,7 +24,7 @@ ch.setFormatter(formatter)
 if not logger.handlers:
     logger.addHandler(ch)
 
-class TradingAgent:
+class BaseAgent:
     # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
         'learning_rate': 5e-3,  # Adjusted for more gradual learning
@@ -594,3 +594,12 @@ class TradingAgent:
         if not path.strip():
             raise ValueError("path cannot be empty")
         self.model = PPO.load(path)
+
+
+class TradingAgent(BaseAgent):
+    """
+    Trading agent implementation that inherits from BaseAgent.
+    This class can be extended with trading-specific functionality
+    while maintaining the core agent capabilities.
+    """
+    pass

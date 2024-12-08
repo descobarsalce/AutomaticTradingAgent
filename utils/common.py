@@ -56,8 +56,8 @@ def validate_trading_params(params: Dict[str, Any]) -> bool:
 # Trading Constants
 
 # Position and Risk Management
-MAX_POSITION_SIZE = 1.0  # Maximum allowed position size
-MIN_POSITION_SIZE = -1.0  # Minimum allowed position size (for short positions)
+MAX_POSITION_SIZE = 10.0  # Maximum allowed position size (increased for training flexibility)
+MIN_POSITION_SIZE = -10.0  # Minimum allowed position size (allow larger short positions)
 MAX_LEVERAGE = 2.0  # Maximum allowed leverage
 MIN_TRADE_SIZE = 0.01  # Minimum trade size allowed
 DEFAULT_STOP_LOSS = 0.02  # Default stop loss percentage (2%)

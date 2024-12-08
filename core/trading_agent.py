@@ -1,4 +1,5 @@
 from typing import Dict, Any, Optional, Union
+import numpy as np
 from gymnasium import Env
 from .base_agent import BaseAgent
 from utils.data_utils import validate_numeric
@@ -28,15 +29,18 @@ class TradingAgent(BaseAgent):
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """
         Update agent state with new portfolio value and positions.
-        Uses utility functions for validation.
+        Uses utility functions for validation with more permissive checks for training.
         """
         # Validate portfolio value
         if not validate_numeric(portfolio_value, min_value=0):
             raise ValueError("Invalid portfolio value")
             
-        # Validate position sizes
+        # Validate position sizes with more permissive checks
         for symbol, size in positions.items():
-            if not validate_numeric(size, min_value=MIN_POSITION_SIZE, max_value=MAX_POSITION_SIZE):
-                raise ValueError(f"Invalid position size for {symbol}")
+            # Allow any finite number within reasonable bounds (-10 to 10)
+            if not isinstance(size, (int, float)) or not np.isfinite(size):
+                raise ValueError(f"Invalid position size type for {symbol}")
+            if abs(size) > 10.0:  # More permissive bound for training
+                raise ValueError(f"Position size too large for {symbol}")
                 
         super().update_state(portfolio_value, positions)

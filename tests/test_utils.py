@@ -2,16 +2,33 @@ import unittest
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from utils.common import (
+from utils.data_utils import (
     validate_numeric,
     validate_dataframe,
+    validate_portfolio_weights,
+    normalize_data
+)
+from utils.market_utils import (
     calculate_returns,
-    format_timestamp,
-    validate_trading_params,
     calculate_beta,
     calculate_volatility,
-    validate_portfolio_weights,
-    format_money
+    calculate_moving_average,
+    calculate_ema,
+    calculate_correlation,
+    calculate_bollinger_bands,
+    calculate_rsi,
+    calculate_macd
+)
+from utils.formatting_utils import (
+    format_timestamp,
+    format_money,
+    format_date,
+    round_price
+)
+from utils.common import (
+    validate_trading_params,
+    MAX_POSITION_SIZE,
+    MIN_POSITION_SIZE
 )
 
 class TestUtils(unittest.TestCase):

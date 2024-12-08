@@ -278,24 +278,49 @@ if st.session_state.training_completed:
             st.subheader(f"{symbol} Hyperparameter Optimization Results")
             opt_results = st.session_state.optimization_results[symbol]
             
-            if opt_results["status"] == "No optimization results available":
-                st.warning("No optimization results available. The optimization process may have failed or been interrupted.")
+            # Display optimization status with appropriate styling
+            status = opt_results.get("status", "Unknown")
+            if "Failed" in status:
+                st.error(f"Optimization Status: {status}")
+                st.error(opt_results.get("message", "An error occurred during optimization"))
+            elif status == "Not started":
+                st.warning("Optimization has not started yet")
+            elif not opt_results.get("success", False):
+                st.warning(opt_results.get("message", "Optimization did not complete successfully"))
             else:
-                if opt_results.get("best_params"):
-                    st.write("Best Parameters Found:")
-                    st.json(opt_results["best_params"])
-                else:
-                    st.info("No best parameters found. Using default configuration.")
-                
-                if opt_results.get("top_5_results"):
-                    st.write("Top 5 Parameter Combinations:")
-                    st.dataframe(pd.DataFrame(opt_results["top_5_results"]))
-                else:
-                    st.info("No parameter combinations evaluated.")
-                
-                st.metric("Total Combinations Tested", opt_results.get("total_combinations_tested", 0))
-                if opt_results.get("best_reward") is not None:
-                    st.metric("Best Reward Achieved", f"{opt_results['best_reward']:.2f}")
+                st.success(f"Optimization Status: {status}")
+                st.success(opt_results.get("message", "Optimization completed successfully"))
+
+            # Display parameters and results
+            if opt_results.get("best_params"):
+                st.write("Best Parameters Found:")
+                st.json(opt_results["best_params"])
+                if not opt_results.get("success", False):
+                    st.info("Using default/fallback parameters due to optimization issues")
+            
+            if opt_results.get("top_5_results"):
+                st.write("Top 5 Parameter Combinations:")
+                results_df = pd.DataFrame(opt_results["top_5_results"])
+                # Format the DataFrame for better display
+                if not results_df.empty:
+                    results_df['avg_reward'] = results_df['avg_reward'].round(4)
+                    if 'sharpe_ratio' in results_df.columns:
+                        results_df['sharpe_ratio'] = results_df['sharpe_ratio'].round(4)
+                    st.dataframe(results_df)
+            
+            # Display metrics
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric(
+                    "Total Combinations Tested", 
+                    opt_results.get("total_combinations_tested", 0)
+                )
+            with col2:
+                reward = opt_results.get("best_reward", 0)
+                st.metric(
+                    "Best Reward Achieved", 
+                    f"{reward:.4f}" if isinstance(reward, (int, float)) else "N/A"
+                )
         
         # Display performance metrics
         col1, col2, col3 = st.columns(3)

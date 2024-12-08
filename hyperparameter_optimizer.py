@@ -20,12 +20,13 @@ class HyperparameterOptimizer:
             fast_mode: If True, use a reduced parameter grid for faster optimization
         """
         self.env = env
-        self.best_params = None
+        self.best_params = {}  # Initialize as empty dict instead of None
         self.best_reward = float('-inf')
         self.results = []
         self.early_stop_threshold = 0.8  # Early stopping if 80% of max possible reward reached
         self.patience = 3  # Number of trials without improvement before early stopping
         self.min_improvement = 0.05  # Minimum improvement required (5%)
+        self.optimization_status = "Not started"  # Track optimization status
         
         # Use default parameter grid if none provided
         if param_grid is None:
@@ -105,6 +106,25 @@ class HyperparameterOptimizer:
 
     def optimize(self, total_timesteps: int = 10000, n_eval_episodes: int = 5, 
               fast_mode: bool = False) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        """
+        Perform grid search to find optimal hyperparameters with early stopping.
+        
+        Args:
+            total_timesteps: Number of timesteps to train each agent
+            n_eval_episodes: Number of episodes to evaluate each parameter combination
+            fast_mode: If True, use faster evaluation with early stopping
+            
+        Returns:
+            Tuple of (best parameters, list of all results)
+        """
+        self.optimization_status = "In progress"
+        # Initialize with default parameters in case optimization fails
+        self.best_params = {
+            'learning_rate': 3e-4,
+            'n_steps': 1024,
+            'batch_size': 64,
+            'clip_range': 0.2,
+        }
         """
         Perform grid search to find optimal hyperparameters with early stopping.
         
@@ -196,6 +216,7 @@ class HyperparameterOptimizer:
                 
             except Exception as e:
                 logger.error(f"Error evaluating parameters: {str(e)}")
+                self.optimization_status = f"Failed: {str(e)}"
                 continue
         
         # Sort results by average reward
@@ -205,24 +226,28 @@ class HyperparameterOptimizer:
 
     def get_optimization_summary(self) -> Dict[str, Any]:
         """
-        Get a summary of the optimization results.
+        Get a summary of the optimization results with detailed status information.
         
         Returns:
             Dictionary containing optimization summary
         """
         if not self.results:
             return {
-                "status": "No optimization results available",
-                "best_params": {},
-                "best_reward": 0.0,
+                "status": self.optimization_status,
+                "message": "No optimization results available. The process may have failed or been interrupted.",
+                "best_params": self.best_params,  # Return default params if optimization failed
+                "best_reward": self.best_reward if self.best_reward != float('-inf') else 0.0,
                 "total_combinations_tested": 0,
-                "top_5_results": []
+                "top_5_results": [],
+                "success": False
             }
         
         return {
-            "status": "Optimization completed",
-            "best_params": self.best_params if self.best_params is not None else {},
+            "status": "Optimization completed successfully",
+            "message": f"Successfully tested {len(self.results)} parameter combinations",
+            "best_params": self.best_params,
             "best_reward": self.best_reward,
             "total_combinations_tested": len(self.results),
-            "top_5_results": self.results[:5]
+            "top_5_results": self.results[:5],
+            "success": True
         }

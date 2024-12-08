@@ -169,5 +169,122 @@ class TestUtils(unittest.TestCase):
         }
         self.assertFalse(validate_trading_params(invalid_params))
 
+
+    def test_calculate_moving_average(self):
+        """Test moving average calculation"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        
+        # Test with window size 3
+        ma = calculate_moving_average(data, window=3)
+        self.assertEqual(len(ma), len(data) - 2)  # Valid convolution length
+        self.assertAlmostEqual(ma[0], 2.0)  # (1 + 2 + 3) / 3
+        
+        # Test empty data
+        self.assertEqual(len(calculate_moving_average(np.array([]))), 0)
+        
+        # Test data smaller than window
+        self.assertEqual(len(calculate_moving_average(np.array([1, 2]), window=3)), 0)
+        
+    def test_calculate_ema(self):
+        """Test exponential moving average calculation"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        
+        # Test EMA calculation
+        ema = calculate_ema(data, span=3)
+        self.assertEqual(len(ema), len(data))
+        self.assertTrue(np.all(ema[1:] > ema[:-1]))  # EMA should be monotonically increasing
+        
+        # Test empty data
+        self.assertEqual(len(calculate_ema(np.array([]))), 0)
+        
+        # Test data smaller than span
+        self.assertEqual(len(calculate_ema(np.array([1, 2]), span=3)), 0)
+        
+    def test_calculate_correlation(self):
+        """Test correlation calculation"""
+        series1 = np.array([1, 2, 3, 4, 5])
+        series2 = np.array([2, 4, 6, 8, 10])
+        
+        # Perfect positive correlation
+        corr = calculate_correlation(series1, series2)
+        self.assertAlmostEqual(corr, 1.0)
+        
+        # Perfect negative correlation
+        corr = calculate_correlation(series1, -series2)
+        self.assertAlmostEqual(corr, -1.0)
+        
+        # No correlation
+        corr = calculate_correlation(series1, np.zeros_like(series1))
+        self.assertEqual(corr, 0.0)
+        
+        # Different lengths
+        self.assertEqual(calculate_correlation(series1, series2[:-1]), 0.0)
+        
+    def test_normalize_data(self):
+        """Test data normalization"""
+        data = np.array([1, 2, 3, 4, 5])
+        
+        # Test min-max normalization
+        minmax = normalize_data(data, method='minmax')
+        self.assertAlmostEqual(np.min(minmax), 0.0)
+        self.assertAlmostEqual(np.max(minmax), 1.0)
+        
+        # Test z-score normalization
+        zscore = normalize_data(data, method='zscore')
+        self.assertAlmostEqual(np.mean(zscore), 0.0, places=7)
+        self.assertAlmostEqual(np.std(zscore), 1.0, places=7)
+        
+        # Test invalid method
+        self.assertEqual(len(normalize_data(data, method='invalid')), 0)
+        
+        # Test empty data
+        self.assertEqual(len(normalize_data(np.array([]))), 0)
+        
+        # Test constant data
+        const_data = np.array([1, 1, 1, 1])
+        self.assertTrue(np.all(normalize_data(const_data) == 0))
 if __name__ == '__main__':
+
+    def test_calculate_bollinger_bands(self):
+        """Test Bollinger Bands calculation"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10] * 3)  # Repeated sequence for more data points
+        
+        # Test normal calculation
+        middle, upper, lower = calculate_bollinger_bands(data, window=5, num_std=2.0)
+        self.assertTrue(len(middle) > 0)
+        self.assertTrue(np.all(upper >= middle))
+        self.assertTrue(np.all(middle >= lower))
+        
+        # Test insufficient data
+        middle, upper, lower = calculate_bollinger_bands(np.array([1, 2]), window=5)
+        self.assertEqual(len(middle), 0)
+        self.assertEqual(len(upper), 0)
+        self.assertEqual(len(lower), 0)
+        
+    def test_calculate_rsi(self):
+        """Test RSI calculation"""
+        data = np.array([10, 12, 11, 13, 15, 14, 16, 18, 17, 19])
+        
+        # Test normal calculation
+        rsi = calculate_rsi(data, period=3)
+        self.assertTrue(len(rsi) > 0)
+        self.assertTrue(np.all((rsi >= 0) & (rsi <= 100)))
+        
+        # Test insufficient data
+        self.assertEqual(len(calculate_rsi(np.array([1, 2]), period=3)), 0)
+        
+    def test_calculate_macd(self):
+        """Test MACD calculation"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10] * 4)  # Repeated sequence for more data points
+        
+        # Test normal calculation
+        macd_line, signal_line = calculate_macd(data, fast_period=3, slow_period=6, signal_period=2)
+        self.assertTrue(len(macd_line) > 0)
+        self.assertTrue(len(signal_line) > 0)
+        self.assertEqual(len(macd_line), len(signal_line))
+        
+        # Test insufficient data
+        macd_line, signal_line = calculate_macd(np.array([1, 2, 3]))
+        self.assertEqual(len(macd_line), 0)
+        self.assertEqual(len(signal_line), 0)
     unittest.main()

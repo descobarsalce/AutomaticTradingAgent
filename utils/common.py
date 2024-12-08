@@ -1,14 +1,35 @@
 """
-Common utility functions shared across the trading platform.
+Trading platform shared utilities module with common functions and constants.
+
+This module provides:
+1. Data validation and formatting functions
+2. Technical indicators calculation
+3. Data normalization and processing
+4. Trading constants and configuration
+5. Date/time handling utilities
 """
-from typing import Union, Dict, Any, List, Optional
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Union, Dict, List, Any, Optional
 import logging
 
 # Configure logging
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create console handler with a higher log level
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+
+# Create formatter and add it to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+
+# Add the handlers to the logger if not already added
+if not logger.handlers:
+    logger.addHandler(ch)
 
 def validate_numeric(value: Union[int, float], min_value: Optional[float] = None, 
                     max_value: Optional[float] = None, allow_zero: bool = True) -> bool:
@@ -226,20 +247,294 @@ def format_money(value: float, currency: str = '$') -> str:
         logger.error(f"Error formatting monetary value: {str(e)}")
         return f"{currency}0.00"
 
+
+def calculate_moving_average(data: np.ndarray, window: int = 20) -> np.ndarray:
+    """
+    Calculate simple moving average of a data series.
+    
+    Args:
+        data: Array of price/value data
+        window: Moving average window size
+        
+    Returns:
+        np.ndarray: Calculated moving average
+    """
+    try:
+        if len(data) < window:
+            return np.array([])
+        return np.convolve(data, np.ones(window)/window, mode='valid')
+    except Exception as e:
+        logger.error(f"Error calculating moving average: {str(e)}")
+        return np.array([])
+
+def calculate_ema(data: np.ndarray, span: int = 20) -> np.ndarray:
+    """
+    Calculate exponential moving average of a data series.
+    
+    Args:
+        data: Array of price/value data
+        span: EMA span period
+        
+    Returns:
+        np.ndarray: Calculated EMA
+    """
+    try:
+        if len(data) < span:
+            return np.array([])
+        alpha = 2.0 / (span + 1)
+        return pd.Series(data).ewm(alpha=alpha, adjust=False).mean().to_numpy()
+    except Exception as e:
+        logger.error(f"Error calculating EMA: {str(e)}")
+        return np.array([])
+
+def calculate_correlation(series1: np.ndarray, series2: np.ndarray) -> float:
+    """
+    Calculate correlation coefficient between two series.
+    
+    Args:
+        series1: First data series
+        series2: Second data series
+        
+    Returns:
+        float: Correlation coefficient
+    """
+    try:
+        if len(series1) != len(series2) or len(series1) < 2:
+            return 0.0
+        return float(np.corrcoef(series1, series2)[0, 1])
+    except Exception as e:
+        logger.error(f"Error calculating correlation: {str(e)}")
+        return 0.0
+
+def normalize_data(data: np.ndarray, method: str = 'minmax') -> np.ndarray:
+    """
+    Normalize data using specified method.
+    
+    Args:
+        data: Array of data to normalize
+        method: Normalization method ('minmax' or 'zscore')
+        
+    Returns:
+        np.ndarray: Normalized data
+    """
+    try:
+        if len(data) < 2:
+            return np.array([])
+            
+        if method == 'minmax':
+            min_val = np.min(data)
+            max_val = np.max(data)
+            if max_val - min_val < 1e-8:
+                return np.zeros_like(data)
+            return (data - min_val) / (max_val - min_val)
+            
+        elif method == 'zscore':
+            std = np.std(data, ddof=1)
+            if std < 1e-8:
+                return np.zeros_like(data)
+            return (data - np.mean(data)) / std
+            
+        else:
+            logger.error(f"Unsupported normalization method: {method}")
+            return np.array([])
+            
+    except Exception as e:
+        logger.error(f"Error normalizing data: {str(e)}")
+        return np.array([])
 # Trading Constants
+def calculate_bollinger_bands(data, window=20, num_std=2.0):
+    """
+    Calculate Bollinger Bands for a price series.
+    
+    Args:
+        data: Array of price data
+        window: Moving average window size
+        num_std: Number of standard deviations for bands
+        
+    Returns:
+        tuple: (middle band, upper band, lower band) as numpy arrays
+    """
+    try:
+        if len(data) < window:
+            return np.array([]), np.array([]), np.array([])
+            
+        middle_band = calculate_moving_average(data, window)
+        rolling_std = pd.Series(data).rolling(window=window).std().to_numpy()[window-1:]
+        
+        upper_band = middle_band + (rolling_std * num_std)
+        lower_band = middle_band - (rolling_std * num_std)
+        
+        return middle_band, upper_band, lower_band
+    except Exception as e:
+        logger.error(f"Error calculating Bollinger Bands: {str(e)}")
+        return np.array([]), np.array([]), np.array([])
+
+def calculate_rsi(data, period=14):
+    """
+    Calculate Relative Strength Index (RSI).
+    
+    Args:
+        data: Array of price data
+        period: RSI period
+        
+    Returns:
+        numpy.ndarray: RSI values
+    """
+    try:
+        if len(data) < period + 1:
+            return np.array([])
+            
+        deltas = np.diff(data)
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        
+        avg_gain = pd.Series(gains).rolling(window=period).mean().to_numpy()
+        avg_loss = pd.Series(losses).rolling(window=period).mean().to_numpy()
+        
+        rs = np.divide(avg_gain, avg_loss, out=np.zeros_like(avg_gain), where=avg_loss != 0)
+        rsi = 100 - (100 / (1 + rs))
+        
+        return rsi[period:]
+    except Exception as e:
+        logger.error(f"Error calculating RSI: {str(e)}")
+        return np.array([])
+
+def calculate_macd(data, fast_period=12, slow_period=26, signal_period=9):
+    """
+    Calculate Moving Average Convergence Divergence (MACD).
+    
+    Args:
+        data: Array of price data
+        fast_period: Fast EMA period
+        slow_period: Slow EMA period
+        signal_period: Signal line period
+        
+    Returns:
+        tuple: (MACD line, signal line) as numpy arrays
+    """
+    try:
+        if len(data) < slow_period + signal_period:
+            return np.array([]), np.array([])
+            
+        fast_ema = calculate_ema(data, span=fast_period)
+        slow_ema = calculate_ema(data, span=slow_period)
+        
+        macd_line = fast_ema - slow_ema
+        signal_line = calculate_ema(macd_line, span=signal_period)
+        
+        if len(macd_line) == len(signal_line):
+            return macd_line, signal_line
+        return np.array([]), np.array([])
+        
+
+def format_date(date: Union[str, datetime], format_str: str = "%Y-%m-%d") -> str:
+    """
+    Format date string or datetime object to specified format.
+    
+    Args:
+        date: Date string or datetime object
+        format_str: Output date format string
+        
+    Returns:
+        str: Formatted date string
+    """
+    try:
+        if isinstance(date, str):
+            date = pd.to_datetime(date)
+        return date.strftime(format_str)
+    except Exception as e:
+        logger.error(f"Error formatting date: {str(e)}")
+        return ""
+
+def is_market_hours(timestamp: Union[str, datetime], market_open: str = "09:30", market_close: str = "16:00") -> bool:
+    """
+    Check if given timestamp is during market hours.
+    
+    Args:
+        timestamp: Timestamp to check
+        market_open: Market opening time (HH:MM)
+        market_close: Market closing time (HH:MM)
+        
+    Returns:
+        bool: True if timestamp is during market hours
+    """
+    try:
+        if isinstance(timestamp, str):
+            timestamp = pd.to_datetime(timestamp)
+            
+        # Convert to datetime.time for comparison
+        current_time = timestamp.time()
+        open_time = datetime.strptime(market_open, "%H:%M").time()
+        close_time = datetime.strptime(market_close, "%H:%M").time()
+        
+        return open_time <= current_time <= close_time
+    except Exception as e:
+        logger.error(f"Error checking market hours: {str(e)}")
+        return False
+
+def trading_days_between(start_date: Union[str, datetime], end_date: Union[str, datetime]) -> int:
+    """
+    Calculate number of trading days between two dates.
+    
+    Args:
+        start_date: Start date
+        end_date: End date
+        
+    Returns:
+        int: Number of trading days
+    """
+    try:
+        if isinstance(start_date, str):
+            start_date = pd.to_datetime(start_date)
+        if isinstance(end_date, str):
+            end_date = pd.to_datetime(end_date)
+            
+        # Create date range and exclude weekends
+        date_range = pd.date_range(start_date, end_date)
+        trading_days = len(date_range[date_range.dayofweek < 5])
+        
+        return trading_days
+    except Exception as e:
+        logger.error(f"Error calculating trading days: {str(e)}")
+        return 0
+
+def round_price(price: float, precision: int = PRICE_PRECISION) -> float:
+    """
+    Round price to specified precision.
+    
+    Args:
+        price: Price to round
+        precision: Decimal places for rounding
+        
+    Returns:
+        float: Rounded price
+    """
+    try:
+        return round(float(price), precision)
+    except Exception as e:
+        logger.error(f"Error rounding price: {str(e)}")
+        return 0.0
+        return macd_line, signal_line
+    except Exception as e:
+        logger.error(f"Error calculating MACD: {str(e)}")
+        return np.array([]), np.array([])
+
+# Position and Risk Management Constants
 MAX_POSITION_SIZE = 1.0
 MIN_POSITION_SIZE = -1.0
-DEFAULT_STOP_LOSS = 0.02
-DEFAULT_TAKE_PROFIT = 0.05
-RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
-# Trading Constants
-TRADING_DAYS_PER_YEAR = 252  # Standard number of trading days in a year
-MIN_DATA_POINTS = 252  # Minimum data points for reliable statistics
-ANNUALIZATION_FACTOR = np.sqrt(TRADING_DAYS_PER_YEAR)
-CORRELATION_THRESHOLD = 0.7  # Threshold for significant correlation
-MAX_TRADES_PER_DAY = 10
-RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
 MAX_LEVERAGE = 2.0
 MIN_TRADE_SIZE = 0.01
+DEFAULT_STOP_LOSS = 0.02
+DEFAULT_TAKE_PROFIT = 0.05
+
+# Market Parameters
+TRADING_DAYS_PER_YEAR = 252  # Standard number of trading days in a year
+MIN_DATA_POINTS = 252  # Minimum data points for reliable statistics
+RISK_FREE_RATE = 0.02  # 2% annual risk-free rate
+MAX_TRADES_PER_DAY = 10
+CORRELATION_THRESHOLD = 0.7  # Threshold for significant correlation
+
+# Calculation Parameters
+ANNUALIZATION_FACTOR = np.sqrt(TRADING_DAYS_PER_YEAR)
 PRICE_PRECISION = 2
 POSITION_PRECISION = 4

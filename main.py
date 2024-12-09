@@ -222,18 +222,34 @@ if train_model:
         
         with st.spinner(f"Training agent for {symbol}..."):
             try:
-                # Create callback with progress tracking
-                callback = ProgressBarCallback(
+                # Create callbacks for progress and metrics tracking
+                progress_callback = ProgressBarCallback(
                     total_timesteps=training_steps,
                     progress_bar=training_progress,
                     status_placeholder=training_status
                 )
                 
-                # Train with progress callback
+                metrics_callback = PortfolioMetricsCallback(
+                    eval_freq=max(100, training_steps // 20),  # Update metrics ~20 times during training
+                    verbose=1
+                )
+                
+                # Train with both callbacks
                 st.session_state.trained_agents[symbol].train(
                     total_timesteps=training_steps,
-                    callback=callback
+                    callback=[progress_callback, metrics_callback]
                 )
+                
+                # Display training metrics
+                if metrics_callback.get_metrics():
+                    st.subheader("Training Metrics")
+                    metrics = metrics_callback.get_metrics()
+                    
+                    metrics_cols = st.columns(4)
+                    metrics_cols[0].metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
+                    metrics_cols[1].metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                    metrics_cols[2].metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
+                    metrics_cols[3].metric("Average Returns", f"{metrics['returns']:.2%}")
             except Exception as e:
                 st.error(f"Error training agent for {symbol}: {str(e)}")
                 continue

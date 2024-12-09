@@ -1,7 +1,79 @@
 from stable_baselines3.common.callbacks import BaseCallback
 from tqdm.auto import tqdm
 import time
-from typing import Optional
+import numpy as np
+from typing import Optional, Dict, Any
+from core.metrics import MetricsCalculator
+
+class PortfolioMetricsCallback(BaseCallback):
+    """
+    Custom callback for tracking portfolio metrics during training
+    """
+    def __init__(self, eval_freq: int = 1000, verbose: int = 1):
+        super().__init__(verbose)
+        self.eval_freq = eval_freq
+        self.metrics_calculator = MetricsCalculator()
+        self.portfolio_history = []
+        self.returns_history = []
+        self.metrics_history: Dict[str, list] = {
+            'sharpe_ratio': [],
+            'sortino_ratio': [],
+            'max_drawdown': [],
+            'returns': []
+        }
+        
+    def _on_step(self) -> bool:
+        """
+        Track portfolio metrics at each step
+        """
+        try:
+            # Get current portfolio value from environment info
+            info = self.training_env.get_attr('_last_info')[0]
+            if info and 'net_worth' in info:
+                self.portfolio_history.append(info['net_worth'])
+                
+                # Calculate metrics every eval_freq steps
+                if self.n_calls % self.eval_freq == 0:
+                    if len(self.portfolio_history) > 1:
+                        # Calculate returns
+                        returns = self.metrics_calculator.calculate_returns(self.portfolio_history)
+                        if len(returns) > 0:
+                            self.returns_history.extend(returns)
+                            
+                            # Update metrics
+                            self.metrics_history['returns'].append(float(np.mean(returns)))
+                            self.metrics_history['sharpe_ratio'].append(
+                                self.metrics_calculator.calculate_sharpe_ratio(returns)
+                            )
+                            self.metrics_history['sortino_ratio'].append(
+                                self.metrics_calculator.calculate_sortino_ratio(returns)
+                            )
+                            self.metrics_history['max_drawdown'].append(
+                                self.metrics_calculator.calculate_maximum_drawdown(self.portfolio_history)
+                            )
+                            
+                            if self.verbose > 0:
+                                latest_metrics = {
+                                    k: v[-1] if v else 0.0 
+                                    for k, v in self.metrics_history.items()
+                                }
+                                self.logger.record("train/sharpe_ratio", latest_metrics['sharpe_ratio'])
+                                self.logger.record("train/sortino_ratio", latest_metrics['sortino_ratio'])
+                                self.logger.record("train/max_drawdown", latest_metrics['max_drawdown'])
+                                self.logger.record("train/returns", latest_metrics['returns'])
+                                
+        except Exception as e:
+            if self.verbose > 0:
+                print(f"Error in PortfolioMetricsCallback: {str(e)}")
+                
+        return True
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Get the latest metrics"""
+        return {
+            k: (v[-1] if v else 0.0)
+            for k, v in self.metrics_history.items()
+        }
 
 class ProgressBarCallback(BaseCallback):
     """

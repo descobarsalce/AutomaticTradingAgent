@@ -262,6 +262,9 @@ if train_model:
         eval_progress = st.progress(0)
         eval_status = st.empty()
         
+        # Calculate initial balance for this symbol based on weights
+        symbol_initial_balance = initial_balance * weights[symbol]
+        
         while not done:
             action = st.session_state.trained_agents[symbol].predict(obs)
             obs, reward, terminated, truncated, info = st.session_state.environments[symbol].step(action)

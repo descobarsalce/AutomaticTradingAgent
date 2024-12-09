@@ -95,8 +95,8 @@ class ProgressBarCallback(BaseCallback):
         self.pbar.update(1)
         
         if self.progress_bar is not None and self.status_placeholder is not None:
-            current_step = self.num_timesteps
-            progress = current_step / self.total_timesteps
+            current_step = min(self.num_timesteps, self.total_timesteps)
+            progress = min(1.0, current_step / self.total_timesteps)
             self.progress_bar.progress(progress)
             
             # Calculate time estimation

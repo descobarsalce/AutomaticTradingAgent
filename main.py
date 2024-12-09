@@ -7,7 +7,7 @@ from environment import SimpleTradingEnv
 from core import TradingAgent
 from data_handler import DataHandler
 from visualization import TradingVisualizer
-from callbacks import ProgressBarCallback
+from callbacks import ProgressBarCallback, PortfolioMetricsCallback
 
 # Page config
 st.set_page_config(

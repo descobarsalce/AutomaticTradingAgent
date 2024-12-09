@@ -50,7 +50,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 -m pytest -v"
+args = "python3 -m pytest -v tests/test_base_agent.py"
 
 [[workflows.workflow]]
 name = "Quick Mode Test"

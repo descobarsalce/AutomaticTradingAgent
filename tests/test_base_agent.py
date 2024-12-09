@@ -59,7 +59,7 @@ class TestBaseAgent(unittest.TestCase):
             agent.predict(wrong_shape)
 
     def test_state_management(self):
-        """Test basic state management functionality"""
+        """Test enhanced state management functionality"""
         agent = BaseAgent(self.env)
         
         # Test invalid portfolio value type
@@ -73,6 +73,26 @@ class TestBaseAgent(unittest.TestCase):
         # Test invalid positions type
         with self.assertRaises(TypeError):
             agent.update_state(1000, "not_a_dict")
+            
+        # Test invalid position values
+        with self.assertRaises(TypeError):
+            agent.update_state(1000, {"TEST": "not_a_number"})
+            
+        # Test non-finite position values
+        with self.assertRaises(ValueError):
+            agent.update_state(1000, {"TEST": float('inf')})
+            
+        # Test valid state updates
+        initial_update = agent.update_state(10000.0, {"TEST": 1.0})
+        self.assertIsNone(initial_update)
+        self.assertEqual(len(agent.portfolio_history), 1)
+        self.assertEqual(len(agent.positions_history), 1)
+        
+        # Test consecutive updates
+        second_update = agent.update_state(10100.0, {"TEST": 1.1})
+        self.assertIsNone(second_update)
+        self.assertEqual(len(agent.portfolio_history), 2)
+        self.assertEqual(len(agent.positions_history), 2)
 
     def test_model_persistence(self):
         """Test model save/load functionality"""

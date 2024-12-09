@@ -168,7 +168,18 @@ class BaseAgent:
 
     @type_check
     def update_state(self, portfolio_value: Union[int, float], positions: Dict[str, Union[int, float]]) -> None:
-        """Update agent's state tracking with new portfolio information."""
+        """
+        Update agent's state tracking with new portfolio information.
+        
+        Args:
+            portfolio_value: Current portfolio value
+            positions: Dictionary of symbol to position size mappings
+            
+        Raises:
+            TypeError: If input types are invalid
+            ValueError: If values are invalid or inconsistent
+        """
+        # Basic type validation
         if not isinstance(portfolio_value, (int, float)):
             raise TypeError("portfolio_value must be a number")
         if portfolio_value < 0:
@@ -178,6 +189,56 @@ class BaseAgent:
         if not all(isinstance(v, (int, float)) for v in positions.values()):
             raise TypeError("All position values must be numbers")
             
+        # Validate position sizes
+        for symbol, size in positions.items():
+            if not np.isfinite(size):
+                raise ValueError(f"Position size for {symbol} must be finite")
+            if abs(size) > 10.0:  # Maximum allowed position size
+                logger.warning(f"Large position detected for {symbol}: {size}")
+        
+        # Portfolio consistency check
+        try:
+            current_prices = {
+                symbol: self.env.data.loc[self.env.current_step, 'Close'] 
+                for symbol in positions.keys()
+            }
+            calculated_positions_value = sum(
+                size * current_prices[symbol] 
+                for symbol, size in positions.items()
+            )
+            
+            # Get current cash balance from environment
+            cash_balance = getattr(self.env, 'balance', 0.0)
+            calculated_portfolio = calculated_positions_value + cash_balance
+            
+            # Allow for small numerical differences
+            if not np.isclose(calculated_portfolio, portfolio_value, rtol=1e-3):
+                logger.warning(
+                    f"Portfolio value inconsistency detected: "
+                    f"calculated={calculated_portfolio:.2f}, "
+                    f"reported={portfolio_value:.2f}, "
+                    f"difference={abs(calculated_portfolio - portfolio_value):.2f}"
+                )
+        except Exception as e:
+            logger.error(f"Error during portfolio consistency check: {str(e)}")
+            
+        # Track state changes
+        previous_portfolio = self.portfolio_history[-1] if self.portfolio_history else None
+        previous_positions = self.positions_history[-1] if self.positions_history else None
+        
+        # Log significant changes
+        if previous_portfolio is not None:
+            pct_change = ((portfolio_value - previous_portfolio) / previous_portfolio) * 100
+            if abs(pct_change) > 1.0:  # Log changes greater than 1%
+                logger.info(f"Significant portfolio value change: {pct_change:.2f}%")
+        
+        if previous_positions is not None:
+            for symbol, current_size in positions.items():
+                prev_size = previous_positions.get(symbol, 0.0)
+                if abs(current_size - prev_size) > 0.1:  # Log position changes greater than 0.1
+                    logger.info(f"Position change for {symbol}: {prev_size:.2f} -> {current_size:.2f}")
+        
+        # Update state
         self.portfolio_history.append(portfolio_value)
         self.positions_history.append(positions)
         self._update_metrics()

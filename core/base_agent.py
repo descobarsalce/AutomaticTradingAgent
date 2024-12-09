@@ -111,14 +111,17 @@ class BaseAgent:
                 policy_kwargs = self.DEFAULT_POLICY_KWARGS.copy()
 
         try:
+            # Set default verbose level if not specified in ppo_params
+            if 'verbose' not in ppo_params:
+                ppo_params['verbose'] = 1
+                
             self.model = PPO(
                 policy_type,
                 env,
                 **ppo_params,
                 tensorboard_log=tensorboard_log,
                 policy_kwargs=policy_kwargs,
-                seed=seed,
-                verbose=1
+                seed=seed
             )
         except Exception as e:
             logger.exception("Failed to initialize PPO model")

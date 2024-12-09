@@ -27,6 +27,9 @@ def type_check(func: Callable) -> Callable:
         
         def check_type(value: Any, expected_type: Any) -> bool:
             """Safe type checking with support for complex types"""
+            def is_dict_like(obj: Any) -> bool:
+                """Check if an object is dictionary-like (has keys and values methods)."""
+                return isinstance(obj, dict) or (hasattr(obj, 'keys') and hasattr(obj, 'values'))
             try:
                 # Handle None for Optional types
                 if value is None:
@@ -54,8 +57,14 @@ def type_check(func: Callable) -> Callable:
                     if not isinstance(value, origin):
                         return False
                     
-                    # Handle dictionaries
+                    # Handle dictionaries with more permissive checking
                     if origin is dict:
+                        if not is_dict_like(value):
+                            return False
+                        # For Optional[Dict[str, Any]], be more permissive
+                        if expected_type.__args__ == (str, Any):
+                            return all(isinstance(k, str) for k in value.keys())
+                        # For other dictionary types, check types normally
                         key_type, value_type = expected_type.__args__
                         return all(
                             check_type(k, key_type) and check_type(v, value_type)

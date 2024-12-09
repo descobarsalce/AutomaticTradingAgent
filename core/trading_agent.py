@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TypeVar, cast
 import numpy as np
 from gymnasium import Env
 from .base_agent import BaseAgent
@@ -41,25 +41,28 @@ class TradingAgent(BaseAgent):
                 'n_epochs': 3,              # Minimal epochs for quick convergence
                 'gamma': 0.95,              # Standard discount factor
                 'clip_range': 0.2,          # Standard clip range
-                'ent_coef': 0.005,          # Reduced entropy for faster convergence
-                'verbose': 1                # Enable logging
+                'ent_coef': 0.005          # Reduced entropy for faster convergence
             }
             
-            # Set policy kwargs for quick mode
-            self.policy_kwargs = {
-                'net_arch': [dict(pi=[32, 32], vf=[32, 32])],  # Smaller network
-                'activation_fn': 'tanh'  # Better for bounded actions
+            # Define policy network architecture for quick mode
+            quick_policy: Dict[str, Any] = {
+                'net_arch': [dict(pi=[32, 32], vf=[32, 32])],
+                'activation_fn': 'tanh'
             }
+            
+            # Set policy kwargs with explicit Optional[Dict] typing
+            self.policy_kwargs = cast(Optional[Dict[str, Any]], quick_policy if quick_mode else None)
             ppo_params = quick_params
         
         # Validate parameters using utility function
         if ppo_params and not validate_trading_params(ppo_params):
             raise ValueError("Invalid trading parameters provided")
         
+        # Initialize base agent with type-safe parameters
         super().__init__(
             env,
             ppo_params=ppo_params,
-            policy_kwargs=self.policy_kwargs,
+            policy_kwargs=self.policy_kwargs if quick_mode else None,
             seed=seed
         )
         self.stop_loss = DEFAULT_STOP_LOSS

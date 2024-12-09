@@ -129,12 +129,24 @@ class SimpleTradingEnv(gym.Env):
                     # Scale by position profit and size
                     holding_bonus = duration_bonus * (1 + position_profit) * position_size_ratio
             
-            # Adaptive trading penalty based on action magnitude and frequency
+            # Calculate market volatility using rolling window
+            volatility = 0.0
+            if self.current_step >= 5:  # Need at least 5 data points
+                prices = self.data['Close'].iloc[max(0, self.current_step-20):self.current_step+1]
+                returns = np.log(prices / prices.shift(1)).dropna()
+                volatility = returns.std() * np.sqrt(252)  # Annualized volatility
+            
+            # Adaptive trading penalty based on action magnitude, frequency, and volatility
             trading_penalty = 0
             if abs(action) > 0.1:
-                # Penalize both the size of the trade and frequent trading
-                size_penalty = 0.001 * (abs(action) - 0.1)
-                frequency_penalty = 0.001 if (self.current_step - self.last_action) < 5 else 0
+                # Base size penalty scaled by volatility
+                volatility_scalar = max(1.0, volatility * 10)  # Higher volatility = higher penalty
+                size_penalty = 0.001 * (abs(action) - 0.1) * volatility_scalar
+                
+                # Frequency penalty increases in high volatility
+                min_hold_period = max(3, int(5 * volatility_scalar))  # Dynamic holding period
+                frequency_penalty = 0.001 * volatility_scalar if (self.current_step - self.last_action) < min_hold_period else 0
+                
                 trading_penalty = size_penalty + frequency_penalty
             
             # Update last action tracking for any significant trade

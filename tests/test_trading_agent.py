@@ -1,6 +1,7 @@
 import numpy as np
 import unittest
 import pandas as pd
+from stable_baselines3.common.callbacks import BaseCallback
 from core import TradingAgent
 from environment import SimpleTradingEnv
 
@@ -123,3 +124,33 @@ class TestTradingAgent(unittest.TestCase):
             self.assertIn('net_worth', info)
             self.assertIn('balance', info)
             self.assertIn('shares_held', info)
+            
+    def test_train_with_callback(self):
+        """Test training with callback functionality"""
+        agent = TradingAgent(self.env)
+        
+        # Create a simple test callback
+        class TestCallback(BaseCallback):
+            def __init__(self):
+                super().__init__(verbose=0)
+                self.called = False
+            
+            def _on_step(self):
+                self.called = True
+                return True
+        
+        callback = TestCallback()
+        
+        # Test training with callback
+        agent.train(total_timesteps=100, callback=callback)
+        self.assertTrue(callback.called, "Callback was not called during training")
+        
+        # Test training without callback
+        agent.train(total_timesteps=100)  # Should not raise any errors
+        
+        # Test invalid input
+        with self.assertRaises(ValueError):
+            agent.train(total_timesteps=-1)
+            
+        with self.assertRaises(ValueError):
+            agent.train(total_timesteps=0)

@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional, Union, cast
 import numpy as np
 from gymnasium import Env
+from stable_baselines3.common.callbacks import BaseCallback
 from .base_agent import BaseAgent
 from utils.data_utils import validate_numeric
 from utils.common import (
@@ -101,3 +102,22 @@ class TradingAgent(BaseAgent):
                 raise ValueError(f"Position size too large for {symbol}")
                 
         super().update_state(portfolio_value, positions)
+        
+    def train(self, total_timesteps: int, callback: Optional[Any] = None) -> None:
+        """
+        Train the agent with progress tracking.
+
+        Args:
+            total_timesteps (int): Number of steps to train
+            callback (Optional[BaseCallback]): Progress tracking callback for monitoring training
+        """
+        if not isinstance(total_timesteps, int) or total_timesteps <= 0:
+            raise ValueError("total_timesteps must be a positive integer")
+            
+        if callback:
+            self.model.learn(
+                total_timesteps=total_timesteps,
+                callback=callback
+            )
+        else:
+            self.model.learn(total_timesteps=total_timesteps)

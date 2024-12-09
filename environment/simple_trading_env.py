@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=100000):
+    def __init__(self, data, initial_balance=100000, transaction_cost=0.001, min_transaction_size=100):
         super().__init__()
         # Store market data and initial balance
         self.data = data
@@ -19,6 +19,10 @@ class SimpleTradingEnv(gym.Env):
         self.initial_balance = initial_balance
         self.current_step = 0
         self.max_steps = len(data) if data is not None else 100
+        
+        # Transaction parameters
+        self.transaction_cost = transaction_cost  # As a decimal (e.g., 0.001 for 0.1%)
+        self.min_transaction_size = min_transaction_size  # Minimum transaction amount in dollars
         
         # Define action space as continuous values between -1 and 1
         self.action_space = gym.spaces.Box(
@@ -94,6 +98,19 @@ class SimpleTradingEnv(gym.Env):
             
             if action > 0:  # Buy
                 # Validate position size
+                transaction_fees = amount * self.transaction_cost
+                total_cost = amount + transaction_fees
+                
+                if amount < self.min_transaction_size:
+                    logger.warning(f"Trade rejected: Amount {amount:.2f} below minimum transaction size {self.min_transaction_size}")
+                    return self._get_observation(), 0, False, False, {
+                        'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
+                        'current_price': current_price,
+                        'trade_status': 'rejected_min_size'
+                    }
+                
                 shares_to_buy = amount / current_price
                 new_position_value = (self.shares_held + shares_to_buy) * current_price
                 
@@ -107,8 +124,8 @@ class SimpleTradingEnv(gym.Env):
                         'trade_status': 'rejected_size'
                     }
                 
-                if amount > self.balance:  # Ensure sufficient balance
-                    logger.warning("Trade rejected: Insufficient balance")
+                if total_cost > self.balance:  # Ensure sufficient balance including fees
+                    logger.warning("Trade rejected: Insufficient balance (including fees)")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
                         'balance': self.balance,
@@ -118,14 +135,29 @@ class SimpleTradingEnv(gym.Env):
                     }
                 
                 shares_bought = amount / current_price
-                self.balance -= amount
+                self.balance -= total_cost  # Deduct amount plus fees
                 self.shares_held += shares_bought
                 self.cost_basis = current_price
             elif action < 0:  # Sell
                 # Calculate maximum shares that can be sold
                 max_shares_to_sell = self.shares_held * abs(action)
                 shares_sold = min(max_shares_to_sell, self.shares_held)
-                self.balance += shares_sold * current_price
+                sell_amount = shares_sold * current_price
+                
+                if sell_amount < self.min_transaction_size and self.shares_held > 0:
+                    logger.warning(f"Trade rejected: Amount {sell_amount:.2f} below minimum transaction size {self.min_transaction_size}")
+                    return self._get_observation(), 0, False, False, {
+                        'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
+                        'current_price': current_price,
+                        'trade_status': 'rejected_min_size'
+                    }
+                
+                transaction_fees = sell_amount * self.transaction_cost
+                net_sell_amount = sell_amount - transaction_fees
+                
+                self.balance += net_sell_amount
                 self.shares_held -= shares_sold
             
             # Calculate base reward from portfolio performance

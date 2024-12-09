@@ -28,20 +28,27 @@ class TradingAgent(BaseAgent):
             seed: Optional random seed
             quick_mode: If True, use minimal parameters for fast testing
         """
+        # Initialize policy kwargs as None by default
+        self.policy_kwargs: Optional[Dict[str, Any]] = None
+
         # Set quick mode parameters if enabled
         if quick_mode:
+            # Define basic parameters
             quick_params = {
                 'learning_rate': 3e-4,      # Standard learning rate
-                'n_steps': 512,             # Minimum recommended steps
-                'batch_size': 64,           # Minimum recommended batch size
-                'n_epochs': 5,              # Fewer epochs
-                'gamma': 0.95,              # Slightly lower discount factor
+                'n_steps': 128,             # Reduced steps for quick training
+                'batch_size': 32,           # Smaller batch size
+                'n_epochs': 3,              # Minimal epochs for quick convergence
+                'gamma': 0.95,              # Standard discount factor
                 'clip_range': 0.2,          # Standard clip range
-                'ent_coef': 0.01,           # Standard entropy coefficient
-                'policy_kwargs': {
-                    'net_arch': {'pi': [32, 32], 'vf': [32, 32]},  # Smaller network
-                    'activation_fn': 'tanh'  # Better for bounded actions
-                }
+                'ent_coef': 0.005,          # Reduced entropy for faster convergence
+                'verbose': 1                # Enable logging
+            }
+            
+            # Set policy kwargs for quick mode
+            self.policy_kwargs = {
+                'net_arch': [dict(pi=[32, 32], vf=[32, 32])],  # Smaller network
+                'activation_fn': 'tanh'  # Better for bounded actions
             }
             ppo_params = quick_params
         
@@ -49,7 +56,12 @@ class TradingAgent(BaseAgent):
         if ppo_params and not validate_trading_params(ppo_params):
             raise ValueError("Invalid trading parameters provided")
         
-        super().__init__(env, ppo_params=ppo_params, seed=seed)
+        super().__init__(
+            env,
+            ppo_params=ppo_params,
+            policy_kwargs=self.policy_kwargs,
+            seed=seed
+        )
         self.stop_loss = DEFAULT_STOP_LOSS
         self.take_profit = DEFAULT_TAKE_PROFIT
         self.quick_mode = quick_mode

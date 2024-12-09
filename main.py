@@ -56,6 +56,7 @@ end_date = st.sidebar.date_input("End Date", value=end_date)
 # Training parameters
 initial_balance = st.sidebar.number_input("Initial Balance ($)", value=100000)
 training_steps = st.sidebar.number_input("Training Steps", value=10000, step=1000)
+quick_mode = st.sidebar.checkbox("Enable Quick Training Mode", value=False, key="quick_mode")
 
 # Hyperparameter optimization settings
 st.sidebar.subheader("Hyperparameter Optimization")
@@ -180,8 +181,11 @@ if train_model:
                     st.error(f"Error during hyperparameter optimization for {symbol}: {str(e)}")
                     continue
         else:
-            # Initialize agent with default parameters
-            st.session_state.trained_agents[symbol] = TradingAgent(st.session_state.environments[symbol])
+            # Initialize agent with default parameters and quick mode setting
+            st.session_state.trained_agents[symbol] = TradingAgent(
+                st.session_state.environments[symbol],
+                quick_mode=st.session_state.get('quick_mode', False)
+            )
         
         # Train agent with progress tracking
         training_progress = st.progress(0)

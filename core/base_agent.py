@@ -62,6 +62,7 @@ class BaseAgent:
         seed: Optional[int] = None,
         optimize_for_sharpe: bool = True
     ) -> None:
+        """Type-safe initialization of the base agent."""
         """
         Initialize the base agent with advanced configuration and state tracking.
         """

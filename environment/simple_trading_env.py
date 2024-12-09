@@ -17,6 +17,9 @@ class SimpleTradingEnv(gym.Env):
         self.cost_basis = 0
         self.last_action = 0
         self.initial_balance = initial_balance
+        self.balance = initial_balance  # Initialize cash balance
+        self.shares_held = 0            # Initialize position
+        self.net_worth = initial_balance  # Initialize net worth
         self.current_step = 0
         self.max_steps = len(data) if data is not None else 100
         
@@ -40,6 +43,35 @@ class SimpleTradingEnv(gym.Env):
             dtype=np.float32
         )
         
+    def _update_net_worth(self) -> float:
+        """
+        Update and validate the current net worth.
+        Returns:
+            float: Current net worth
+        """
+        try:
+            current_price = self.data.iloc[self.current_step]['Close']
+            position_value = self.shares_held * current_price
+            new_net_worth = self.balance + position_value
+            
+            # Validate net worth
+            if new_net_worth < 0:
+                logger.warning(f"Negative net worth detected: {new_net_worth}")
+                new_net_worth = 0  # Prevent negative net worth
+                
+            # Log significant changes (more than 5%)
+            if hasattr(self, 'net_worth') and self.net_worth > 0:
+                change_pct = (new_net_worth - self.net_worth) / self.net_worth * 100
+                if abs(change_pct) > 5:
+                    logger.info(f"Significant net worth change: {change_pct:.2f}%")
+                    
+            self.net_worth = new_net_worth
+            return self.net_worth
+            
+        except Exception as e:
+            logger.error(f"Error updating net worth: {str(e)}")
+            raise
+            
     def _get_observation(self):
         """Get current observation of market and account state."""
         obs = np.array([
@@ -59,22 +91,32 @@ class SimpleTradingEnv(gym.Env):
             super().reset(seed=seed)
             self.current_step = 0
             
+            # Reset financial state
             self.balance = self.initial_balance
             self.shares_held = 0
             self.cost_basis = 0
-            self.net_worth = self.initial_balance  # Initialize net_worth
+            self.last_action = 0
+            
+            # Calculate initial net worth (should equal initial balance at start)
+            self._update_net_worth()
+            
+            # Validate initial state
+            if self.net_worth != self.initial_balance:
+                logger.error(f"Net worth initialization error: {self.net_worth} != {self.initial_balance}")
+                raise ValueError("Net worth initialization failed")
             
             observation = self._get_observation()
             info = {
                 'initial_balance': self.initial_balance,
                 'net_worth': self.net_worth,
-                'shares_held': self.shares_held
+                'shares_held': self.shares_held,
+                'balance': self.balance
             }
             
             return observation, info
             
         except Exception as e:
-            print(f"Error in reset method: {str(e)}")
+            logger.error(f"Error in reset method: {str(e)}")
             raise
         
     def step(self, action):
@@ -160,8 +202,8 @@ class SimpleTradingEnv(gym.Env):
                 self.balance += net_sell_amount
                 self.shares_held -= shares_sold
             
-            # Update portfolio net worth
-            self.net_worth = self.balance + (self.shares_held * current_price)
+            # Update portfolio net worth and calculate base reward
+            self._update_net_worth()
             # Calculate base reward from portfolio performance
             base_reward = (self.net_worth - self.initial_balance) / self.initial_balance
             

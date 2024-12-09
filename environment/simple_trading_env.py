@@ -1,11 +1,19 @@
 import gymnasium as gym
 import numpy as np
+import gymnasium as gym
+import pandas as pd
+from typing import Tuple, Dict, Any, Optional
+
+import numpy as np
 
 class SimpleTradingEnv(gym.Env):
     def __init__(self, data, initial_balance=100000):
         super().__init__()
         # Store market data and initial balance
         self.data = data
+        # Add tracking for cost basis and last action
+        self.cost_basis = 0
+        self.last_action = 0
         self.initial_balance = initial_balance
         self.current_step = 0
         self.max_steps = len(data) if data is not None else 100
@@ -88,9 +96,59 @@ class SimpleTradingEnv(gym.Env):
                 self.balance += shares_sold * current_price
                 self.shares_held -= shares_sold
             
-            # Calculate reward based on portfolio performance
+            # Calculate base reward from portfolio performance
             self.net_worth = self.balance + self.shares_held * current_price
-            reward = (self.net_worth - self.initial_balance) / self.initial_balance
+            base_reward = (self.net_worth - self.initial_balance) / self.initial_balance
+            
+            # Calculate position profitability with validation
+            position_profit = 0
+            if self.shares_held > 0 and self.cost_basis > 0:
+                position_profit = np.clip((current_price - self.cost_basis) / self.cost_basis, -1, 1)
+            
+            # Calculate market trend using exponential moving average for smoother signals
+            trend_window = min(5, self.current_step + 1)
+            if trend_window > 1:
+                prices = self.data['Close'].iloc[max(0, self.current_step-trend_window+1):self.current_step+1]
+                ema = prices.ewm(span=trend_window).mean().iloc[-1]
+                trend = np.clip((current_price - ema) / ema, -0.1, 0.1)
+            else:
+                trend = 0
+                
+            # Simplified holding bonus with guaranteed monotonic growth
+            holding_bonus = 0
+            if self.shares_held > 0:
+                # Calculate holding duration (always positive)
+                holding_duration = max(1, self.current_step - self.last_action if self.last_action >= 0 else self.current_step)
+                
+                # Calculate position size ratio (0 to 1)
+                position_size_ratio = (self.shares_held * current_price) / self.net_worth
+                
+                if position_profit > 0:
+                    # Linear growth with duration
+                    duration_bonus = 0.005 * holding_duration  # 0.5% per step
+                    # Scale by position profit and size
+                    holding_bonus = duration_bonus * (1 + position_profit) * position_size_ratio
+            
+            # Adaptive trading penalty based on action magnitude and frequency
+            trading_penalty = 0
+            if abs(action) > 0.1:
+                # Penalize both the size of the trade and frequent trading
+                size_penalty = 0.001 * (abs(action) - 0.1)
+                frequency_penalty = 0.001 if (self.current_step - self.last_action) < 5 else 0
+                trading_penalty = size_penalty + frequency_penalty
+            
+            # Update last action tracking for any significant trade
+            if abs(action) > 0.1:
+                self.last_action = self.current_step
+            
+            # Combine reward components with emphasis on holding
+            reward = (
+                base_reward * 0.15 +          # Base portfolio performance (15%)
+                position_profit * 0.15 +      # Position profitability (15%)
+                trend * 0.10 +                # Market trend alignment (10%)
+                holding_bonus * 0.60 -        # Holding bonus (60%)
+                trading_penalty               # Trading penalty (reduces reward)
+            )
             
             # Update state
             self.current_step += 1

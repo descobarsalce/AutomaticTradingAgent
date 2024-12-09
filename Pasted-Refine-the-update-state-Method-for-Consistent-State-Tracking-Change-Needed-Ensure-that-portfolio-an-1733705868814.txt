@@ -1,0 +1,41 @@
+Refine the update_state Method for Consistent State Tracking
+Change Needed: Ensure that portfolio and position updates are consistent with the actions taken, preventing scenarios where the agent's state does not reflect its trading actions.
+
+Implementation:
+
+State Consistency Checks: Verify that the portfolio value and positions align with the executed actions.
+
+Logging State Changes: Add logs to track changes in portfolio and positions for debugging.
+
+Example:
+
+python
+Copy code
+class BaseAgent:
+    # ... [existing code] ...
+
+    @type_check
+    def update_state(self, portfolio_value: Union[int, float], positions: Dict[str, Union[int, float]]) -> None:
+        """Update agent's state tracking with new portfolio information."""
+        if not isinstance(portfolio_value, (int, float)):
+            raise TypeError("portfolio_value must be a number")
+        if portfolio_value < 0:
+            raise ValueError("portfolio_value cannot be negative")
+        if not isinstance(positions, dict):
+            raise TypeError("positions must be a dictionary")
+        if not all(isinstance(v, (int, float)) for v in positions.values()):
+            raise TypeError("All position values must be numbers")
+        
+        # Consistency check: sum of positions * current price + balance should equal portfolio value
+        # Assuming 'positions' contains symbol: shares_held
+        current_price = self.env.data.iloc[self.env.current_step]['Close']
+        calculated_portfolio = self.balance + sum(shares * current_price for shares in positions.values())
+        if not np.isclose(calculated_portfolio, portfolio_value, atol=1e-2):
+            logger.warning(f"Portfolio value inconsistency: calculated {calculated_portfolio}, reported {portfolio_value}")
+            portfolio_value = calculated_portfolio  # Adjust to calculated value
+        
+        self.portfolio_history.append(portfolio_value)
+        self.positions_history.append(positions)
+        logger.debug(f"Updated portfolio: {portfolio_value}, positions: {positions}")
+        self._update_metrics()
+Benefit: Ensures that the agent's internal state remains accurate and consistent with its actions, which is vital for reliable performance and effective learning.

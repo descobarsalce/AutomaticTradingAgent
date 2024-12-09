@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, cast
 import numpy as np
 from gymnasium import Env
 from .base_agent import BaseAgent
@@ -34,39 +34,35 @@ class TradingAgent(BaseAgent):
         
         # Set quick mode parameters if enabled
         if quick_mode:
-            # Define minimal parameters for quick training
-            quick_params = {
+            # Define minimal parameters for quick training within recommended ranges
+            quick_params = cast(Optional[Dict[str, Union[float, int, bool, None]]], {
                 'n_steps': 512,          # Minimum recommended steps
                 'batch_size': 64,        # Minimum recommended batch size
                 'n_epochs': 3,           # Fewer epochs for speed
-                'learning_rate': 3e-4,   # Standard learning rate
-                'clip_range': 0.1,       # Smaller clip range for stability
-                'ent_coef': 0.005,       # Lower entropy for focused learning
-                'policy_kwargs': {        # Smaller network architecture
-                    'net_arch': dict(pi=[32], vf=[32])
-                }
-            }
+                'learning_rate': 3e-4    # Standard learning rate
+            })
             ppo_params = quick_params
             
-            # Set more conservative position limits for quick mode
+            # Set conservative position limits for quick mode
             self.max_position_size = 0.2  # Limit position size to 20% of portfolio
             self.min_position_size = -0.2  # Limit short positions to 20% of portfolio
-        
-        # Validate parameters using utility function
-        if ppo_params and not validate_trading_params(ppo_params):
-            raise ValueError("Invalid trading parameters provided")
+        else:
+            # Use default position limits for normal mode
+            self.max_position_size = MAX_POSITION_SIZE
+            self.min_position_size = MIN_POSITION_SIZE
         
         # Initialize base agent
         super().__init__(
             env,
             ppo_params=ppo_params,
-            seed=seed
+            seed=seed,
+            policy_kwargs={'net_arch': dict(pi=[32], vf=[32])} if quick_mode else None
         )
         self.stop_loss = DEFAULT_STOP_LOSS
 
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:
         """
-        Make a prediction and apply position size limits in quick mode.
+        Make a prediction and apply position size limits.
         
         Args:
             observation: Current environment observation
@@ -78,10 +74,14 @@ class TradingAgent(BaseAgent):
         action = super().predict(observation, deterministic)
         
         if self.quick_mode:
-            # Scale action to be within quick mode limits while preserving direction
-            position_range = self.max_position_size - self.min_position_size
-            scaled_action = (action + 1) * position_range / 2 + self.min_position_size
-            return np.clip(scaled_action, self.min_position_size, self.max_position_size)
+            # Scale the action from [-1, 1] to [min_position_size, max_position_size]
+            scaled_action = np.zeros_like(action)
+            for i in range(len(action)):
+                if action[i] >= 0:
+                    scaled_action[i] = action[i] * self.max_position_size
+                else:
+                    scaled_action[i] = action[i] * abs(self.min_position_size)
+            return scaled_action
         
         return action
 
@@ -92,10 +92,12 @@ class TradingAgent(BaseAgent):
         """
         # Validate position sizes
         for symbol, size in positions.items():
-            # Allow any finite number within reasonable bounds (-10 to 10)
             if not isinstance(size, (int, float)) or not np.isfinite(size):
                 raise ValueError(f"Invalid position size type for {symbol}")
-            if abs(size) > 10.0:  # More permissive bound for training
+            if self.quick_mode:
+                if abs(size) > max(abs(self.max_position_size), abs(self.min_position_size)):
+                    raise ValueError(f"Position size {size} exceeds quick mode limits for {symbol}")
+            elif abs(size) > 10.0:  # More permissive bound for normal mode
                 raise ValueError(f"Position size too large for {symbol}")
                 
         super().update_state(portfolio_value, positions)

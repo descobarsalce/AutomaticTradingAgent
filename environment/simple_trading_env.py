@@ -1,10 +1,12 @@
 import gymnasium as gym
 import numpy as np
-import gymnasium as gym
 import pandas as pd
+import logging
 from typing import Tuple, Dict, Any, Optional
 
-import numpy as np
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
     def __init__(self, data, initial_balance=100000):
@@ -83,16 +85,46 @@ class SimpleTradingEnv(gym.Env):
             action = float(action[0])  # Extract single action value
             action = np.clip(action, -1.0, 1.0)  # Ensure action is in [-1, 1]
             
-            # Calculate position sizing based on continuous action
-            amount = self.balance * abs(action)
+            # Calculate position size as percentage of total portfolio value
+            portfolio_value = self.balance + (self.shares_held * current_price)
+            max_position_size = portfolio_value * 0.2  # Maximum 20% of portfolio per trade
+            
+            # Calculate amount based on action and position limits
+            amount = min(self.balance, max_position_size) * abs(action)
             
             if action > 0:  # Buy
+                # Validate position size
+                shares_to_buy = amount / current_price
+                new_position_value = (self.shares_held + shares_to_buy) * current_price
+                
+                if new_position_value > portfolio_value * 0.8:  # Maximum 80% total position size
+                    logger.warning("Trade rejected: Position size would exceed maximum allowed")
+                    return self._get_observation(), 0, False, False, {
+                        'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
+                        'current_price': current_price,
+                        'trade_status': 'rejected_size'
+                    }
+                
+                if amount > self.balance:  # Ensure sufficient balance
+                    logger.warning("Trade rejected: Insufficient balance")
+                    return self._get_observation(), 0, False, False, {
+                        'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
+                        'current_price': current_price,
+                        'trade_status': 'rejected_balance'
+                    }
+                
                 shares_bought = amount / current_price
                 self.balance -= amount
                 self.shares_held += shares_bought
                 self.cost_basis = current_price
             elif action < 0:  # Sell
-                shares_sold = self.shares_held * abs(action)
+                # Calculate maximum shares that can be sold
+                max_shares_to_sell = self.shares_held * abs(action)
+                shares_sold = min(max_shares_to_sell, self.shares_held)
                 self.balance += shares_sold * current_price
                 self.shares_held -= shares_sold
             

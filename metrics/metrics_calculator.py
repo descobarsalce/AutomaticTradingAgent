@@ -302,3 +302,49 @@ def calculate_maximum_drawdown(portfolio_history: List[float]) -> float:
     except Exception as e:
         logger.exception("Error calculating maximum drawdown")
         return 0.0
+
+def calculate_beta(returns: np.ndarray, market_returns: np.ndarray) -> float:
+    """
+    Calculate beta (market sensitivity) of returns against market returns.
+    
+    Args:
+        returns: numpy.ndarray of asset return values
+        market_returns: numpy.ndarray of market return values
+        
+    Returns:
+        float: Beta coefficient or 0.0 if calculation fails
+    """
+    if not isinstance(returns, np.ndarray) or not isinstance(market_returns, np.ndarray):
+        logger.warning("Invalid input types for beta calculation")
+        return 0.0
+        
+    if len(returns) != len(market_returns) or len(returns) < 2:
+        logger.debug("Mismatched lengths or insufficient data points for beta calculation")
+        return 0.0
+        
+    try:
+        # Remove any non-finite values
+        valid_mask = np.isfinite(returns) & np.isfinite(market_returns)
+        valid_returns = returns[valid_mask]
+        valid_market_returns = market_returns[valid_mask]
+        
+        if len(valid_returns) < 2:
+            logger.debug("Insufficient valid data points for beta calculation")
+            return 0.0
+            
+        # Calculate beta using covariance method
+        covariance = np.cov(valid_returns, valid_market_returns)[0][1]
+        market_variance = np.var(valid_market_returns, ddof=1)
+        
+        if market_variance > 1e-8:  # Avoid division by very small numbers
+            beta = covariance / market_variance
+            beta_clipped = float(np.clip(beta, -10, 10))  # Limit extreme values
+            logger.debug(f"Calculated beta: {beta_clipped}")
+            return beta_clipped
+        else:
+            logger.warning("Market variance too small for reliable beta calculation")
+            return 0.0
+            
+    except Exception as e:
+        logger.exception("Error calculating beta")
+        return 0.0

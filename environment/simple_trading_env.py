@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=100000, transaction_cost=0.001, min_transaction_size=100):
+    def __init__(self, data, initial_balance=100000, transaction_cost=0.001, min_transaction_size=10):
         super().__init__()
         # Store market data and initial balance
         self.data = data
@@ -23,9 +23,10 @@ class SimpleTradingEnv(gym.Env):
         self.current_step = 0
         self.max_steps = len(data) if data is not None else 100
         
-        # Transaction parameters
+        # Transaction parameters with more flexible limits
         self.transaction_cost = transaction_cost  # As a decimal (e.g., 0.001 for 0.1%)
-        self.min_transaction_size = min_transaction_size  # Minimum transaction amount in dollars
+        self.min_transaction_size = min_transaction_size  # Lower minimum transaction size
+        self.max_position_pct = 0.95  # Maximum position size as percentage of portfolio
         
         # Define action space as continuous values between -1 and 1
         self.action_space = gym.spaces.Box(
@@ -131,12 +132,15 @@ class SimpleTradingEnv(gym.Env):
             action = float(action[0])  # Extract single action value
             action = np.clip(action, -1.0, 1.0)  # Ensure action is in [-1, 1]
             
-            # Calculate position size as percentage of total portfolio value
+            # Calculate position size with more flexible limits
             portfolio_value = self.balance + (self.shares_held * current_price)
-            max_position_size = portfolio_value * 0.2  # Maximum 20% of portfolio per trade
             
-            # Calculate amount based on action and position limits
-            amount = min(self.balance, max_position_size) * abs(action)
+            # Scale position size based on action magnitude
+            desired_exposure = abs(action) * self.max_position_pct
+            max_position_size = portfolio_value * desired_exposure
+            
+            # Calculate amount with progressive scaling
+            amount = min(self.balance * 0.95, max_position_size)  # Allow up to 95% of balance
             
             if action > 0:  # Buy
                 # Validate position size

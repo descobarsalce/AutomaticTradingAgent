@@ -61,6 +61,7 @@ class HyperparameterOptimizer:
     def evaluate_params(self, agent: TradingAgent, n_episodes: int = 5, early_stop: bool = True) -> Tuple[float, bool]:
         """
         Evaluate a set of parameters by running multiple episodes and averaging the rewards.
+        Implements progressive evaluation with early stopping for efficiency.
         
         Args:
             agent: Trained trading agent to evaluate
@@ -75,32 +76,74 @@ class HyperparameterOptimizer:
         early_stop_flag = False
         min_episodes = max(2, n_episodes // 3)  # Minimum episodes before early stopping
         
+        # Track performance metrics for early stopping
+        best_episode_reward = float('-inf')
+        consecutive_poor_episodes = 0
+        reward_threshold = self.best_reward * 0.8 if self.best_reward > float('-inf') else None
+        
         for episode in range(n_episodes):
             obs, info = self.env.reset()
             done = False
             episode_reward = 0.0
+            episode_trades = 0
+            episode_rejected_trades = 0
             
             while not done:
                 action = agent.predict(obs)
                 obs, reward, terminated, truncated, info = self.env.step(action)
                 episode_reward += reward
                 done = terminated or truncated
+                
+                # Track trade statistics
+                if 'trade_status' in info:
+                    episode_trades += 1
+                    if 'rejected' in info['trade_status']:
+                        episode_rejected_trades += 1
             
             rewards.append(episode_reward)
             total_reward += episode_reward
             
-            # Early stopping logic
+            # Update best episode reward
+            best_episode_reward = max(best_episode_reward, episode_reward)
+            
+            # Early stopping logic with enhanced criteria
             if early_stop and episode >= min_episodes:
                 current_avg = total_reward / (episode + 1)
                 reward_std = np.std(rewards) if len(rewards) > 1 else 0
                 
-                # Check if performance is significantly poor
-                if current_avg < self.best_reward * 0.7:  # 30% worse than best
-                    early_stop_flag = True
-                    break
+                # Check multiple stopping conditions
+                should_stop = False
                 
-                # Check if performance is stable enough
-                if reward_std / (abs(current_avg) + 1e-8) < 0.1:  # Low variance
+                # 1. Performance significantly worse than best known
+                if reward_threshold and current_avg < reward_threshold:
+                    consecutive_poor_episodes += 1
+                    if consecutive_poor_episodes >= 2:  # Two consecutive poor episodes
+                        logger.info(f"Stopping early: Performance below threshold for {consecutive_poor_episodes} episodes")
+                        early_stop_flag = True
+                        should_stop = True
+                else:
+                    consecutive_poor_episodes = 0
+                
+                # 2. Too many rejected trades
+                if episode_trades > 0 and episode_rejected_trades / episode_trades > 0.8:
+                    logger.info("Stopping early: Too many rejected trades")
+                    early_stop_flag = True
+                    should_stop = True
+                
+                # 3. Stable performance with low variance
+                if reward_std / (abs(current_avg) + 1e-8) < 0.05 and episode >= min_episodes * 2:
+                    logger.info("Stopping early: Performance stabilized")
+                    should_stop = True
+                
+                # 4. No improvement trend
+                if episode > 2 and best_episode_reward < max(rewards[:-1]):
+                    consecutive_poor_episodes += 1
+                    if consecutive_poor_episodes >= 3:
+                        logger.info("Stopping early: No improvement trend")
+                        early_stop_flag = True
+                        should_stop = True
+                
+                if should_stop:
                     break
         
         return total_reward / len(rewards), early_stop_flag
@@ -183,26 +226,42 @@ class HyperparameterOptimizer:
                 # Initialize agent with current parameters
                 agent = TradingAgent(self.env, ppo_params=params)
                 
-                # Faster training for initial evaluation
+                # Progressive evaluation strategy
                 if fast_mode:
-                    initial_train_steps = total_timesteps // 2
+                    # Phase 1: Quick initial evaluation
+                    initial_train_steps = total_timesteps // 4
                     agent.train(initial_train_steps)
-                    avg_reward, should_stop = self.evaluate_params(
+                    initial_reward, should_stop = self.evaluate_params(
                         agent, 
-                        n_episodes=max(2, n_eval_episodes // 2),
+                        n_episodes=max(2, n_eval_episodes // 4),
                         early_stop=True
                     )
                     
-                    # If initial performance is promising, complete training
-                    if not should_stop and avg_reward >= self.best_reward * 0.8:
-                        agent.train(total_timesteps - initial_train_steps)
-                        avg_reward, _ = self.evaluate_params(
-                            agent,
-                            n_episodes=n_eval_episodes,
-                            early_stop=False
-                        )
+                    if should_stop or (self.best_reward > float('-inf') and initial_reward < self.best_reward * 0.6):
+                        logger.info(f"Skipping parameter set due to poor initial performance: {initial_reward:.4f}")
+                        continue
+                    
+                    # Phase 2: Medium evaluation
+                    agent.train(total_timesteps // 2)
+                    medium_reward, should_stop = self.evaluate_params(
+                        agent,
+                        n_episodes=max(3, n_eval_episodes // 2),
+                        early_stop=True
+                    )
+                    
+                    if should_stop or (self.best_reward > float('-inf') and medium_reward < self.best_reward * 0.8):
+                        logger.info(f"Skipping parameter set after medium evaluation: {medium_reward:.4f}")
+                        continue
+                    
+                    # Phase 3: Full evaluation
+                    agent.train(total_timesteps - (total_timesteps // 4 + total_timesteps // 2))
+                    avg_reward, _ = self.evaluate_params(
+                        agent,
+                        n_episodes=n_eval_episodes,
+                        early_stop=False
+                    )
                 else:
-                    # Full training
+                    # Standard full training with early stopping
                     agent.train(total_timesteps)
                     avg_reward, should_stop = self.evaluate_params(
                         agent,

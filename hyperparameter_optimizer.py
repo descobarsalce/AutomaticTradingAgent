@@ -2,6 +2,7 @@ import numpy as np
 from typing import Dict, List, Any, Tuple, Optional
 import itertools
 import logging
+import time
 from agent import TradingAgent
 from gymnasium import Env
 

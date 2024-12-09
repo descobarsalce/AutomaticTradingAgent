@@ -61,8 +61,8 @@ class SimpleTradingEnv(gym.Env):
             
             self.balance = self.initial_balance
             self.shares_held = 0
-            self.net_worth = self.initial_balance
             self.cost_basis = 0
+            self.net_worth = self.initial_balance  # Initialize net_worth
             
             observation = self._get_observation()
             info = {
@@ -160,8 +160,9 @@ class SimpleTradingEnv(gym.Env):
                 self.balance += net_sell_amount
                 self.shares_held -= shares_sold
             
+            # Update portfolio net worth
+            self.net_worth = self.balance + (self.shares_held * current_price)
             # Calculate base reward from portfolio performance
-            self.net_worth = self.balance + self.shares_held * current_price
             base_reward = (self.net_worth - self.initial_balance) / self.initial_balance
             
             # Calculate position profitability with validation

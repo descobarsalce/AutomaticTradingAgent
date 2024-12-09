@@ -62,6 +62,18 @@ class PortfolioMetricsCallback(BaseCallback):
                                 self.logger.record("train/max_drawdown", latest_metrics['max_drawdown'])
                                 self.logger.record("train/returns", latest_metrics['returns'])
                                 
+                                # Update Streamlit metrics display during training
+                                try:
+                                    import streamlit as st
+                                    metrics_cols = st.columns(4)
+                                    metrics_cols[0].metric("Sharpe Ratio", f"{latest_metrics['sharpe_ratio']:.2f}")
+                                    metrics_cols[1].metric("Sortino Ratio", f"{latest_metrics['sortino_ratio']:.2f}")
+                                    metrics_cols[2].metric("Max Drawdown", f"{latest_metrics['max_drawdown']:.2%}")
+                                    metrics_cols[3].metric("Average Returns", f"{latest_metrics['returns']:.2%}")
+                                except Exception as e:
+                                    if self.verbose > 1:
+                                        print(f"Error updating metrics display: {str(e)}")
+                                
         except Exception as e:
             if self.verbose > 0:
                 print(f"Error in PortfolioMetricsCallback: {str(e)}")

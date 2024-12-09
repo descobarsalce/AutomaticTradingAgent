@@ -267,10 +267,20 @@ if train_model:
             obs, reward, terminated, truncated, info = st.session_state.environments[symbol].step(action)
             done = terminated or truncated
             
-            # Update evaluation progress
+            # Update evaluation progress with detailed metrics
             progress = st.session_state.environments[symbol].current_step / len(data)
             eval_progress.progress(progress)
-            eval_status.text(f"Evaluating {symbol}: Step {st.session_state.environments[symbol].current_step}")
+            
+            current_value = info['net_worth']
+            num_trades = len([t for t in trades if abs(t['action']) > 0.1])
+            current_return = ((current_value - symbol_initial_balance) / symbol_initial_balance) * 100
+            
+            eval_status.text(
+                f"Evaluating {symbol} ({progress*100:.1f}% complete)\n"
+                f"Current Value: ${current_value:,.2f} ({current_return:+.2f}%)\n"
+                f"Trades Made: {num_trades}\n"
+                f"Current Step: {st.session_state.environments[symbol].current_step}/{len(data)}"
+            )
             
             if abs(action[0]) > 0.1:  # Record significant trades
                 try:

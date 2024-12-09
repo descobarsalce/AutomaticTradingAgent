@@ -37,7 +37,7 @@ if 'data_validated' not in st.session_state:
 st.sidebar.title("Trading Parameters")
 
 # Symbol selection
-default_symbols = "AAPL,MSFT,GOOGL"
+default_symbols = "AAPL,GOOGL"
 symbols_input = st.sidebar.text_input("Stock Symbols (comma-separated)", value=default_symbols)
 symbols = [s.strip() for s in symbols_input.split(",")]
 
@@ -54,15 +54,15 @@ start_date = st.sidebar.date_input("Start Date", value=start_date)
 end_date = st.sidebar.date_input("End Date", value=end_date)
 
 # Training parameters
-initial_balance = st.sidebar.number_input("Initial Balance ($)", value=100000)
+initial_balance = st.sidebar.number_input("Initial Balance ($)", value=1000)
 
 # Transaction parameters
 transaction_cost = st.sidebar.number_input(
     "Transaction Cost (%)",
     min_value=0.0,
     max_value=5.0,
-    value=0.1,
-    step=0.1,
+    value=0.001,
+    step=0.001,
     help="Transaction cost as a percentage (e.g., 0.1% = 0.001)"
 ) / 100.0  # Convert percentage to decimal
 
@@ -70,7 +70,7 @@ min_transaction_size = st.sidebar.number_input(
     "Minimum Transaction Size ($)",
     min_value=0,
     max_value=10000,
-    value=100,
+    value=10,
     step=10,
     help="Minimum amount in dollars required for a trade"
 )

@@ -96,8 +96,10 @@ class TradingAgent(BaseAgent):
             if not isinstance(size, (int, float)) or not np.isfinite(size):
                 raise ValueError(f"Invalid position size type for {symbol}")
             if self.quick_mode:
-                if abs(size) > max(abs(self.max_position_size), abs(self.min_position_size)):
-                    raise ValueError(f"Position size {size} exceeds quick mode limits for {symbol}")
+                if size > 0 and size > self.max_position_size:
+                    raise ValueError(f"Long position size {size} exceeds quick mode limit of {self.max_position_size} for {symbol}")
+                elif size < 0 and size < self.min_position_size:
+                    raise ValueError(f"Short position size {size} exceeds quick mode limit of {self.min_position_size} for {symbol}")
             elif abs(size) > 10.0:  # More permissive bound for normal mode
                 raise ValueError(f"Position size too large for {symbol}")
                 

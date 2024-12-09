@@ -55,6 +55,26 @@ end_date = st.sidebar.date_input("End Date", value=end_date)
 
 # Training parameters
 initial_balance = st.sidebar.number_input("Initial Balance ($)", value=100000)
+
+# Transaction parameters
+transaction_cost = st.sidebar.number_input(
+    "Transaction Cost (%)",
+    min_value=0.0,
+    max_value=5.0,
+    value=0.1,
+    step=0.1,
+    help="Transaction cost as a percentage (e.g., 0.1% = 0.001)"
+) / 100.0  # Convert percentage to decimal
+
+min_transaction_size = st.sidebar.number_input(
+    "Minimum Transaction Size ($)",
+    min_value=0,
+    max_value=10000,
+    value=100,
+    step=10,
+    help="Minimum amount in dollars required for a trade"
+)
+
 training_steps = st.sidebar.number_input("Training Steps", value=10000, step=1000)
 quick_mode = st.sidebar.checkbox("Enable Quick Training Mode", value=False, key="quick_mode")
 
@@ -157,7 +177,9 @@ if train_model:
         symbol_balance = initial_balance * weights[symbol]
         st.session_state.environments[symbol] = SimpleTradingEnv(
             data=data,
-            initial_balance=symbol_balance
+            initial_balance=symbol_balance,
+            transaction_cost=transaction_cost,
+            min_transaction_size=min_transaction_size
         )
         
         if enable_optimization:

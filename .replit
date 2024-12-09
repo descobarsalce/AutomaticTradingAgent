@@ -19,6 +19,10 @@ args = "Trading Platform"
 task = "workflow.run"
 args = "Agent Tests"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Quick Mode Test"
+
 [[workflows.workflow]]
 name = "Trading Platform"
 author = "agent"
@@ -47,6 +51,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 -m pytest -v"
+
+[[workflows.workflow]]
+name = "Quick Mode Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 test_quick_mode.py"
 
 [deployment]
 run = ["sh", "-c", "streamlit run main.py --server.port 5000"]

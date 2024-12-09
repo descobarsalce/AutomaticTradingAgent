@@ -33,6 +33,20 @@ class TestTradingAgent(unittest.TestCase):
         # Verify trading-specific attributes
         self.assertEqual(len(agent.portfolio_history), 0)
         self.assertEqual(len(agent.positions_history), 0)
+        
+    def test_quick_mode_initialization(self):
+        """Test quick mode initialization with minimal parameters"""
+        agent = TradingAgent(self.env, quick_mode=True)
+        self.assertIsNotNone(agent.model)
+        self.assertTrue(agent.quick_mode)
+        
+        # Verify quick mode parameters
+        model_params = agent.model.get_parameters()
+        learning_rate = float(str(agent.model.learning_rate))  # Convert learning rate to float
+        
+        self.assertEqual(learning_rate, 3e-4)
+        self.assertEqual(agent.model.n_steps, 128)
+        self.assertEqual(agent.model.batch_size, 32)
 
     def test_trading_action_bounds(self):
         """Test that trading actions are properly bounded"""

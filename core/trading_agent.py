@@ -17,7 +17,34 @@ class TradingAgent(BaseAgent):
     This class can be extended with trading-specific functionality
     while maintaining the core agent capabilities.
     """
-    def __init__(self, env: Env, ppo_params: Optional[Dict[str, Any]] = None, seed: Optional[int] = None):
+    def __init__(self, env: Env, ppo_params: Optional[Dict[str, Any]] = None, 
+                seed: Optional[int] = None, quick_mode: bool = False):
+        """
+        Initialize the trading agent.
+        
+        Args:
+            env: The trading environment
+            ppo_params: Optional PPO parameters dictionary
+            seed: Optional random seed
+            quick_mode: If True, use minimal parameters for fast testing
+        """
+        # Set quick mode parameters if enabled
+        if quick_mode:
+            quick_params = {
+                'learning_rate': 3e-4,      # Standard learning rate
+                'n_steps': 512,             # Minimum recommended steps
+                'batch_size': 64,           # Minimum recommended batch size
+                'n_epochs': 5,              # Fewer epochs
+                'gamma': 0.95,              # Slightly lower discount factor
+                'clip_range': 0.2,          # Standard clip range
+                'ent_coef': 0.01,           # Standard entropy coefficient
+                'policy_kwargs': {
+                    'net_arch': {'pi': [32, 32], 'vf': [32, 32]},  # Smaller network
+                    'activation_fn': 'tanh'  # Better for bounded actions
+                }
+            }
+            ppo_params = quick_params
+        
         # Validate parameters using utility function
         if ppo_params and not validate_trading_params(ppo_params):
             raise ValueError("Invalid trading parameters provided")
@@ -25,6 +52,7 @@ class TradingAgent(BaseAgent):
         super().__init__(env, ppo_params=ppo_params, seed=seed)
         self.stop_loss = DEFAULT_STOP_LOSS
         self.take_profit = DEFAULT_TAKE_PROFIT
+        self.quick_mode = quick_mode
     
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """

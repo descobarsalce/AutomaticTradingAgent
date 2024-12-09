@@ -104,8 +104,8 @@ class HyperparameterOptimizer:
         
         return total_reward / len(rewards), early_stop_flag
 
-    def optimize(self, total_timesteps: int = 10000, n_eval_episodes: int = 5, 
-              fast_mode: bool = False) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def optimize(self, total_timesteps: int = 10000, n_eval_episodes: int = 5,
+              fast_mode: bool = False, progress_bar=None, status_placeholder=None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Perform grid search to find optimal hyperparameters with early stopping.
         
@@ -142,10 +142,41 @@ class HyperparameterOptimizer:
         previous_best = float('-inf')
         
         logger.info(f"Starting grid search with {total_combinations} parameter combinations")
+        start_time = time.time()
+        
+        if progress_bar is not None:
+            progress_bar.progress(0.0)
+        if status_placeholder is not None:
+            status_placeholder.text("Starting hyperparameter optimization...")
         
         for idx, params in enumerate(param_combinations, 1):
             logger.info(f"Testing combination {idx}/{total_combinations}")
             logger.info(f"Parameters: {params}")
+            
+            # Update progress
+            if progress_bar is not None:
+                progress = (idx - 1) / total_combinations
+                progress_bar.progress(progress)
+            
+            # Update status with time estimation
+            if status_placeholder is not None:
+                elapsed_time = time.time() - start_time
+                estimated_total_time = elapsed_time * (total_combinations / idx)
+                remaining_time = estimated_total_time - elapsed_time
+                
+                # Format time string
+                if remaining_time < 60:
+                    time_str = f"{remaining_time:.0f} seconds"
+                elif remaining_time < 3600:
+                    time_str = f"{remaining_time/60:.1f} minutes"
+                else:
+                    time_str = f"{remaining_time/3600:.1f} hours"
+                
+                status_placeholder.text(
+                    f"Optimization Progress: {progress*100:.1f}%\n"
+                    f"Testing combination {idx}/{total_combinations}\n"
+                    f"Estimated time remaining: {time_str}"
+                )
             
             try:
                 # Initialize agent with current parameters

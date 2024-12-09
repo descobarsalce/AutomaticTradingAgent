@@ -7,6 +7,7 @@ from environment import SimpleTradingEnv
 from core import TradingAgent
 from data_handler import DataHandler
 from visualization import TradingVisualizer
+from callbacks import ProgressBarCallback
 
 # Page config
 st.set_page_config(
@@ -186,11 +187,17 @@ if train_model:
             # Initialize hyperparameter optimizer
             optimizer = HyperparameterOptimizer(st.session_state.environments[symbol])
             
+            # Create progress indicators for optimization
+            opt_progress = st.progress(0)
+            opt_status = st.empty()
+            
             with st.spinner(f"Optimizing hyperparameters for {symbol}..."):
                 try:
                     best_params, results = optimizer.optimize(
                         total_timesteps=optimization_steps,
-                        n_eval_episodes=n_eval_episodes
+                        n_eval_episodes=n_eval_episodes,
+                        progress_bar=opt_progress,
+                        status_placeholder=opt_status
                     )
                     st.session_state.optimization_results[symbol] = optimizer.get_optimization_summary()
                     
@@ -209,15 +216,24 @@ if train_model:
                 quick_mode=st.session_state.get('quick_mode', False)
             )
         
-        # Train agent with progress tracking
+        # Train agent with enhanced progress tracking
         training_progress = st.progress(0)
         training_status = st.empty()
         
         with st.spinner(f"Training agent for {symbol}..."):
             try:
-                st.session_state.trained_agents[symbol].train(training_steps)
-                training_progress.progress(1.0)
-                training_status.text(f"Training completed for {symbol}")
+                # Create callback with progress tracking
+                callback = ProgressBarCallback(
+                    total_timesteps=training_steps,
+                    progress_bar=training_progress,
+                    status_placeholder=training_status
+                )
+                
+                # Train with progress callback
+                st.session_state.trained_agents[symbol].train(
+                    total_timesteps=training_steps,
+                    callback=callback
+                )
             except Exception as e:
                 st.error(f"Error training agent for {symbol}: {str(e)}")
                 continue

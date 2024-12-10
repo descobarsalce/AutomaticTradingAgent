@@ -121,6 +121,10 @@ class TradingAgent(BaseAgent):
         """
         if not isinstance(total_timesteps, int) or total_timesteps <= 0:
             raise ValueError("total_timesteps must be a positive integer")
+
+        # Initialize start time for progress tracking
+        import time
+        self.start_time = time.time()
             
         if callback:
             self.model.learn(
@@ -128,4 +132,10 @@ class TradingAgent(BaseAgent):
                 callback=callback
             )
         else:
-            self.model.learn(total_timesteps=total_timesteps)
+            if self.quick_mode or self.fast_eval:
+                # Simple progress reporting for quick/fast modes
+                print(f"Starting {'quick' if self.quick_mode else 'fast'} training...")
+                self.model.learn(total_timesteps=total_timesteps)
+                print("Training completed")
+            else:
+                self.model.learn(total_timesteps=total_timesteps)

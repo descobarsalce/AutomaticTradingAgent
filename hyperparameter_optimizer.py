@@ -148,6 +148,21 @@ class HyperparameterOptimizer:
         
         return total_reward / len(rewards), early_stop_flag
 
+    def _quick_evaluate(self, agent: TradingAgent, n_episodes: int = 2) -> float:
+        """Quickly evaluates an agent with minimal episodes."""
+        total_reward = 0
+        for _ in range(n_episodes):
+            obs, _ = self.env.reset()
+            done = False
+            episode_reward = 0
+            while not done:
+                action = agent.predict(obs)
+                obs, reward, terminated, truncated, _ = self.env.step(action)
+                episode_reward += reward
+                done = terminated or truncated
+            total_reward += episode_reward
+        return total_reward / n_episodes
+
     def optimize(self, total_timesteps: int = 10000, n_eval_episodes: int = 5,
               fast_mode: bool = False, progress_bar=None, status_placeholder=None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """
@@ -226,40 +241,21 @@ class HyperparameterOptimizer:
                 # Initialize agent with current parameters
                 agent = TradingAgent(self.env, ppo_params=params)
                 
-                # Progressive evaluation strategy
+                # Streamlined fast evaluation
                 if fast_mode:
-                    # Phase 1: Quick initial evaluation
-                    initial_train_steps = total_timesteps // 4
-                    agent.train(initial_train_steps)
-                    initial_reward, should_stop = self.evaluate_params(
-                        agent, 
-                        n_episodes=max(2, n_eval_episodes // 4),
-                        early_stop=True
-                    )
+                    # Single-pass quick evaluation
+                    train_steps = min(total_timesteps // 16, 250)  # Further reduced steps
+                    agent.train(train_steps)
+                    reward = self._quick_evaluate(agent)
                     
-                    if should_stop or (self.best_reward > float('-inf') and initial_reward < self.best_reward * 0.6):
-                        logger.info(f"Skipping parameter set due to poor initial performance: {initial_reward:.4f}")
+                    # Simple threshold check
+                    if reward < self.best_reward * 0.4:
+                        logger.debug(f"Quick eval: Skipping low-performing params: {reward:.4f}")
                         continue
                     
-                    # Phase 2: Medium evaluation
-                    agent.train(total_timesteps // 2)
-                    medium_reward, should_stop = self.evaluate_params(
-                        agent,
-                        n_episodes=max(3, n_eval_episodes // 2),
-                        early_stop=True
-                    )
-                    
-                    if should_stop or (self.best_reward > float('-inf') and medium_reward < self.best_reward * 0.8):
-                        logger.info(f"Skipping parameter set after medium evaluation: {medium_reward:.4f}")
-                        continue
-                    
-                    # Phase 3: Full evaluation
-                    agent.train(total_timesteps - (total_timesteps // 4 + total_timesteps // 2))
-                    avg_reward, _ = self.evaluate_params(
-                        agent,
-                        n_episodes=n_eval_episodes,
-                        early_stop=False
-                    )
+                    # Minimal final training
+                    agent.train(min(total_timesteps // 8, 500))
+                    avg_reward = self._quick_evaluate(agent)
                 else:
                     # Standard full training with early stopping
                     agent.train(total_timesteps)
@@ -269,9 +265,7 @@ class HyperparameterOptimizer:
                         early_stop=True
                     )
                 
-                if should_stop:
-                    logger.info("Early stopping for this parameter combination due to poor performance")
-                    continue
+                
                 
                 # Store results
                 result = {

@@ -61,7 +61,7 @@ class TradingAgent(BaseAgent):
         
         # Reduce network size and skip some calculations in fast eval mode
         if fast_eval:
-            self.eval_frequency = max(1000, training_steps // 5)  # Evaluate less frequently
+            self.eval_frequency = 1000  # Fixed evaluation frequency for fast eval mode
             self.skip_metrics = ['sortino_ratio', 'information_ratio']  # Skip expensive metrics
 
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:

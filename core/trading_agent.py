@@ -44,14 +44,9 @@ class TradingAgent(BaseAgent):
             })
             ppo_params = quick_params
             
-            # Set position limits based on number of assets
-            n_assets = env.observation_space.shape[0] // 7  # Each asset has 7 features
-            self.max_position_size = 1.0 / n_assets  # Equal distribution per asset
-            self.min_position_size = -1.0 / n_assets  # Same for short positions
-        else:
-            # Use default position limits for normal mode
-            self.max_position_size = MAX_POSITION_SIZE
-            self.min_position_size = MIN_POSITION_SIZE
+        # Use default position limits for all modes
+        self.max_position_size = MAX_POSITION_SIZE
+        self.min_position_size = MIN_POSITION_SIZE
         
         # Initialize base agent
         super().__init__(

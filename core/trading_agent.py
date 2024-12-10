@@ -44,9 +44,10 @@ class TradingAgent(BaseAgent):
             })
             ppo_params = quick_params
             
-            # Set conservative position limits for quick mode
-            self.max_position_size = 0.2  # Limit position size to 20% of portfolio
-            self.min_position_size = -0.2  # Limit short positions to 20% of portfolio
+            # Set position limits based on number of assets
+            n_assets = env.observation_space.shape[0] // 7  # Each asset has 7 features
+            self.max_position_size = 1.0 / n_assets  # Equal distribution per asset
+            self.min_position_size = -1.0 / n_assets  # Same for short positions
         else:
             # Use default position limits for normal mode
             self.max_position_size = MAX_POSITION_SIZE

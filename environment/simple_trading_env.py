@@ -160,7 +160,7 @@ class SimpleTradingEnv(gym.Env):
                 shares_to_buy = amount / current_price
                 new_position_value = (self.shares_held + shares_to_buy) * current_price
                 
-                if new_position_value > portfolio_value * 0.8:  # Maximum 80% total position size
+                if new_position_value > portfolio_value * 0.95:  # Allow up to 95% allocation per asset
                     logger.warning("Trade rejected: Position size would exceed maximum allowed")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,

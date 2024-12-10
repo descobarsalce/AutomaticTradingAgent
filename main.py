@@ -289,7 +289,23 @@ if train_model:
                     f"Current Step: {st.session_state.environments[symbol].current_step}/{len(data)}"
                 )
             else:
-                eval_status.text(f"Evaluating {symbol}...")
+                progress_pct = progress * 100
+                elapsed_time = time.time() - st.session_state.trained_agents[symbol].start_time
+                estimated_total = elapsed_time / max(progress, 0.01)
+                remaining_time = max(0, estimated_total - elapsed_time)
+                
+                time_str = "Unknown"
+                if remaining_time < 60:
+                    time_str = f"{remaining_time:.0f} seconds"
+                elif remaining_time < 3600:
+                    time_str = f"{remaining_time/60:.1f} minutes"
+                else:
+                    time_str = f"{remaining_time/3600:.1f} hours"
+                    
+                eval_status.text(
+                    f"Evaluating {symbol}: {progress_pct:.1f}% complete\n"
+                    f"Est. time remaining: {time_str}"
+                )
             
             if abs(action[0]) > 0.1:  # Record significant trades
                 try:

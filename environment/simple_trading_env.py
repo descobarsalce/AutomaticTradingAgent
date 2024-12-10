@@ -160,17 +160,7 @@ class SimpleTradingEnv(gym.Env):
                 shares_to_buy = amount / current_price
                 new_position_value = (self.shares_held + shares_to_buy) * current_price
                 
-                if new_position_value > portfolio_value * 0.95:  # Allow up to 95% allocation per asset
-                    logger.warning("Trade rejected: Position size would exceed maximum allowed")
-                    return self._get_observation(), 0, False, False, {
-                        'net_worth': self.net_worth,
-                        'balance': self.balance,
-                        'shares_held': self.shares_held,
-                        'current_price': current_price,
-                        'trade_status': 'rejected_size'
-                    }
-                
-                if total_cost > self.balance:  # Ensure sufficient balance including fees
+                if total_cost > self.balance:  # Only check if we have enough balance
                     logger.warning("Trade rejected: Insufficient balance (including fees)")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,

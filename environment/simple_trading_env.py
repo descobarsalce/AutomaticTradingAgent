@@ -150,6 +150,8 @@ class SimpleTradingEnv(gym.Env):
                 if amount < self.min_transaction_size:
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
                         'trade_status': 'rejected'
                     }
                 
@@ -160,6 +162,8 @@ class SimpleTradingEnv(gym.Env):
                     logger.warning("Trade rejected: Insufficient balance (including fees)")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
+                        'balance': self.balance,
+                        'shares_held': self.shares_held,
                         'trade_status': 'rejected_balance'
                     }
                 
@@ -263,7 +267,8 @@ class SimpleTradingEnv(gym.Env):
                 'net_worth': self.net_worth,
                 'balance': self.balance,
                 'shares_held': self.shares_held,
-                'current_price': current_price
+                'current_price': current_price,
+                'trade_status': 'execute'
             }
             
             return next_state, reward, terminated, truncated, info

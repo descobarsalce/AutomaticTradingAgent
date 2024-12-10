@@ -19,7 +19,8 @@ class TradingAgent(BaseAgent):
         env: Env,
         ppo_params: Optional[Dict[str, Union[float, int, bool, None]]] = None,
         seed: Optional[int] = None,
-        quick_mode: bool = False
+        quick_mode: bool = False,
+        fast_eval: bool = False
     ) -> None:
         """
         Initialize trading agent with optional quick mode.
@@ -56,6 +57,12 @@ class TradingAgent(BaseAgent):
             policy_kwargs={'net_arch': dict(pi=[32], vf=[32])} if quick_mode else None
         )
         self.stop_loss = DEFAULT_STOP_LOSS
+        self.fast_eval = fast_eval
+        
+        # Reduce network size and skip some calculations in fast eval mode
+        if fast_eval:
+            self.eval_frequency = max(1000, training_steps // 5)  # Evaluate less frequently
+            self.skip_metrics = ['sortino_ratio', 'information_ratio']  # Skip expensive metrics
 
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:
         """

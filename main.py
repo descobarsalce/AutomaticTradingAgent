@@ -78,6 +78,7 @@ min_transaction_size = st.sidebar.number_input(
 
 training_steps = st.sidebar.number_input("Training Steps", value=10000, step=1000)
 quick_mode = st.sidebar.checkbox("Enable Quick Training Mode", value=False, key="quick_mode")
+fast_eval = st.sidebar.checkbox("Enable Fast Evaluation", value=False, key="fast_eval")
 detailed_progress = st.sidebar.checkbox("Show Detailed Training Progress", value=False, key="detailed_progress")
 
 # Hyperparameter optimization settings
@@ -214,7 +215,8 @@ if train_model:
             # Initialize agent with default parameters and quick mode setting
             st.session_state.trained_agents[symbol] = TradingAgent(
                 st.session_state.environments[symbol],
-                quick_mode=st.session_state.get('quick_mode', False)
+                quick_mode=st.session_state.get('quick_mode', False),
+                fast_eval=st.session_state.get('fast_eval', False)
             )
         
         # Train agent with enhanced progress tracking

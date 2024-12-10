@@ -133,9 +133,10 @@ class TradingAgent(BaseAgent):
             )
         else:
             if self.quick_mode or self.fast_eval:
-                # Simple progress reporting for quick/fast modes
+                # Simple progress reporting for quick/fast modes with reduced timesteps
+                reduced_steps = min(total_timesteps // 4, 1000) if self.fast_eval else total_timesteps
                 print(f"Starting {'quick' if self.quick_mode else 'fast'} training...")
-                self.model.learn(total_timesteps=total_timesteps)
+                self.model.learn(total_timesteps=reduced_steps)
                 print("Training completed")
             else:
                 self.model.learn(total_timesteps=total_timesteps)

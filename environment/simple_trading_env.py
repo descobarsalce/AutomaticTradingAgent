@@ -143,18 +143,14 @@ class SimpleTradingEnv(gym.Env):
             amount = min(self.balance * 0.95, max_position_size)  # Allow up to 95% of balance
             
             if action > 0:  # Buy
-                # Validate position size
+                # Simplified validation for testing
                 transaction_fees = amount * self.transaction_cost
                 total_cost = amount + transaction_fees
                 
                 if amount < self.min_transaction_size:
-                    logger.warning(f"Trade rejected: Amount {amount:.2f} below minimum transaction size {self.min_transaction_size}")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
-                        'balance': self.balance,
-                        'shares_held': self.shares_held,
-                        'current_price': current_price,
-                        'trade_status': 'rejected_min_size'
+                        'trade_status': 'rejected'
                     }
                 
                 shares_to_buy = amount / current_price
@@ -164,9 +160,6 @@ class SimpleTradingEnv(gym.Env):
                     logger.warning("Trade rejected: Insufficient balance (including fees)")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
-                        'balance': self.balance,
-                        'shares_held': self.shares_held,
-                        'current_price': current_price,
                         'trade_status': 'rejected_balance'
                     }
                 
@@ -181,13 +174,9 @@ class SimpleTradingEnv(gym.Env):
                 sell_amount = shares_sold * current_price
                 
                 if sell_amount < self.min_transaction_size and self.shares_held > 0:
-                    logger.warning(f"Trade rejected: Amount {sell_amount:.2f} below minimum transaction size {self.min_transaction_size}")
                     return self._get_observation(), 0, False, False, {
                         'net_worth': self.net_worth,
-                        'balance': self.balance,
-                        'shares_held': self.shares_held,
-                        'current_price': current_price,
-                        'trade_status': 'rejected_min_size'
+                        'trade_status': 'rejected'
                     }
                 
                 transaction_fees = sell_amount * self.transaction_cost

@@ -184,17 +184,6 @@ class HyperparameterOptimizer:
             'batch_size': 64,
             'clip_range': 0.2,
         }
-        """
-        Perform grid search to find optimal hyperparameters with early stopping.
-        
-        Args:
-            total_timesteps: Number of timesteps to train each agent
-            n_eval_episodes: Number of episodes to evaluate each parameter combination
-            fast_mode: If True, use faster evaluation with early stopping
-            
-        Returns:
-            Tuple of (best parameters, list of all results)
-        """
         param_combinations = self.generate_param_combinations()
         total_combinations = len(param_combinations)
         trials_without_improvement = 0
@@ -243,19 +232,19 @@ class HyperparameterOptimizer:
                 
                 # Streamlined fast evaluation
                 if fast_mode:
-                    # Single-pass quick evaluation
-                    train_steps = min(total_timesteps // 16, 250)  # Further reduced steps
+                    # Ultra-quick single evaluation
+                    train_steps = min(total_timesteps // 16, 250)  # Minimal training
                     agent.train(train_steps)
-                    reward = self._quick_evaluate(agent)
+                    
+                    # Single evaluation pass
+                    reward = self._quick_evaluate(agent, n_episodes=2)
                     
                     # Simple threshold check
-                    if reward < self.best_reward * 0.4:
-                        logger.debug(f"Quick eval: Skipping low-performing params: {reward:.4f}")
+                    if self.best_reward > float('-inf') and reward < self.best_reward * 0.4:
                         continue
                     
-                    # Minimal final training
-                    agent.train(min(total_timesteps // 8, 500))
-                    avg_reward = self._quick_evaluate(agent)
+                    # Record result
+                    avg_reward = reward
                 else:
                     # Standard full training with early stopping
                     agent.train(total_timesteps)

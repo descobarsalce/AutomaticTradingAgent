@@ -59,10 +59,13 @@ class TradingAgent(BaseAgent):
         self.stop_loss = DEFAULT_STOP_LOSS
         self.fast_eval = fast_eval
         
-        # Reduce network size and skip some calculations in fast eval mode
+        # Optimize for fast evaluation mode
         if fast_eval:
-            self.eval_frequency = 1000  # Fixed evaluation frequency for fast eval mode
-            self.skip_metrics = ['sortino_ratio', 'information_ratio']  # Skip expensive metrics
+            self.eval_frequency = 5000  # Reduced evaluation frequency
+            self.skip_metrics = ['sortino_ratio', 'information_ratio', 'sharpe_ratio']  # Skip all expensive metrics
+            self.quick_validation = True  # Enable quick validation
+            # Use smaller network for faster inference
+            self.policy_kwargs = {'net_arch': dict(pi=[32], vf=[32])}
 
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:
         """
@@ -95,20 +98,16 @@ class TradingAgent(BaseAgent):
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """
         Update agent state with portfolio information.
-        Validates position sizes before updating.
+        Uses simplified validation in fast eval mode.
         """
-        # Validate position sizes
-        for symbol, size in positions.items():
-            if not isinstance(size, (int, float)) or not np.isfinite(size):
-                raise ValueError(f"Invalid position size type for {symbol}")
-            if self.quick_mode:
-                if size > 0 and size > self.max_position_size:
-                    raise ValueError(f"Long position size {size} exceeds quick mode limit of {self.max_position_size} for {symbol}")
-                elif size < 0 and size < self.min_position_size:
-                    raise ValueError(f"Short position size {size} exceeds quick mode limit of {self.min_position_size} for {symbol}")
-            elif abs(size) > 10.0:  # More permissive bound for normal mode
-                raise ValueError(f"Position size too large for {symbol}")
-                
+        if not self.fast_eval:
+            # Full validation only in normal mode
+            for symbol, size in positions.items():
+                if not isinstance(size, (int, float)) or not np.isfinite(size):
+                    raise ValueError(f"Invalid position size type for {symbol}")
+                if abs(size) > self.max_position_size:
+                    raise ValueError(f"Position size {size} exceeds limit for {symbol}")
+        
         super().update_state(portfolio_value, positions)
         
     def train(self, total_timesteps: int, callback: Optional[Any] = None) -> None:

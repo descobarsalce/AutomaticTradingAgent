@@ -1,4 +1,13 @@
 
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,12 +21,17 @@ from core.visualization import TradingVisualizer
 from utils.callbacks import ProgressBarCallback, PortfolioMetricsCallback
 
 if __name__ == "__main__":
-    # Page config
-    st.set_page_config(
-        page_title="RL Trading Platform",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    try:
+        # Page config
+        st.set_page_config(
+            page_title="RL Trading Platform",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f"Error initializing app: {str(e)}")
+        st.stop()
 
     # Initialize session state
     if 'data_handler' not in st.session_state:

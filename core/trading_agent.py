@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional, Union, cast
 import numpy as np
 from gymnasium import Env
 from stable_baselines3.common.callbacks import BaseCallback
-from .base_agent import BaseAgent
+from core.base_agent import BaseAgent
 from utils.data_utils import validate_numeric
 from utils.common import (
     MAX_POSITION_SIZE,

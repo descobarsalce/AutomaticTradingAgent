@@ -161,7 +161,7 @@ train_model = st.sidebar.button(
     disabled=st.session_state.portfolio_data is None
 )
 
-from hyperparameter_optimizer import HyperparameterOptimizer
+from core.hyperparameter_optimizer import HyperparameterOptimizer
 
 if train_model:
     st.session_state.environments = {}

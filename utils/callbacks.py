@@ -3,7 +3,7 @@ from tqdm.auto import tqdm
 import time
 import numpy as np
 from typing import Optional, Dict, Any
-from metrics.metrics_calculator import MetricsCalculator
+from core.metrics import MetricsCalculator
 
 class PortfolioMetricsCallback(BaseCallback):
     """

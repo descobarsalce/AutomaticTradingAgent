@@ -6,7 +6,7 @@ from utils.callbacks import ProgressBarCallback
 import numpy as np
 from numpy.typing import NDArray
 from utils.common import type_check
-from metrics.metrics_calculator import MetricsCalculator
+from .metrics import MetricsCalculator
 import logging
 
 # Configure logging

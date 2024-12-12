@@ -76,3 +76,68 @@ POSITION_PRECISION = 4  # Decimal places for position sizes
 
 # Calculation Constants
 ANNUALIZATION_FACTOR = 252 ** 0.5  # Square root of trading days for annualization
+from functools import wraps
+from typing import Callable, Dict, Any, get_type_hints, Union, Optional
+import inspect
+import numpy as np
+from gymnasium import Env
+
+def type_check(func: Callable) -> Callable:
+    """
+    Decorator for runtime type checking of function parameters and return value.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        hints = get_type_hints(func)
+        sig = inspect.signature(func)
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        
+        def check_type(value: Any, expected_type: Any) -> bool:
+            if value is None:
+                if hasattr(expected_type, "__origin__") and expected_type.__origin__ is Union:
+                    return type(None) in expected_type.__args__
+                return False
+            
+            if expected_type is np.ndarray:
+                return isinstance(value, np.ndarray)
+            
+            if expected_type is Env:
+                return isinstance(value, Env)
+            
+            if hasattr(expected_type, "__origin__") and expected_type.__origin__ is Union:
+                return any(check_type(value, t) for t in expected_type.__args__)
+            
+            if hasattr(expected_type, "__origin__"):
+                return isinstance(value, expected_type.__origin__)
+            
+            return isinstance(value, expected_type)
+            
+        for param_name, param_value in bound_args.arguments.items():
+            if param_name in hints:
+                expected_type = hints[param_name]
+                if not check_type(param_value, expected_type):
+                    raise TypeError(
+                        f"Parameter '{param_name}' must be {expected_type}, "
+                        f"got {type(param_value).__name__} instead"
+                    )
+        
+        result = func(*args, **kwargs)
+        
+        if 'return' in hints and func.__name__ != '__init__':
+            return_type = hints['return']
+            if return_type is type(None):
+                if result is not None:
+                    raise TypeError(
+                        f"Function should return None, "
+                        f"got {type(result).__name__} instead"
+                    )
+            elif not check_type(result, return_type):
+                raise TypeError(
+                    f"Function should return {return_type}, "
+                    f"got {type(result).__name__} instead"
+                )
+        
+        return result
+    
+    return wrapper

@@ -5,7 +5,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 from utils.callbacks import ProgressBarCallback
 import numpy as np
 from numpy.typing import NDArray
-from utils.decorators import type_check
+from utils.common import type_check
 from .metrics import MetricsCalculator
 import logging
 

@@ -34,6 +34,9 @@ if 'training_completed' not in st.session_state:
     st.session_state.training_completed = False
 if 'data_validated' not in st.session_state:
     st.session_state.data_validated = False
+if 'model_trained' not in st.session_state:
+    st.session_state.model_trained = False
+
 
 # Sidebar
 st.sidebar.title("Trading Parameters")
@@ -155,10 +158,17 @@ if st.session_state.portfolio_data is not None:
             if data_completeness.mean() < 95:
                 st.warning(f"Data completeness below 95% threshold")
 
-# Step 3: Training
-train_model = st.sidebar.button(
-    "3. Train Model",
+# Step 3: Training and Evaluation
+col1, col2 = st.sidebar.columns(2)
+
+train_model = col1.button(
+    "3a. Train Model",
     disabled=st.session_state.portfolio_data is None
+)
+
+evaluate_model = col2.button(
+    "3b. Evaluate Model", 
+    disabled=st.session_state.portfolio_data is None or not st.session_state.get('model_trained', False)
 )
 
 from core.hyperparameter_optimizer import HyperparameterOptimizer
@@ -350,100 +360,106 @@ if train_model:
             st.error(f"Error creating trades DataFrame for {symbol}: {str(e)}")
             st.session_state.all_trades[symbol] = pd.DataFrame(columns=['timestamp', 'action', 'price'])
         
+    st.session_state.model_trained = True
     st.session_state.training_completed = True
+    st.success("✅ Training completed! Click 'Evaluate Model' to see results.")
 
-# Step 3: View Results
-if st.session_state.training_completed:
-    st.sidebar.success("✅ Training completed! View results below.")
-    
-    # Visualize results
-    figs = st.session_state.visualizer.create_charts(
-        st.session_state.portfolio_data, 
-        st.session_state.all_trades
-    )
-    
-    # Display charts
-    for symbol, fig in figs.items():
-        st.subheader(f"{symbol} Analysis")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Display optimization results if available
-        if enable_optimization and symbol in st.session_state.optimization_results:
-            st.subheader(f"{symbol} Hyperparameter Optimization Results")
-            opt_results = st.session_state.optimization_results[symbol]
-            
-            # Display optimization status with appropriate styling
-            status = opt_results.get("status", "Unknown")
-            if "Failed" in status:
-                st.error(f"Optimization Status: {status}")
-                st.error(opt_results.get("message", "An error occurred during optimization"))
-            elif status == "Not started":
-                st.warning("Optimization has not started yet")
-            elif not opt_results.get("success", False):
-                st.warning(opt_results.get("message", "Optimization did not complete successfully"))
-            else:
-                st.success(f"Optimization Status: {status}")
-                st.success(opt_results.get("message", "Optimization completed successfully"))
+if evaluate_model:
+    if st.session_state.training_completed:
+        st.sidebar.success("✅ Evaluation completed! View results below.")
 
-            # Display parameters and results
-            if opt_results.get("best_params"):
-                st.write("Best Parameters Found:")
-                st.json(opt_results["best_params"])
-                if not opt_results.get("success", False):
-                    st.info("Using default/fallback parameters due to optimization issues")
-            
-            if opt_results.get("top_5_results"):
-                st.write("Top 5 Parameter Combinations:")
-                results_df = pd.DataFrame(opt_results["top_5_results"])
-                # Format the DataFrame for better display
-                if not results_df.empty:
-                    results_df['avg_reward'] = results_df['avg_reward'].round(4)
-                    if 'sharpe_ratio' in results_df.columns:
-                        results_df['sharpe_ratio'] = results_df['sharpe_ratio'].round(4)
-                    st.dataframe(results_df)
-            
-            # Display metrics
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric(
-                    "Total Combinations Tested", 
-                    opt_results.get("total_combinations_tested", 0)
-                )
-            with col2:
-                reward = opt_results.get("best_reward", 0)
-                st.metric(
-                    "Best Reward Achieved", 
-                    f"{reward:.4f}" if isinstance(reward, (int, float)) else "N/A"
-                )
-        
-        # Display performance metrics
-        col1, col2, col3 = st.columns(3)
-        
-        final_balance = st.session_state.environments[symbol].net_worth
-        symbol_initial_balance = initial_balance * weights[symbol]
-        returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
-        
-        col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
-        col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
-        col3.metric(f"{symbol} Number of Trades", len(st.session_state.all_trades[symbol]))
-        
-    # Display portfolio summary
-    st.subheader("Portfolio Summary")
-    total_value = sum(env.net_worth for env in st.session_state.environments.values())
-    portfolio_return = (total_value - initial_balance) / initial_balance * 100
-    
-    col1, col2 = st.columns(2)
-    col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
-    col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")
-    
-    # Add reset button
-    if st.sidebar.button("Reset Session"):
-        st.session_state.portfolio_data = None
-        st.session_state.trained_agents = {}
-        st.session_state.environments = {}
-        st.session_state.all_trades = {}
-        st.session_state.training_completed = False
-        st.experimental_rerun()
+        # Visualize results
+        figs = st.session_state.visualizer.create_charts(
+            st.session_state.portfolio_data,
+            st.session_state.all_trades
+        )
+
+        # Display charts
+        for symbol, fig in figs.items():
+            st.subheader(f"{symbol} Analysis")
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Display optimization results if available
+            if enable_optimization and symbol in st.session_state.optimization_results:
+                st.subheader(f"{symbol} Hyperparameter Optimization Results")
+                opt_results = st.session_state.optimization_results[symbol]
+
+                # Display optimization status with appropriate styling
+                status = opt_results.get("status", "Unknown")
+                if "Failed" in status:
+                    st.error(f"Optimization Status: {status}")
+                    st.error(opt_results.get("message", "An error occurred during optimization"))
+                elif status == "Not started":
+                    st.warning("Optimization has not started yet")
+                elif not opt_results.get("success", False):
+                    st.warning(opt_results.get("message", "Optimization did not complete successfully"))
+                else:
+                    st.success(f"Optimization Status: {status}")
+                    st.success(opt_results.get("message", "Optimization completed successfully"))
+
+                # Display parameters and results
+                if opt_results.get("best_params"):
+                    st.write("Best Parameters Found:")
+                    st.json(opt_results["best_params"])
+                    if not opt_results.get("success", False):
+                        st.info("Using default/fallback parameters due to optimization issues")
+
+                if opt_results.get("top_5_results"):
+                    st.write("Top 5 Parameter Combinations:")
+                    results_df = pd.DataFrame(opt_results["top_5_results"])
+                    # Format the DataFrame for better display
+                    if not results_df.empty:
+                        results_df['avg_reward'] = results_df['avg_reward'].round(4)
+                        if 'sharpe_ratio' in results_df.columns:
+                            results_df['sharpe_ratio'] = results_df['sharpe_ratio'].round(4)
+                        st.dataframe(results_df)
+
+                # Display metrics
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric(
+                        "Total Combinations Tested",
+                        opt_results.get("total_combinations_tested", 0)
+                    )
+                with col2:
+                    reward = opt_results.get("best_reward", 0)
+                    st.metric(
+                        "Best Reward Achieved",
+                        f"{reward:.4f}" if isinstance(reward, (int, float)) else "N/A"
+                    )
+
+            # Display performance metrics
+            col1, col2, col3 = st.columns(3)
+
+            final_balance = st.session_state.environments[symbol].net_worth
+            symbol_initial_balance = initial_balance * weights[symbol]
+            returns = (final_balance - symbol_initial_balance) / symbol_initial_balance * 100
+
+            col1.metric(f"{symbol} Final Balance", f"${final_balance:,.2f}")
+            col2.metric(f"{symbol} Returns", f"{returns:.2f}%")
+            col3.metric(f"{symbol} Number of Trades", len(st.session_state.all_trades[symbol]))
+
+        # Display portfolio summary
+        st.subheader("Portfolio Summary")
+        total_value = sum(env.net_worth for env in st.session_state.environments.values())
+        portfolio_return = (total_value - initial_balance) / initial_balance * 100
+
+        col1, col2 = st.columns(2)
+        col1.metric("Total Portfolio Value", f"${total_value:,.2f}")
+        col2.metric("Portfolio Return", f"{portfolio_return:.2f}%")
+
+    else:
+        st.warning("Please train the model before evaluating.")
+
+# Add reset button
+if st.sidebar.button("Reset Session"):
+    st.session_state.portfolio_data = None
+    st.session_state.trained_agents = {}
+    st.session_state.environments = {}
+    st.session_state.all_trades = {}
+    st.session_state.training_completed = False
+    st.session_state.model_trained = False
+    st.experimental_rerun()
 
 # Instructions
 if st.session_state.portfolio_data is None:

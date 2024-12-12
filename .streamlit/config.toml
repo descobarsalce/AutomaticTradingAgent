@@ -1,18 +1,10 @@
-
 [server]
-port = 5000
-address = "0.0.0.0"
 headless = true
-enableCORS = false
-runOnSave = true
-
-[browser]
-serverAddress = "0.0.0.0"
-serverPort = 5000
+address = "0.0.0.0"
+port = 5000
 
 [theme]
+base = "dark"
 primaryColor = "#FF4B4B"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
-font = "sans serif"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#262730"

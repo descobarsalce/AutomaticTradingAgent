@@ -159,21 +159,24 @@ if st.session_state.portfolio_data is not None:
                 st.warning(f"Data completeness below 95% threshold")
 
 # Step 3: Training and Evaluation
-col1, col2 = st.sidebar.columns(2)
-
-train_model = col1.button(
+# Training button
+train_model = st.sidebar.button(
     "3a. Train Model",
-    disabled=st.session_state.portfolio_data is None
+    disabled=st.session_state.portfolio_data is None,
+    key="train_button"
 )
 
-evaluate_model = col2.button(
+# Evaluation button - enabled only after training is complete
+evaluate_model = st.sidebar.button(
     "3b. Evaluate Model", 
-    disabled=st.session_state.portfolio_data is None or not st.session_state.get('model_trained', False)
+    disabled=st.session_state.portfolio_data is None or not st.session_state.get('model_trained', False),
+    key="evaluate_button"
 )
 
 from core.hyperparameter_optimizer import HyperparameterOptimizer
 
-if train_model:
+if train_model and not st.session_state.get('training_in_progress', False):
+    st.session_state.training_in_progress = True
     st.session_state.environments = {}
     st.session_state.trained_agents = {}
     st.session_state.all_trades = {}

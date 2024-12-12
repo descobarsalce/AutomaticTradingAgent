@@ -4,8 +4,8 @@ import numpy as np
 import time
 from datetime import datetime, timedelta
 
-from environment.simple_trading_env import SimpleTradingEnv
-from core import TradingAgent
+from environment.trading import TradingEnvironment
+from core.trading_agent import TradingAgent
 from data.data_handler import DataHandler
 from visualization import TradingVisualizer
 from utils.callbacks import ProgressBarCallback, PortfolioMetricsCallback

@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional, List, Union, Tuple
 from gymnasium import Env
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
-from callbacks import ProgressBarCallback
+from utils.callbacks import ProgressBarCallback
 import numpy as np
 from numpy.typing import NDArray
 from decorators import type_check

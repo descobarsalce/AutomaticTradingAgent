@@ -3,7 +3,7 @@ from typing import Dict, Optional
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-from models import Session, StockData
+from models.models import Session, StockData
 from data.processing import FeatureEngineer
 
 class DataHandler:

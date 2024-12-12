@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from metrics.metrics_calculator import (
+from core.metrics import (
     calculate_returns,
     calculate_sharpe_ratio,
     calculate_sortino_ratio,

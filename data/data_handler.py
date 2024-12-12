@@ -3,26 +3,29 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import and_
-from models.database import Session, StockData
+from data.database import Session, StockData
+
+from data.processing import FeatureEngineer
+from typing import Dict, Optional
+
 
 class SQLDataManager:
+
     def __init__(self):
         self.session = Session()
 
     def get_cached_data(self, symbol, start_date, end_date):
         try:
             cached_records = self.session.query(StockData).filter(
-                and_(
-                    StockData.symbol == symbol,
-                    StockData.date >= start_date,
-                    StockData.date <= end_date
-                )
-            ).order_by(StockData.date).all()
+                and_(StockData.symbol == symbol, StockData.date >= start_date,
+                     StockData.date
+                     <= end_date)).order_by(StockData.date).all()
 
             if not cached_records:
                 return None
 
-            newest_record = max(record.last_updated for record in cached_records)
+            newest_record = max(record.last_updated
+                                for record in cached_records)
             if datetime.utcnow() - newest_record > timedelta(days=1):
                 return None
 
@@ -45,20 +48,17 @@ class SQLDataManager:
     def cache_data(self, symbol, data):
         try:
             for date, row in data.iterrows():
-                stock_data = StockData(
-                    symbol=symbol,
-                    date=date,
-                    open=row['Open'],
-                    high=row['High'],
-                    low=row['Low'],
-                    close=row['Close'],
-                    volume=row['Volume'],
-                    last_updated=datetime.utcnow()
-                )
+                stock_data = StockData(symbol=symbol,
+                                       date=date,
+                                       open=row['Open'],
+                                       high=row['High'],
+                                       low=row['Low'],
+                                       close=row['Close'],
+                                       volume=row['Volume'],
+                                       last_updated=datetime.utcnow())
                 existing = self.session.query(StockData).filter(
                     StockData.symbol == symbol,
-                    StockData.date == date
-                ).first()
+                    StockData.date == date).first()
 
                 if existing:
                     existing.open = row['Open']
@@ -78,28 +78,39 @@ class SQLDataManager:
 
 
 class FeatureEngineer:
+
     def prepare_data(self, portfolio_data):
         prepared_data = {}
         for symbol, data in portfolio_data.items():
             try:
                 prepared_df = data.copy()
                 if len(prepared_df) >= 50:
-                    prepared_df['SMA_20'] = prepared_df['Close'].rolling(window=20, min_periods=20).mean()
-                    prepared_df['SMA_50'] = prepared_df['Close'].rolling(window=50, min_periods=50).mean()
-                    prepared_df['RSI'] = self._calculate_rsi(prepared_df['Close'])
-                    prepared_df['Volatility'] = prepared_df['Close'].pct_change().rolling(window=20, min_periods=20).std()
+                    prepared_df['SMA_20'] = prepared_df['Close'].rolling(
+                        window=20, min_periods=20).mean()
+                    prepared_df['SMA_50'] = prepared_df['Close'].rolling(
+                        window=50, min_periods=50).mean()
+                    prepared_df['RSI'] = self._calculate_rsi(
+                        prepared_df['Close'])
+                    prepared_df['Volatility'] = prepared_df[
+                        'Close'].pct_change().rolling(window=20,
+                                                      min_periods=20).std()
                     correlations = {}
                     for other_symbol, other_data in portfolio_data.items():
                         if other_symbol != symbol:
-                            correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
+                            correlations[other_symbol] = prepared_df[
+                                'Close'].corr(other_data['Close'])
                     prepared_df['Correlations'] = str(correlations)
                     prepared_df = prepared_df.dropna()
                     if not prepared_df.empty:
                         prepared_data[symbol] = prepared_df
                     else:
-                        print(f"Warning: No valid data points remaining for {symbol} after calculations")
+                        print(
+                            f"Warning: No valid data points remaining for {symbol} after calculations"
+                        )
                 else:
-                    print(f"Warning: Insufficient data points for {symbol} (minimum 50 required)")
+                    print(
+                        f"Warning: Insufficient data points for {symbol} (minimum 50 required)"
+                    )
                     prepared_data[symbol] = data
             except Exception as e:
                 print(f"Error preparing data for {symbol}: {str(e)}")
@@ -115,6 +126,7 @@ class FeatureEngineer:
 
 
 class DataHandler:
+
     def __init__(self):
         self.portfolio_data = {}
         self.sql_manager = SQLDataManager()
@@ -125,7 +137,8 @@ class DataHandler:
             symbols = [symbols]
 
         for symbol in symbols:
-            cached_data = self.sql_manager.get_cached_data(symbol, start_date, end_date)
+            cached_data = self.sql_manager.get_cached_data(
+                symbol, start_date, end_date)
             if cached_data is not None:
                 self.portfolio_data[symbol] = cached_data
             else:
@@ -137,19 +150,14 @@ class DataHandler:
         return self.portfolio_data
 
     def prepare_data(self):
-        self.portfolio_data = self.feature_engineer.prepare_data(self.portfolio_data)
+        self.portfolio_data = self.feature_engineer.prepare_data(
+            self.portfolio_data)
         return self.portfolio_data
 
 
-
-from typing import Dict, Optional
-import yfinance as yf
-import pandas as pd
-from datetime import datetime, timedelta
-from models.models import Session, StockData
-from data.processing import FeatureEngineer
 
 class DataHandler:
+
     def __init__(self):
         self.portfolio_data = {}
         self.sql_manager = SQLDataManager()
@@ -160,7 +168,8 @@ class DataHandler:
             symbols = [symbols]
 
         for symbol in symbols:
-            cached_data = self.sql_manager.get_cached_data(symbol, start_date, end_date)
+            cached_data = self.sql_manager.get_cached_data(
+                symbol, start_date, end_date)
             if cached_data is not None:
                 self.portfolio_data[symbol] = cached_data
             else:
@@ -172,5 +181,6 @@ class DataHandler:
         return self.portfolio_data
 
     def prepare_data(self):
-        self.portfolio_data = self.feature_engineer.prepare_data(self.portfolio_data)
+        self.portfolio_data = self.feature_engineer.prepare_data(
+            self.portfolio_data)
         return self.portfolio_data

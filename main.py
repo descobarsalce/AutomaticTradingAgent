@@ -1,5 +1,12 @@
 import streamlit as st
 import pandas as pd
+
+# Configure Streamlit
+st.set_page_config(
+    page_title="RL Trading Platform",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 import numpy as np
 import time
 from datetime import datetime, timedelta

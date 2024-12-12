@@ -1,5 +1,6 @@
 
 from .processing import (
+    FeatureEngineer,
     validate_numeric,
     validate_dataframe,
     validate_portfolio_weights,
@@ -7,6 +8,7 @@ from .processing import (
 )
 
 __all__ = [
+    'FeatureEngineer',
     'validate_numeric',
     'validate_dataframe',
     'validate_portfolio_weights', 

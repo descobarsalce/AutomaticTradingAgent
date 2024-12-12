@@ -1,15 +1,21 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import logging
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Union
 from sqlalchemy import and_
 from models import Session, StockData
+from data.processing import FeatureEngineer
+
+logger = logging.getLogger(__name__)
 
 class SQLDataManager:
     def __init__(self):
         self.session = Session()
 
-    def get_cached_data(self, symbol, start_date, end_date):
+    def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Get cached stock data from database."""
         try:
             cached_records = self.session.query(StockData).filter(
                 and_(
@@ -39,10 +45,11 @@ class SQLDataManager:
             return data
 
         except Exception as e:
-            print(f"Error reading from cache: {e}")
+            logger.error(f"Error reading from cache: {e}")
             return None
 
-    def cache_data(self, symbol, data):
+    def cache_data(self, symbol: str, data: pd.DataFrame) -> None:
+        """Cache stock data in database."""
         try:
             for date, row in data.iterrows():
                 stock_data = StockData(
@@ -73,45 +80,8 @@ class SQLDataManager:
             self.session.commit()
 
         except Exception as e:
-            print(f"Error caching data: {e}")
+            logger.error(f"Error caching data: {e}")
             self.session.rollback()
-
-
-class FeatureEngineer:
-    def prepare_data(self, portfolio_data):
-        prepared_data = {}
-        for symbol, data in portfolio_data.items():
-            try:
-                prepared_df = data.copy()
-                if len(prepared_df) >= 50:
-                    prepared_df['SMA_20'] = prepared_df['Close'].rolling(window=20, min_periods=20).mean()
-                    prepared_df['SMA_50'] = prepared_df['Close'].rolling(window=50, min_periods=50).mean()
-                    prepared_df['RSI'] = self._calculate_rsi(prepared_df['Close'])
-                    prepared_df['Volatility'] = prepared_df['Close'].pct_change().rolling(window=20, min_periods=20).std()
-                    correlations = {}
-                    for other_symbol, other_data in portfolio_data.items():
-                        if other_symbol != symbol:
-                            correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
-                    prepared_df['Correlations'] = str(correlations)
-                    prepared_df = prepared_df.dropna()
-                    if not prepared_df.empty:
-                        prepared_data[symbol] = prepared_df
-                    else:
-                        print(f"Warning: No valid data points remaining for {symbol} after calculations")
-                else:
-                    print(f"Warning: Insufficient data points for {symbol} (minimum 50 required)")
-                    prepared_data[symbol] = data
-            except Exception as e:
-                print(f"Error preparing data for {symbol}: {str(e)}")
-                prepared_data[symbol] = data
-        return prepared_data
-
-    def _calculate_rsi(self, prices, period=14):
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
 
 
 class DataHandler:
@@ -120,22 +90,37 @@ class DataHandler:
         self.sql_manager = SQLDataManager()
         self.feature_engineer = FeatureEngineer()
 
-    def fetch_data(self, symbols, start_date, end_date):
+    def fetch_data(self, symbols: Union[str, List[str]], start_date: datetime, end_date: datetime) -> Dict[str, pd.DataFrame]:
+        """Fetch stock data from API or cache."""
         if isinstance(symbols, str):
             symbols = [symbols]
 
         for symbol in symbols:
-            cached_data = self.sql_manager.get_cached_data(symbol, start_date, end_date)
-            if cached_data is not None:
-                self.portfolio_data[symbol] = cached_data
-            else:
-                ticker = yf.Ticker(symbol)
-                data = ticker.history(start=start_date, end=end_date)
-                self.sql_manager.cache_data(symbol, data)
-                self.portfolio_data[symbol] = data
+            try:
+                cached_data = self.sql_manager.get_cached_data(symbol, start_date, end_date)
+                if cached_data is not None:
+                    self.portfolio_data[symbol] = cached_data
+                else:
+                    ticker = yf.Ticker(symbol)
+                    data = ticker.history(start=start_date, end=end_date)
+                    if data.empty:
+                        logger.warning(f"No data retrieved for {symbol}")
+                        continue
+                    self.sql_manager.cache_data(symbol, data)
+                    self.portfolio_data[symbol] = data
+            except Exception as e:
+                logger.error(f"Error fetching data for {symbol}: {e}")
 
         return self.portfolio_data
 
-    def prepare_data(self):
-        self.portfolio_data = self.feature_engineer.prepare_data(self.portfolio_data)
-        return self.portfolio_data
+    def prepare_data(self) -> Dict[str, pd.DataFrame]:
+        """Prepare data with technical indicators and correlations."""
+        try:
+            if not self.portfolio_data:
+                logger.error("No data available to prepare")
+                return {}
+            self.portfolio_data = self.feature_engineer.prepare_data(self.portfolio_data)
+            return self.portfolio_data
+        except Exception as e:
+            logger.error(f"Error preparing data: {e}")
+            return self.portfolio_data

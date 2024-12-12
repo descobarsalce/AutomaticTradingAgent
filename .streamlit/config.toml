@@ -4,15 +4,11 @@ port = 5000
 address = "0.0.0.0"
 headless = true
 enableCORS = false
-runOnSave = true
+enableXsrfProtection = false
 
 [browser]
 serverAddress = "0.0.0.0"
 serverPort = 5000
-
-[runner]
-fastReruns = true
-magicEnabled = true
 
 [theme]
 primaryColor = "#FF4B4B"

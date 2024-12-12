@@ -1,73 +1,24 @@
-modules = ["python-3.11"]
+
+run = "streamlit run main.py --server.port=5000 --server.address=0.0.0.0"
+modules = ["python-3.11:v3-20230826-0f37faca"]
+
+hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 
 [nix]
 channel = "stable-24_05"
 
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Trading Platform"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Agent Tests"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Quick Mode Test"
-
-[[workflows.workflow]]
-name = "Trading Platform"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "streamlit run main.py --server.port 5000"
-waitForPort = 5000
-
-[[workflows.workflow]]
-name = "Agent Tests"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 -m pytest -v tests/test_base_agent.py"
-
-[[workflows.workflow]]
-name = "Quick Mode Test"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 test_quick_mode.py"
-
 [deployment]
-run = ["sh", "-c", "streamlit run main.py --server.port 5000"]
+run = ["sh", "-c", "streamlit run main.py --server.port 5000 --server.address 0.0.0.0"]
+deploymentTarget = "cloudrun"
+
+[languages]
+python = "3.11"
+
+[languages.python]
+pattern = "**/*.py"
+
+[languages.python.languageServer]
+start = "pylsp"
 
 [[ports]]
 localPort = 5000

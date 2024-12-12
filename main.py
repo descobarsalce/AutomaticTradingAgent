@@ -4,7 +4,7 @@ import numpy as np
 import time
 from datetime import datetime, timedelta
 
-from environment.trading import TradingEnvironment
+from environment import TradingEnvironment, SimpleTradingEnv
 from core.trading_agent import TradingAgent
 from data.data_handler import DataHandler
 from core.visualization import TradingVisualizer

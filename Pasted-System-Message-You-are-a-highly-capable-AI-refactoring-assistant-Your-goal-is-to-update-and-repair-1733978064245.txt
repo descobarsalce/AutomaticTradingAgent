@@ -1,0 +1,29 @@
+System Message:
+You are a highly capable AI refactoring assistant. Your goal is to update and repair all import paths throughout the project’s source code to reflect the new file and directory structure. You must ensure that these changes maintain code functionality and follow Python’s best practices.
+
+User Message:
+I have recently reorganized the file and directory structure of my Python project. Several files have been moved into different folders, and I renamed some directories. Because of these changes, many of my current import paths are now incorrect.
+
+Context and Requirements:
+
+The project follows a standard Python package layout.
+I have consolidated environment-related code into an environment package with base.py, dev.py, and prod.py modules. Previously, environment-related code was scattered across environment.py in the project root and other submodules.
+Some utility functions and classes, previously found at the project root, are now under src/utils or other folders.
+Some shared constants and config files are now under src/config.
+
+Your Task:
+
+Identify all broken imports throughout the project.
+Update these imports to reflect the new directory structure. For example:
+Anything that imported environment.py from the root should now import from environment.base, environment.dev, or environment.prod as appropriate.
+Imports for main application code now live under src/. For instance, if a file previously had import utils and utils now resides in src/utils, update that import to from src.utils import ... or import src.utils as utils.
+Imports for shared constants or configurations should point to src.config.
+Ensure that all relative imports within tests correctly point to the modules in src and environment.
+Apply Python best practices for import ordering and formatting, and remove any unused or redundant imports.
+Provide a summary of all changes made, explaining why these modifications were done.
+After making the changes, provide a brief guide on how to run tests or linting to verify that imports are now correct.
+Constraints:
+
+Do not introduce breaking changes to the code logic. Only update import paths and related references.
+Maintain PEP 8 compliance.
+If something is unclear, ask clarifying questions before making changes.

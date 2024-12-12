@@ -16,7 +16,7 @@ logger.setLevel(logging.DEBUG)
 class BaseAgent:
     # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
-        'learning_rate': 5e-3,
+        'learning_rate': 5e-2,
         'n_steps': 256,
         'batch_size': 256,
         'n_epochs': 5,

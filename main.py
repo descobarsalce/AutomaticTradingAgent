@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from environment.trading import TradingEnvironment
 from core.trading_agent import TradingAgent
 from data.data_handler import DataHandler
-from visualization import TradingVisualizer
+from core.visualization import TradingVisualizer
 from utils.callbacks import ProgressBarCallback, PortfolioMetricsCallback
 
 # Page config

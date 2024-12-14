@@ -1,5 +1,5 @@
 
-run = "streamlit run main.py --server.port=5000 --server.address=0.0.0.0"
+run = "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false"
 modules = ["python-3.11:v3-20230826-0f37faca"]
 
 hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
@@ -8,8 +8,14 @@ hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "streamlit run main.py --server.port=5000 --server.address=0.0.0.0"]
+run = ["sh", "-c", "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false"]
 deploymentTarget = "cloudrun"
+
+[env]
+PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
+STREAMLIT_SERVER_PORT = "5000"
+STREAMLIT_SERVER_ADDRESS = "0.0.0.0"
+REPLIT_DISABLE_PACKAGE_LAYER = "1"
 
 [languages]
 python = "3.11"

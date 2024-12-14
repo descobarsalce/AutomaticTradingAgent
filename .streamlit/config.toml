@@ -5,6 +5,7 @@ address = "0.0.0.0"
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+enableWebsocketCompression = false
 
 [browser]
 serverAddress = "0.0.0.0"

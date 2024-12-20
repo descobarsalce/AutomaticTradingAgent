@@ -4,7 +4,17 @@ port = 5000
 address = "0.0.0.0"
 headless = true
 enableCORS = true
+runOnSave = true
+maxUploadSize = 200
 
 [browser]
 serverAddress = "0.0.0.0"
 serverPort = 5000
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#FF4B4B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+font = "sans serif"

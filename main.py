@@ -1,24 +1,45 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import time
 from datetime import datetime, timedelta
-
-from environment.trading import TradingEnvironment
-from environment.simple_trading_env import SimpleTradingEnv
 from core.trading_agent import TradingAgent
 from data.data_handler import DataHandler
 from core.visualization import TradingVisualizer
-from utils.callbacks import ProgressBarCallback, PortfolioMetricsCallback
-from metrics.metrics_calculator import MetricsCalculator
 from models.database import Session, StockData
 
-# Single page config
 st.set_page_config(
     page_title="RL Trading Platform",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Rest of your main.py code...
+# Initialize session state
+if 'data_handler' not in st.session_state:
+    st.session_state.data_handler = DataHandler()
+if 'visualizer' not in st.session_state:
+    st.session_state.visualizer = TradingVisualizer()
+
+# Main page content
+st.title("RL Trading Platform")
+st.write("Welcome to the Trading Platform. Use the sidebar to navigate to different pages.")
+
+# Quick stats
+try:
+    session = Session()
+    total_symbols = session.query(StockData.symbol).distinct().count()
+    latest_update = session.query(StockData.last_updated).order_by(StockData.last_updated.desc()).first()
+    
+    col1, col2 = st.columns(2)
+    col1.metric("Total Symbols", total_symbols)
+    if latest_update:
+        col2.metric("Last Update", latest_update[0].strftime("%Y-%m-%d %H:%M"))
+    session.close()
+except Exception as e:
+    st.error(f"Database connection error: {str(e)}")
+
+st.markdown("""
+## Navigation
+- **Database Explorer**: View and analyze stored market data
+- **Performance Plots**: Visualize trading performance and indicators
+""")

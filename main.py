@@ -2,10 +2,13 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from core.trading_agent import TradingAgent
-from data.data_handler import DataHandler
-from core.visualization import TradingVisualizer
-from models.database import Session, StockData
+try:
+    from core.trading_agent import TradingAgent
+    from data.data_handler import DataHandler
+    from core.visualization import TradingVisualizer
+    from models.database import Session, StockData
+except Exception as e:
+    st.error(f"Import Error: {str(e)}")
 
 st.set_page_config(
     page_title="RL Trading Platform",

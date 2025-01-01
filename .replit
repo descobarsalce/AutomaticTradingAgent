@@ -1,1 +1,33 @@
-I
+
+run = "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"
+modules = ["python-3.11:v3-20230826-0f37faca"]
+
+hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"]
+deploymentTarget = "cloudrun"
+
+[env]
+PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"
+STREAMLIT_SERVER_PORT = "5000"
+STREAMLIT_SERVER_ADDRESS = "0.0.0.0"
+STREAMLIT_SERVER_HEADLESS = "true"
+STREAMLIT_SERVER_ENABLE_CORS = "true"
+REPLIT_DISABLE_PACKAGE_LAYER = "1"
+
+[languages]
+python = "3.11"
+
+[languages.python]
+pattern = "**/*.py"
+
+[languages.python.languageServer]
+start = "pylsp"
+
+[[ports]]
+localPort = 5000
+externalPort = 80

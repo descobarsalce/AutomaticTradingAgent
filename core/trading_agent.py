@@ -43,7 +43,8 @@ class TradingAgent(BaseAgent):
                 'n_epochs': 3,           # Fewer epochs for speed
                 'learning_rate': 3e-4,   # Optimal learning rate
                 'clip_range': 0.2,       # Less aggressive clipping
-                'target_kl': 0.05        # Relaxed KL divergence target
+                'target_kl': 0.05,       # Relaxed KL divergence target
+                'use_sde': False         # Disable SDE for simpler training
             })
             ppo_params = quick_params
             

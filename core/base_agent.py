@@ -26,8 +26,7 @@ class BaseAgent:
         'ent_coef': 0.01,
         'vf_coef': 0.8,
         'max_grad_norm': 0.3,
-        'use_sde': True,
-        'sde_sample_freq': 4,
+        'use_sde': False,
         'target_kl': 0.05
     }
 

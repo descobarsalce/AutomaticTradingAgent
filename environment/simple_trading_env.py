@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=10000, transaction_cost=0.001, min_transaction_size=1, step_size='1D'):
+    def __init__(self, data, initial_balance=10000, transaction_cost=0.001, min_transaction_size=1, step_size='1D', max_position_pct=0.95):
         super().__init__()
         # Aggregate data to daily timeframe if higher frequency
         if 'date' in data.columns and step_size == '1D':
@@ -36,7 +36,7 @@ class SimpleTradingEnv(gym.Env):
         # Transaction parameters with more flexible limits
         self.transaction_cost = transaction_cost  # As a decimal (e.g., 0.001 for 0.1%)
         self.min_transaction_size = min_transaction_size  # Lower minimum transaction size
-        self.max_position_pct = 0.95  # Maximum position size as percentage of portfolio
+        self.max_position_pct = max_position_pct  # Maximum position size as percentage of portfolio
         
         # Define action space as continuous values between -1 and 1
         self.action_space = gym.spaces.Box(

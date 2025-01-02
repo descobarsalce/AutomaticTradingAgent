@@ -42,8 +42,14 @@ def main():
         target_kl = st.number_input("Target KL Divergence", value=0.05, min_value=0.01, max_value=0.1)
         
     if st.button("Start Training"):
-        # Load your data here
-        data = pd.DataFrame()  # Replace with your data loading logic
+        # Create sample data for testing
+        data = pd.DataFrame({
+            'Open': [100] * 1000,
+            'High': [110] * 1000,
+            'Low': [90] * 1000,
+            'Close': [105] * 1000,
+            'Volume': [1000] * 1000
+        })
         
         # Create environment with selected components
         env = SimpleTradingEnv(

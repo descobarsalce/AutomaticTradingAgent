@@ -9,8 +9,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=10000, transaction_cost=0.0, min_transaction_size=0.001, step_size='1D', max_position_pct=0.95):
+    def __init__(self, data, initial_balance=10000, transaction_cost=0.0, min_transaction_size=0.001, step_size='1D', max_position_pct=0.95,
+                 use_position_profit=True, use_holding_bonus=True, use_trading_penalty=True):
         super().__init__()
+        self.use_position_profit = use_position_profit
+        self.use_holding_bonus = use_holding_bonus
+        self.use_trading_penalty = use_trading_penalty
         # Aggregate data to daily timeframe if higher frequency
         if 'date' in data.columns and step_size == '1D':
             data['date'] = pd.to_datetime(data['date'])
@@ -262,16 +266,17 @@ class SimpleTradingEnv(gym.Env):
         if abs(action) > 0.1:
             self.last_action = self.current_step
         
-        # Simplified reward with balanced components
-        reward = (
-            base_reward * 0.40 +          # Base portfolio performance (40%)
-            position_profit * 0.30 +      # Position profitability (30%)
-            holding_bonus * 0.30          # Reduced holding bonus (30%)
-        )
+        # Configurable reward components
+        reward = base_reward  # Base portfolio performance (always included)
         
-        # Apply trading penalty as a scaling factor rather than direct subtraction
-        if trading_penalty > 0:
-            reward *= (1 - trading_penalty)  # Reduce reward based on trading penalty
+        if self.use_position_profit:
+            reward += position_profit * 0.30
+            
+        if self.use_holding_bonus:
+            reward += holding_bonus * 0.30
+            
+        if self.use_trading_penalty and trading_penalty > 0:
+            reward *= (1 - trading_penalty)
         
         # Update state
         self.current_step += 1

@@ -143,19 +143,19 @@ class SimpleTradingEnv(gym.Env):
         min_transaction_value = self.min_transaction_size * current_price
         
         # Scale position size based on action magnitude
-        desired_exposure = max(0.2, abs(action)) * self.max_position_pct  # Minimum 20% of max position
+        desired_exposure = abs(action) * self.max_position_pct
         max_position_size = portfolio_value * desired_exposure
         
-        # Ensure amount meets minimum transaction size
-        base_amount = min(self.balance * 0.95, max_position_size)
-        amount = max(base_amount, min_transaction_value) if base_amount > 0 else 0
+        # Calculate trade amount without enforcing minimum size
+        amount = min(self.balance * 0.95, max_position_size)
         
         if action > 0:  # Buy
             # Simplified validation for testing
             transaction_fees = amount * self.transaction_cost
             total_cost = amount + transaction_fees
             
-            if amount < self.min_transaction_size:
+            # Only reject if trying to trade with zero amount
+            if amount <= 0:
                 return self._get_observation(), 0, False, False, {
                     'net_worth': self.net_worth,
                     'balance': self.balance,
@@ -185,7 +185,7 @@ class SimpleTradingEnv(gym.Env):
             shares_sold = min(max_shares_to_sell, self.shares_held)
             sell_amount = shares_sold * current_price
             
-            if sell_amount < self.min_transaction_size and self.shares_held > 0:
+            if sell_amount <= 0:
                 return self._get_observation(), 0, False, False, {
                     'net_worth': self.net_worth,
                     'trade_status': 'rejected'

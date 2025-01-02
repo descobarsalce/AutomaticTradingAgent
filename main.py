@@ -2,7 +2,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from models.database import Session, StockData
+from models.database import Session
+from models.models import StockData
 
 st.set_page_config(
     page_title="RL Trading Platform",

@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from visualization import TradingVisualizer
-from data_handler import DataHandler
+from core.visualization import TradingVisualizer
+from data.data_handler import DataHandler
 
 # Page config
 st.set_page_config(

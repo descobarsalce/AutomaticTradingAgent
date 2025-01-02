@@ -4,7 +4,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 import os
 from sqlalchemy import func, distinct
-from models import Session, StockData
+from models.database import Session
+from models.models import StockData
 
 # Page config
 st.set_page_config(

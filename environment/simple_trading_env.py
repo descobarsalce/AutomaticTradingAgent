@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=10000, transaction_cost=0.001, min_transaction_size=1, step_size='1D', max_position_pct=0.95):
+    def __init__(self, data, initial_balance=10000, transaction_cost=0.0, min_transaction_size=0.001, step_size='1D', max_position_pct=0.95):
         super().__init__()
         # Aggregate data to daily timeframe if higher frequency
         if 'date' in data.columns and step_size == '1D':

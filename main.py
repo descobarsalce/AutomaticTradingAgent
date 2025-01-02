@@ -13,6 +13,7 @@ from models.database import Session
 from models.models import StockData
 from environment import SimpleTradingEnv
 from core import TradingAgent
+from utils.callbacks import ProgressBarCallback
 
 st.set_page_config(
     page_title="RL Trading Platform",
@@ -100,17 +101,17 @@ def main():
             with st.expander("Environment Parameters", expanded=True):
                 col1, col2 = st.columns(2)
                 initial_balance = col1.number_input("Initial Balance ($)", min_value=1000, value=10000, help="Starting capital for trading")
-                transaction_cost = col2.number_input("Transaction Cost", min_value=0.0, max_value=0.1, value=0.001, format="%f", help="Trading fee as a fraction (e.g., 0.001 = 0.1%)")
+                transaction_cost = col2.number_input("Transaction Cost", min_value=0.0, max_value=0.1, value=0.0, format="%f", help="Trading fee as a fraction (e.g., 0.001 = 0.1%)")
                 
                 col3, col4 = st.columns(2)
-                min_transaction_size = col3.number_input("Minimum Transaction Size", min_value=0.0, value=1.0, help="Minimum shares per trade (can be fractional)")
+                min_transaction_size = col3.number_input("Minimum Transaction Size", min_value=0.0, value=0.001, help="Minimum shares per trade (can be fractional)")
                 max_position_pct = col4.slider("Maximum Position Size (%)", min_value=10, max_value=100, value=95, help="Maximum portfolio % for single position") / 100.0
 
             with st.expander("Training Parameters", expanded=True):
                 col1, col2, col3 = st.columns(3)
                 epochs = col1.number_input("Training Epochs", min_value=1, value=10, help="Number of training cycles")
                 learning_rate = col2.number_input("Learning Rate", min_value=1e-6, max_value=1e-2, value=3e-4, format="%e", help="Model learning rate")
-                n_steps = col3.number_input("Steps per Update", min_value=128, max_value=2048, value=1024, help="Steps before model update")
+                n_steps = col3.number_input("Steps per Update", min_value=128, max_value=2048, value=256, help="Steps before model update")
 
                 col4, col5, col6 = st.columns(3)
                 batch_size = col4.number_input("Batch Size", min_value=32, max_value=512, value=256, help="Training batch size")

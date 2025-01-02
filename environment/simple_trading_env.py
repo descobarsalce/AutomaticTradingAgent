@@ -9,10 +9,20 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, data, initial_balance=10000, transaction_cost=0.001, min_transaction_size=1):
+    def __init__(self, data, initial_balance=10000, transaction_cost=0.001, min_transaction_size=1, step_size='1D'):
         super().__init__()
-        # Store market data and initial balance
-        self.data = data
+        # Aggregate data to daily timeframe if higher frequency
+        if 'date' in data.columns and step_size == '1D':
+            data['date'] = pd.to_datetime(data['date'])
+            self.data = data.groupby(data['date'].dt.date).agg({
+                'Open': 'first',
+                'High': 'max',
+                'Low': 'min',
+                'Close': 'last',
+                'Volume': 'sum'
+            }).reset_index()
+        else:
+            self.data = data
         # Add tracking for cost basis and last action
         self.cost_basis = 0
         self.last_action = 0
@@ -183,15 +193,24 @@ class SimpleTradingEnv(gym.Env):
             self.balance += net_sell_amount
             self.shares_held -= shares_sold
         
-        # Update portfolio net worth and calculate base reward
-        self._update_net_worth()
-        # Calculate base reward from portfolio performance
-        base_reward = (self.net_worth - self.initial_balance) / self.initial_balance
+        # Store previous net worth for relative reward calculation
+        prev_net_worth = self.net_worth
         
-        # Calculate position profitability with validation
+        # Update portfolio net worth
+        self._update_net_worth()
+        
+        # Calculate base reward from step-to-step performance
+        base_reward = 0
+        if prev_net_worth > 0:  # Avoid division by zero
+            step_return = (self.net_worth - prev_net_worth) / prev_net_worth
+            # Scale reward based on typical daily return magnitudes
+            base_reward = step_return * 100  # Scale up small percentage changes
+            
+        # Calculate position profitability using entry price
         position_profit = 0
         if self.shares_held > 0 and self.cost_basis > 0:
-            position_profit = np.clip((current_price - self.cost_basis) / self.cost_basis, -1, 1)
+            profit_pct = (current_price - self.cost_basis) / self.cost_basis
+            position_profit = np.clip(profit_pct, -1, 1)
         
         # Calculate market trend using exponential moving average for smoother signals
         trend_window = min(5, self.current_step + 1)

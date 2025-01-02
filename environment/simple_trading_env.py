@@ -139,12 +139,16 @@ class SimpleTradingEnv(gym.Env):
         # Calculate position size with more flexible limits
         portfolio_value = self.balance + (self.shares_held * current_price)
         
+        # More aggressive position sizing with minimum transaction guarantee
+        min_transaction_value = self.min_transaction_size * current_price
+        
         # Scale position size based on action magnitude
-        desired_exposure = abs(action) * self.max_position_pct
+        desired_exposure = max(0.2, abs(action)) * self.max_position_pct  # Minimum 20% of max position
         max_position_size = portfolio_value * desired_exposure
         
-        # Calculate amount with progressive scaling
-        amount = min(self.balance * 0.95, max_position_size)  # Allow up to 95% of balance
+        # Ensure amount meets minimum transaction size
+        base_amount = min(self.balance * 0.95, max_position_size)
+        amount = max(base_amount, min_transaction_value) if base_amount > 0 else 0
         
         if action > 0:  # Buy
             # Simplified validation for testing

@@ -84,16 +84,20 @@ class TradingAgent(BaseAgent):
         action = super().predict(observation, deterministic)
         
         if self.quick_mode:
-            # Clip and scale actions to respect position limits
+            # Scale actions to ensure they meet minimum transaction requirements
             scaled_action = np.zeros_like(action)
             for i in range(len(action)):
-                # Clip action to [-1, 1] range first
                 clipped_action = np.clip(action[i], -1.0, 1.0)
-                # Scale based on direction while respecting limits
-                if clipped_action >= 0:
-                    scaled_action[i] = clipped_action * self.max_position_size * 0.95  # Add 5% buffer
+                
+                # Ensure action magnitude meets minimum transaction size
+                if abs(clipped_action) < 0.1:  # Dead zone for very small actions
+                    scaled_action[i] = 0
                 else:
-                    scaled_action[i] = clipped_action * abs(self.min_position_size) * 0.95
+                    # Scale to position size while ensuring minimum transaction size
+                    if clipped_action >= 0:
+                        scaled_action[i] = max(0.2, clipped_action) * self.max_position_size
+                    else:
+                        scaled_action[i] = min(-0.2, clipped_action) * abs(self.min_position_size)
             return scaled_action
         
         return action

@@ -1,0 +1,103 @@
+initial_balance
+
+Starting capital in the environment (default: 10000 or 100000 in some code snippets).
+Affects whether the agent can afford certain trades.
+transaction_cost
+
+The fraction (decimal) of each trade’s value that goes to fees (default: 0.001, which is 0.1%).
+Important for realistic trading costs.
+min_transaction_size
+
+The minimum number of shares (or lots) the agent must buy/sell in each trade (default: 1).
+If you want fractional shares, you can reduce or set this to 0.
+step_size
+
+The frequency or timeframe aggregation for the data (default: '1D').
+If you want intraday or custom timeframes, you can set it differently.
+max_position_pct
+
+The maximum fraction of the portfolio value that can be allocated to a single position (default: 0.95).
+Used when scaling the action to a dollar amount or share count.
+max_steps
+
+The total number of steps before an episode terminates (default is len(data) or 100 if data is None).
+Typically determined from the length of your dataset, but you could override it.
+Reward function scalars and logic (in step()):
+
+base_reward scaling (* 100 inside the code).
+holding_bonus weight or formula (currently 0.005 * holding_duration).
+trading_penalty formula (currently up to 0.1).
+All these magic numbers can be exposed so you can easily tweak the reward structure.
+Agent (PPO) Hyperparameters
+The default set of PPO hyperparameters is in BaseAgent.DEFAULT_PPO_PARAMS, plus additional quick-mode overrides in TradingAgent. Most prominent:
+
+learning_rate
+
+Default: 3e-4 (or 5e-2 previously).
+Critically important for training stability.
+n_steps
+
+Default: 1024 (or 512 in quick mode).
+The rollout length per update.
+batch_size
+
+Default: 256 (or 128 in quick mode).
+Needs to be <= n_steps.
+n_epochs
+
+Default: 5 (or 3 in quick mode).
+The number of passes over each batch.
+gamma
+
+Default: 0.99.
+Discount factor for future rewards.
+gae_lambda
+
+Default: 0.98.
+Generalized Advantage Estimator parameter.
+clip_range
+
+Default: 0.2 (or 0.2 again in quick mode).
+PPO clipping parameter.
+ent_coef
+
+Default: 0.01.
+Entropy coefficient (encourages exploration).
+vf_coef
+
+Default: 0.8.
+Value function loss coefficient.
+max_grad_norm
+
+Default: 0.3.
+Gradient clipping for stability.
+use_sde
+
+Default: False (or False in quick mode).
+Whether to use State-Dependent Exploration.
+target_kl
+
+Default: 0.05.
+KL divergence threshold for stopping updates (PPO early stopping).
+verbose
+
+Default: 1.
+Logging verbosity (0, 1, or 2) in Stable-Baselines.
+Policy Architecture:
+
+policy_kwargs (e.g., network sizes net_arch, activation functions, etc.).
+Default in normal mode: [dict(pi=[128, 128, 128], vf=[128, 128, 128])] if optimize_for_sharpe is True.
+Quick mode: [dict(pi=[32], vf=[32])].
+Agent (TradingAgent) Custom Parameters
+quick_mode
+
+If True, overrides some PPO params for fast testing (in __init__).
+fast_eval
+
+If True, changes the evaluation frequency and possibly skips metrics.
+max_position_size and min_position_size
+
+Pulled from utils.common, but you might want to expose them if you’re not using that constants file.
+Stop-Loss Mechanism (self.stop_loss = DEFAULT_STOP_LOSS):
+
+If you plan to incorporate a stop-loss logic in your environment or agent, you may want to parameterize that.

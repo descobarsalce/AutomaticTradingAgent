@@ -224,31 +224,31 @@ class SimpleTradingEnv(gym.Env):
             returns = np.log(prices / prices.shift(1)).dropna()
             volatility = returns.std() * np.sqrt(252)  # Annualized volatility
         
-        # Adaptive trading penalty based on action magnitude, frequency, and volatility
+        # Simplified trading penalty based on action magnitude and basic frequency
         trading_penalty = 0
         if abs(action) > 0.1:
-            # Base size penalty scaled by volatility
-            volatility_scalar = max(1.0, volatility * 10)  # Higher volatility = higher penalty
-            size_penalty = 0.001 * (abs(action) - 0.1) * volatility_scalar
+            # Simple size-based penalty
+            size_penalty = 0.001 * (abs(action) - 0.1)
             
-            # Frequency penalty increases in high volatility
-            min_hold_period = max(3, int(5 * volatility_scalar))  # Dynamic holding period
-            frequency_penalty = 0.001 * volatility_scalar if (self.current_step - self.last_action) < min_hold_period else 0
+            # Basic frequency penalty
+            frequency_penalty = 0.001 if (self.current_step - self.last_action) < 3 else 0
             
-            trading_penalty = size_penalty + frequency_penalty
+            trading_penalty = min(size_penalty + frequency_penalty, 0.1)  # Cap penalty at 10%
         
         # Update last action tracking for any significant trade
         if abs(action) > 0.1:
             self.last_action = self.current_step
         
-        # Combine reward components with emphasis on holding
+        # Simplified reward with balanced components
         reward = (
-            base_reward * 0.15 +          # Base portfolio performance (15%)
-            position_profit * 0.15 +      # Position profitability (15%)
-            trend * 0.10 +                # Market trend alignment (10%)
-            holding_bonus * 0.60 -        # Holding bonus (60%)
-            trading_penalty               # Trading penalty (reduces reward)
+            base_reward * 0.40 +          # Base portfolio performance (40%)
+            position_profit * 0.30 +      # Position profitability (30%)
+            holding_bonus * 0.30          # Reduced holding bonus (30%)
         )
+        
+        # Apply trading penalty as a scaling factor rather than direct subtraction
+        if trading_penalty > 0:
+            reward *= (1 - trading_penalty)  # Reduce reward based on trading penalty
         
         # Update state
         self.current_step += 1

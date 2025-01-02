@@ -75,7 +75,7 @@ def main():
         selected_symbol = st.selectbox("Select Symbol", symbols)
         
         if selected_symbol:
-            data = pd.read_sql(f"SELECT * FROM stock_data WHERE symbol = '{selected_symbol}' ORDER BY timestamp", session.bind)
+            data = pd.read_sql(f"SELECT * FROM stock_data WHERE symbol = '{selected_symbol}' ORDER BY date", session.bind)
             
             col1, col2, col3 = st.columns(3)
             epochs = col1.number_input("Training Epochs", min_value=1, value=10)

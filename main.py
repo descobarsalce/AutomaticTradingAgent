@@ -120,27 +120,37 @@ def main():
             train_button = st.button("Train Agent")
 
             if train_button:
-                with st.spinner("Training agent..."):
-                    env = SimpleTradingEnv(
-                        data=data,
-                        initial_balance=initial_balance,
-                        transaction_cost=transaction_cost,
-                        min_transaction_size=min_transaction_size,
-                        max_position_pct=max_position_pct
-                    )
-                    
-                    ppo_params = {
-                        'learning_rate': learning_rate,
-                        'n_steps': n_steps,
-                        'batch_size': batch_size,
-                        'gamma': gamma
-                    }
-                    
-                    st.session_state.agent = TradingAgent(env, ppo_params=ppo_params, quick_mode=quick_mode)
-                    total_timesteps = epochs * len(env.data)
-                    st.session_state.agent.train(total_timesteps=total_timesteps)
-                    st.session_state.env = env
-                    st.success("Agent trained successfully!")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                env = SimpleTradingEnv(
+                    data=data,
+                    initial_balance=initial_balance,
+                    transaction_cost=transaction_cost,
+                    min_transaction_size=min_transaction_size,
+                    max_position_pct=max_position_pct
+                )
+                
+                ppo_params = {
+                    'learning_rate': learning_rate,
+                    'n_steps': n_steps,
+                    'batch_size': batch_size,
+                    'gamma': gamma
+                }
+                
+                st.session_state.agent = TradingAgent(env, ppo_params=ppo_params, quick_mode=quick_mode)
+                total_timesteps = epochs * len(env.data)
+                
+                # Create progress callback
+                progress_callback = ProgressBarCallback(
+                    total_timesteps=total_timesteps,
+                    progress_bar=progress_bar,
+                    status_placeholder=status_text
+                )
+                
+                st.session_state.agent.train(total_timesteps=total_timesteps, callback=progress_callback)
+                st.session_state.env = env
+                st.success("Agent trained successfully!")
                 with st.spinner("Training agent..."):
                     env = SimpleTradingEnv(data=data, initial_balance=10000)
                     st.session_state.agent = train_agent(env, epochs, quick_mode)
@@ -153,10 +163,25 @@ def main():
                 test_button = st.button("Test Agent")
                 
                 if test_button:
-                    with st.spinner("Testing agent..."):
-                        reward, final_worth = test_agent(st.session_state.agent, st.session_state.env)
-                        st.metric("Total Reward", f"{reward:.2f}")
-                        st.metric("Final Portfolio Value", f"${final_worth:.2f}")
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    def test_with_progress():
+                        test_steps = len(st.session_state.env.data)
+                        for step in range(test_steps):
+                            progress = (step + 1) / test_steps
+                            progress_bar.progress(progress)
+                            status_text.text(f"Testing progress: {progress*100:.1f}%")
+                            yield step
+                            
+                    for _ in test_with_progress():
+                        pass
+                        
+                    reward, final_worth = test_agent(st.session_state.agent, st.session_state.env)
+                    progress_bar.progress(1.0)
+                    status_text.text("Testing completed!")
+                    st.metric("Total Reward", f"{reward:.2f}")
+                    st.metric("Final Portfolio Value", f"${final_worth:.2f}")
 
                 # Display metrics if available
                 metrics = st.session_state.agent.get_metrics()

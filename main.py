@@ -81,8 +81,19 @@ def main():
         selected_symbol = st.selectbox("Select Symbol", symbols)
         
         if selected_symbol:
-            data = pd.read_sql(f"SELECT * FROM stock_data WHERE symbol = '{selected_symbol}' ORDER BY date", session.bind)
+            data = pd.read_sql(f"""
+                SELECT date, open as Open, high as High, low as Low, 
+                       close as Close, volume as Volume 
+                FROM stock_data 
+                WHERE symbol = '{selected_symbol}' 
+                ORDER BY date""", session.bind)
             
+            # Ensure all required columns exist
+            required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            if not all(col in data.columns for col in required_columns):
+                st.error("Missing required price data columns")
+                return
+                
             col1, col2, col3 = st.columns(3)
             epochs = col1.number_input("Training Epochs", min_value=1, value=10)
             quick_mode = col2.checkbox("Quick Mode", value=True)

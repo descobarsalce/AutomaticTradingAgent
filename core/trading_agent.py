@@ -89,15 +89,15 @@ class TradingAgent(BaseAgent):
             for i in range(len(action)):
                 clipped_action = np.clip(action[i], -1.0, 1.0)
                 
-                # Ensure action magnitude meets minimum transaction size
-                if abs(clipped_action) < 0.1:  # Dead zone for very small actions
+                # Allow smaller actions with minimal dead zone
+                if abs(clipped_action) < 0.01:  # Reduced dead zone for finer control
                     scaled_action[i] = 0
                 else:
-                    # Scale to position size while ensuring minimum transaction size
+                    # Scale to position size with proportional scaling
                     if clipped_action >= 0:
-                        scaled_action[i] = max(0.2, clipped_action) * self.max_position_size
+                        scaled_action[i] = clipped_action * self.max_position_size
                     else:
-                        scaled_action[i] = min(-0.2, clipped_action) * abs(self.min_position_size)
+                        scaled_action[i] = clipped_action * abs(self.min_position_size)
             return scaled_action
         
         return action

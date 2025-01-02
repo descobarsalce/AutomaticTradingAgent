@@ -1,13 +1,11 @@
 
 { pkgs }: {
   deps = [
-    pkgs.ffmpeg-full
-    pkgs.glibcLocales
     pkgs.python311
-    pkgs.nodejs
+    pkgs.python311Packages.pip
     pkgs.nodePackages.typescript-language-server
+    pkgs.nodejs
     pkgs.yarn
-    pkgs.replitPackages.prybar-python311
-    pkgs.replitPackages.stderred
+    pkgs.streamlit
   ];
 }

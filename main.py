@@ -1,5 +1,8 @@
 
 import streamlit as st
+
+from utils.callbacks import ProgressBarCallback
+
 from environment import SimpleTradingEnv
 from core import TradingAgent
 import pandas as pd
@@ -41,7 +44,14 @@ def main():
         clip_range = st.number_input("Clip Range", value=0.2, min_value=0.1, max_value=0.5)
         target_kl = st.number_input("Target KL Divergence", value=0.05, min_value=0.01, max_value=0.1)
         
+    # Add test button
+    test_mode = st.checkbox("Test Mode (100 steps)", value=False)
+    
     if st.button("Start Training"):
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_placeholder = st.empty()
+        
         # Create sample data for testing
         data = pd.DataFrame({
             'Open': [100] * 1000,
@@ -81,8 +91,17 @@ def main():
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )
-        agent.train(total_timesteps=10000)  # Adjust timesteps as needed
+        # Set timesteps based on test mode
+        total_timesteps = 100 if test_mode else 10000
         
+        # Create progress callback
+        progress_callback = ProgressBarCallback(
+            total_timesteps=total_timesteps,
+            progress_bar=progress_bar,
+            status_placeholder=status_placeholder
+        )
+        
+        agent.train(total_timesteps=total_timesteps, callback=progress_callback)
         st.success("Training completed!")
 
 if __name__ == "__main__":

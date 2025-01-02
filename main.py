@@ -2,7 +2,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import warnings
+import logging
 from datetime import datetime, timedelta
+
+# Filter out torch warning messages
+warnings.filterwarnings('ignore', category=UserWarning, module='torch')
+logging.getLogger('torch').setLevel(logging.ERROR)
 from models.database import Session
 from models.models import StockData
 from environment import SimpleTradingEnv

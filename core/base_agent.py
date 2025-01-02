@@ -16,26 +16,26 @@ logger.setLevel(logging.DEBUG)
 class BaseAgent:
     # Default PPO parameters optimized for financial trading
     DEFAULT_PPO_PARAMS: Dict[str, Union[float, int, bool, None]] = {
-        'learning_rate': 5e-2,
-        'n_steps': 256,
+        'learning_rate': 3e-4,
+        'n_steps': 1024,
         'batch_size': 256,
         'n_epochs': 5,
         'gamma': 0.99,
         'gae_lambda': 0.98,
-        'clip_range': 0.1,
+        'clip_range': 0.2,
         'ent_coef': 0.01,
         'vf_coef': 0.8,
         'max_grad_norm': 0.3,
         'use_sde': True,
         'sde_sample_freq': 4,
-        'target_kl': 0.015
+        'target_kl': 0.05
     }
 
     # Parameter ranges for optimization
     PARAM_RANGES = {
-        'learning_rate': (5e-5, 5e-4),
+        'learning_rate': (1e-5, 5e-4),
         'n_steps': (512, 2048),
-        'batch_size': (64, 256),
+        'batch_size': (64, 512),
         'n_epochs': (3, 10),
         'gamma': (0.95, 0.999),
         'gae_lambda': (0.9, 0.99),
@@ -43,7 +43,7 @@ class BaseAgent:
         'ent_coef': (0.001, 0.02),
         'vf_coef': (0.4, 0.9),
         'max_grad_norm': (0.3, 0.8),
-        'target_kl': (0.01, 0.03)
+        'target_kl': (0.02, 0.1)
     }
 
     # Default policy network parameters

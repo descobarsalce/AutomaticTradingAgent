@@ -38,10 +38,12 @@ class TradingAgent(BaseAgent):
         if quick_mode:
             # Define minimal parameters for quick training within recommended ranges
             quick_params = cast(Optional[Dict[str, Union[float, int, bool, None]]], {
-                'n_steps': 512,          # Minimum recommended steps
-                'batch_size': 64,        # Minimum recommended batch size
+                'n_steps': 512,          # Reduced steps for quick training
+                'batch_size': 128,       # Balanced batch size
                 'n_epochs': 3,           # Fewer epochs for speed
-                'learning_rate': 3e-4    # Standard learning rate
+                'learning_rate': 3e-4,   # Optimal learning rate
+                'clip_range': 0.2,       # Less aggressive clipping
+                'target_kl': 0.05        # Relaxed KL divergence target
             })
             ppo_params = quick_params
             

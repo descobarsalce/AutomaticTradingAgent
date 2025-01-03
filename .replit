@@ -1,6 +1,6 @@
 
 run = "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"
-modules = ["python-3.11:v3-20230826-0f37faca"]
+modules = ["python-3.11"]
 
 hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 
@@ -23,6 +23,10 @@ REPLIT_DISABLE_PACKAGE_LAYER = "1"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 8501
+externalPort = 3000
+
 [workflows]
 runButton = "Project"
 
@@ -34,6 +38,10 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Trading Environment Test"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Flask Server"
 
 [[workflows.workflow]]
 name = "Trading Environment Test"
@@ -48,3 +56,18 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m pytest tests/test_simple_trading_env.py -vv"
+
+[[workflows.workflow]]
+name = "Flask Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
+waitForPort = 8501

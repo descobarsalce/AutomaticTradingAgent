@@ -8,26 +8,34 @@ from environment import SimpleTradingEnv
 from core import TradingAgent
 import pandas as pd
 
-def main():
-    # Initialize all required session state variables
-    if 'logs' not in st.session_state:
-        st.session_state.logs = []
+def init_session_state():
+    """Initialize all session state variables"""
     if 'log_messages' not in st.session_state:
         st.session_state.log_messages = []
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
 
-    # Configure logging
-    class StreamlitLogHandler(logging.Handler):
-        def emit(self, record):
-            try:
-                log_entry = self.format(record)
+class StreamlitLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            log_entry = self.format(record)
+            if 'log_messages' in st.session_state:
                 st.session_state.log_messages.append(log_entry)
                 if len(st.session_state.log_messages) > 100:
                     st.session_state.log_messages = st.session_state.log_messages[-100:]
-                print(log_entry)  # Also print to console
-            except Exception as e:
-                print(f"Logging error: {e}")
+            print(log_entry)  # Also print to console
+        except Exception as e:
+            print(f"Logging error: {e}")
+
+def main():
+    # Initialize session state first
+    init_session_state()
+
+    # Configure logging
+    handler = StreamlitLogHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(logging.INFO)
 
     # Set up logging handler
     handler = StreamlitLogHandler()

@@ -39,14 +39,14 @@ def main():
     st.header("Agent Parameters")
     col3, col4 = st.columns(2)
     with col3:
-        learning_rate = st.number_input("Learning Rate", value=3e-4, min_value=1e-5, max_value=1e-3, format="%.1e")
-        n_steps = st.number_input("Number of Steps", value=256, min_value=64, max_value=2048)
-        batch_size = st.number_input("Batch Size", value=128, min_value=32, max_value=512)
-        n_epochs = st.number_input("Number of Epochs", value=3, min_value=1, max_value=10)
+        learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e", help="Suggested range: 1e-5 to 1e-3. Default: 3e-4")
+        n_steps = st.number_input("Number of Steps", value=256, help="Suggested range: 64 to 2048. Default: 256")
+        batch_size = st.number_input("Batch Size", value=128, help="Suggested range: 32 to 512. Default: 128")
+        n_epochs = st.number_input("Number of Epochs", value=3, help="Suggested range: 1 to 10. Default: 3")
     with col4:
-        gamma = st.number_input("Gamma (Discount Factor)", value=0.99, min_value=0.8, max_value=0.999)
-        clip_range = st.number_input("Clip Range", value=0.2, min_value=0.1, max_value=0.5)
-        target_kl = st.number_input("Target KL Divergence", value=0.05, min_value=0.01, max_value=0.1)
+        gamma = st.number_input("Gamma (Discount Factor)", value=0.99, help="Suggested range: 0.8 to 0.999. Default: 0.99")
+        clip_range = st.number_input("Clip Range", value=0.2, help="Suggested range: 0.0 to 0.5. Default: 0.2. Set to 0 to disable clipping")
+        target_kl = st.number_input("Target KL Divergence", value=0.05, help="Suggested range: 0.01 to 0.1. Default: 0.05")
         
     # Add test buttons
     test_mode = st.checkbox("Test Mode (100 steps)", value=False)

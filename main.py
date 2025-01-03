@@ -1,4 +1,3 @@
-
 import streamlit as st
 import os
 
@@ -121,21 +120,24 @@ def main():
             test_data = pd.DataFrame({
                 'Open': [100] * 100,
                 'High': [110] * 100,
-            'Low': [90] * 100,
-            'Close': [105] * 100,
-            'Volume': [1000] * 100
-        })
-        
-        test_env = SimpleTradingEnv(
-            data=test_data,
-            initial_balance=initial_balance,
-            transaction_cost=transaction_cost,
-            min_transaction_size=min_transaction_size,
-            max_position_pct=max_position_pct,
-            use_position_profit=use_position_profit,
-            use_holding_bonus=use_holding_bonus,
-            use_trading_penalty=use_trading_penalty
-        )
+                'Low': [90] * 100,
+                'Close': [105] * 100,
+                'Volume': [1000] * 100
+            })
+            
+            test_env = SimpleTradingEnv(
+                data=test_data,
+                initial_balance=initial_balance,
+                transaction_cost=transaction_cost,
+                min_transaction_size=min_transaction_size,
+                max_position_pct=max_position_pct,
+                use_position_profit=use_position_profit,
+                use_holding_bonus=use_holding_bonus,
+                use_trading_penalty=use_trading_penalty
+            )
+        except Exception as e:
+            st.error(f"Error during test setup: {str(e)}")
+            return
         
         # Initialize agent with test environment and load trained weights
         test_agent = TradingAgent(
@@ -144,7 +146,11 @@ def main():
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )
-        test_agent.load("trained_model.zip")
+        try:
+            test_agent.load("trained_model.zip")
+        except Exception as e:
+            st.error(f"Error loading the model: {str(e)}")
+            return
         
         # Run test episode
         obs, _ = test_env.reset()

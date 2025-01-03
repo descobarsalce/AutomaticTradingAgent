@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 import logging
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, Dict, Any, Optional, Union
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -10,11 +10,13 @@ logger.setLevel(logging.INFO)
 
 class SimpleTradingEnv(gym.Env):
     def __init__(self, data, initial_balance=10000, transaction_cost=0.0, min_transaction_size=0.001, 
-                 max_position_pct=0.95, use_position_profit=True, use_holding_bonus=True, use_trading_penalty=True):
+                 max_position_pct=0.95, use_position_profit=True, use_holding_bonus=True, use_trading_penalty=True,
+                 training_mode=False):
         super().__init__()
         self.use_position_profit = use_position_profit
         self.use_holding_bonus = use_holding_bonus
         self.use_trading_penalty = use_trading_penalty
+        self.training_mode = training_mode  # Flag to enable training-specific behavior
 
         # Store data
         self.data = data
@@ -31,9 +33,11 @@ class SimpleTradingEnv(gym.Env):
         self.holding_period = 0
         self.cost_basis = 0
         self.last_trade_step = None
+        self.episode_trades = 0
 
         # Transaction parameters
-        self.transaction_cost = transaction_cost
+        self.base_transaction_cost = transaction_cost
+        self.transaction_cost = transaction_cost * (0.2 if training_mode else 1.0)  # Reduced cost during training
         self.min_transaction_size = min_transaction_size
         self.max_position_pct = max_position_pct
 
@@ -47,6 +51,10 @@ class SimpleTradingEnv(gym.Env):
             shape=(7,),  # OHLCV + position + balance
             dtype=np.float32
         )
+
+        # Episode tracking
+        self.episode_count = 0
+        self.total_steps = 0
 
     def _get_observation(self):
         """Get current observation of market and account state."""
@@ -71,18 +79,27 @@ class SimpleTradingEnv(gym.Env):
         self.holding_period = 0
         self.cost_basis = 0
         self.last_trade_step = None
+        self.episode_trades = 0
+        self.episode_count += 1
 
         observation = self._get_observation()
         info = {
             'initial_balance': self.initial_balance,
             'net_worth': self.net_worth,
             'shares_held': self.shares_held,
-            'balance': self.balance
+            'balance': self.balance,
+            'episode': self.episode_count,
+            'total_steps': self.total_steps
         }
         return observation, info
 
     def step(self, action):
         """Execute one step in the environment."""
+        self.total_steps += 1
+
+        # Log action for debugging
+        logger.debug(f"Step {self.current_step}, Action: {action}, Balance: {self.balance:.2f}, Shares: {self.shares_held:.2f}")
+
         # Ensure action is valid
         action = int(action)
         if not 0 <= action <= 2:
@@ -93,6 +110,7 @@ class SimpleTradingEnv(gym.Env):
         current_price = self.data.iloc[self.current_step]['Close']
 
         # Process actions
+        trade_executed = False
         if action == 1:  # Buy
             trade_amount = self.balance * 0.2  # Use 20% of available balance
             shares_to_buy = trade_amount / current_price
@@ -105,6 +123,8 @@ class SimpleTradingEnv(gym.Env):
                 self.cost_basis = current_price
                 self.holding_period = 0
                 self.last_trade_step = self.current_step
+                self.episode_trades += 1
+                trade_executed = True
 
         elif action == 2:  # Sell
             if self.shares_held > 0:
@@ -115,6 +135,8 @@ class SimpleTradingEnv(gym.Env):
 
                 self.balance += net_sell_amount
                 self.shares_held -= shares_to_sell
+                self.episode_trades += 1
+                trade_executed = True
                 if self.shares_held == 0:
                     self.holding_period = 0
                     self.last_trade_step = None
@@ -162,6 +184,11 @@ class SimpleTradingEnv(gym.Env):
             elif action == 1:  # Buying
                 reward = holding_reward * 0.3  # Slightly better than selling but still much worse than holding
 
+        # 5. Early exploration bonus during training
+        if self.training_mode and self.episode_count < 10 and trade_executed:
+            exploration_bonus = 0.1  # Small bonus for executing trades early in training
+            reward += exploration_bonus
+
         # Update state
         self.current_step += 1
         done = self.current_step >= len(self.data) - 1
@@ -178,12 +205,52 @@ class SimpleTradingEnv(gym.Env):
             'current_price': current_price,
             'holding_period': self.holding_period,
             'position_profit': position_profit,
+            'episode_trades': self.episode_trades,
+            'action_taken': action,
+            'trade_executed': trade_executed,
             'reward_components': {
                 'base': base_reward if 'base_reward' in locals() else 0,
                 'position_profit': position_profit * 0.05 if self.use_position_profit else 0,
                 'holding_bonus': holding_bonus if 'holding_bonus' in locals() else 0,
-                'trading_penalty': 'applied' if self.use_trading_penalty and action != 0 else 'none'
+                'trading_penalty': 'applied' if self.use_trading_penalty and action != 0 else 'none',
+                'exploration_bonus': exploration_bonus if 'exploration_bonus' in locals() else 0
             }
         }
 
         return next_observation, reward, done, truncated, info
+
+    def test_random_actions(self, n_steps: int = 100) -> Dict[str, Union[int, float]]:
+        """
+        Test environment with random actions to verify functionality.
+
+        Args:
+            n_steps: Number of random steps to take
+
+        Returns:
+            Dict containing test statistics
+        """
+        obs, _ = self.reset()
+        total_trades = 0
+        total_rewards = 0
+        actions_taken = {0: 0, 1: 0, 2: 0}  # Count of each action type
+        trades_executed = 0
+
+        for _ in range(n_steps):
+            action = self.action_space.sample()
+            obs, reward, done, truncated, info = self.step(action)
+
+            actions_taken[action] += 1
+            if info['trade_executed']:
+                trades_executed += 1
+            total_rewards += reward
+
+            if done:
+                obs, _ = self.reset()
+
+        return {
+            'total_steps': n_steps,
+            'actions_taken': actions_taken,
+            'trades_executed': trades_executed,
+            'avg_reward': total_rewards / n_steps,
+            'trade_success_rate': trades_executed / sum(actions_taken[i] for i in [1, 2]) if sum(actions_taken[i] for i in [1, 2]) > 0 else 0
+        }

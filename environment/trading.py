@@ -64,20 +64,24 @@ class TradingEnvironment(gym.Env):
         action = float(action[0])  # Extract single action value
         action = np.clip(action, -1.0, 1.0)  # Ensure action is in [-1, 1]
         
-        # Calculate position sizing based on continuous action
-        amount = self.balance * abs(action)
+        # Calculate position sizing based on continuous action with minimum threshold
+        amount = self.balance * abs(action) * 0.95  # Use 95% max to leave room for fees
+        min_trade_amount = self.initial_balance * 0.01  # 1% minimum trade size
         
-        if action > 0:  # Buy
-            # Scale buy amount based on action magnitude
-            shares_bought = amount / current_price
-            self.balance -= amount
-            self.shares_held += shares_bought
-            self.cost_basis = current_price
-        elif action < 0:  # Sell
-            # Scale sell amount based on action magnitude
-            shares_sold = self.shares_held * abs(action)
-            self.balance += shares_sold * current_price
-            self.shares_held -= shares_sold
+        if abs(amount) > min_trade_amount:  # Only trade if above minimum size
+            if action > 0:  # Buy
+                # Scale buy amount based on action magnitude
+                shares_bought = amount / current_price
+                if shares_bought * current_price <= self.balance:  # Check sufficient balance
+                    self.balance -= shares_bought * current_price
+                    self.shares_held += shares_bought
+                    self.cost_basis = current_price
+            elif action < 0:  # Sell
+                # Scale sell amount based on action magnitude
+                shares_sold = min(self.shares_held, self.shares_held * abs(action))
+                if shares_sold > 0:  # Only sell if we have shares
+                    self.balance += shares_sold * current_price
+                    self.shares_held -= shares_sold
             
         # Calculate reward (consider both profit and risk)
         self.net_worth = self.balance + self.shares_held * current_price

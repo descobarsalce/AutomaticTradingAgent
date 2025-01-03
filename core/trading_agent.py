@@ -83,16 +83,18 @@ class TradingAgent(BaseAgent):
         """
         action = super().predict(observation, deterministic)
         
-        if self.quick_mode:
-            # Scale actions with minimal restrictions
-            scaled_action = np.zeros_like(action)
-            for i in range(len(action)):
-                clipped_action = np.clip(action[i], -1.0, 1.0)
-                # Direct scaling without thresholds
-                scaled_action[i] = clipped_action * self.max_position_size
-            return scaled_action
-        
-        return action
+        # Scale actions more aggressively
+        scaled_action = np.zeros_like(action)
+        for i in range(len(action)):
+            # Apply non-linear scaling to encourage more decisive actions
+            raw_action = np.clip(action[i], -1.0, 1.0)
+            if abs(raw_action) > 0.2:  # Threshold for taking action
+                # Amplify actions above threshold
+                scaled_action[i] = np.sign(raw_action) * (abs(raw_action) ** 0.5)
+            else:
+                scaled_action[i] = 0  # No trade if below threshold
+                
+        return scaled_action
 
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """

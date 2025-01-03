@@ -118,9 +118,9 @@ def main():
                 return
                 
             # Create test environment and data
-        test_data = pd.DataFrame({
-            'Open': [100] * 100,
-            'High': [110] * 100,
+            test_data = pd.DataFrame({
+                'Open': [100] * 100,
+                'High': [110] * 100,
             'Low': [90] * 100,
             'Close': [105] * 100,
             'Volume': [1000] * 100

@@ -1,0 +1,31 @@
+AttributeError: st.session_state has no attribute "log_messages". Did you forget to initialize it? More info: https://docs.streamlit.io/library/advanced-features/session-state#initialization
+Traceback:
+File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 600, in _run_script
+    exec(code, module.__dict__)
+File "/home/runner/workspace/main.py", line 230, in <module>
+    main()
+File "/home/runner/workspace/main.py", line 120, in main
+    agent = TradingAgent(
+            ^^^^^^^^^^^^^
+File "/home/runner/workspace/core/trading_agent.py", line 48, in __init__
+    super().__init__(
+File "/home/runner/workspace/utils/common.py", line 125, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/core/base_agent.py", line 101, in __init__
+    logger.warning(f"Parameter {param} value {value} outside recommended range [{min_val}, {max_val}]")
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/logging/__init__.py", line 1501, in warning
+    self._log(WARNING, msg, args, **kwargs)
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/logging/__init__.py", line 1634, in _log
+    self.handle(record)
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/logging/__init__.py", line 1644, in handle
+    self.callHandlers(record)
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/logging/__init__.py", line 1706, in callHandlers
+    hdlr.handle(record)
+File "/nix/store/clx0mcir7qw8zk36zbr4jra789g3knf6-python3-3.11.10/lib/python3.11/logging/__init__.py", line 978, in handle
+    self.emit(record)
+File "/home/runner/workspace/main.py", line 26, in emit
+    st.session_state.logs.append(log_entry)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/runtime/state/session_state_proxy.py", line 121, in __getattr__
+    raise AttributeError(_missing_attr_error_message(key))

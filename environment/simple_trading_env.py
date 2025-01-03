@@ -125,6 +125,13 @@ class SimpleTradingEnv(gym.Env):
                 self.last_trade_step = self.current_step
                 self.episode_trades += 1
                 trade_executed = True
+                logger.info(f"""
+Trade Executed - BUY:
+  Shares: {shares_to_buy:.4f}
+  Price: {current_price:.2f}
+  Total Cost: {total_cost:.2f}
+  Fees: {transaction_fees:.2f}
+""")
 
         elif action == 2:  # Sell
             if self.shares_held > 0:
@@ -137,12 +144,34 @@ class SimpleTradingEnv(gym.Env):
                 self.shares_held -= shares_to_sell
                 self.episode_trades += 1
                 trade_executed = True
+                logger.info(f"""
+Trade Executed - BUY:
+  Shares: {shares_to_buy:.4f}
+  Price: {current_price:.2f}
+  Total Cost: {total_cost:.2f}
+  Fees: {transaction_fees:.2f}
+""")
                 if self.shares_held == 0:
                     self.holding_period = 0
                     self.last_trade_step = None
 
-        # Update portfolio value
+        # Update portfolio value with detailed logging
+        prev_net_worth = self.net_worth
         self.net_worth = self.balance + (self.shares_held * current_price)
+        
+        # Log detailed portfolio state
+        logger.info(f"""
+Portfolio State:
+  Step: {self.current_step}
+  Action: {action}
+  Price: {current_price:.2f}
+  Balance: {self.balance:.2f}
+  Shares: {self.shares_held:.4f}
+  Net Worth: {self.net_worth:.2f}
+  Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}% 
+  Position Value: {(self.shares_held * current_price):.2f}
+  Trade Executed: {trade_executed}
+""")
 
         # Calculate position profit (used for scaling holding bonus)
         position_profit = 0
@@ -216,6 +245,15 @@ class SimpleTradingEnv(gym.Env):
                 'exploration_bonus': exploration_bonus if 'exploration_bonus' in locals() else 0
             }
         }
+
+        # Log reward components
+        logger.info(f"""
+Reward Components:
+  Base Reward: {base_reward if 'base_reward' in locals() else 0:.4f}
+  Position Profit: {position_profit * 0.01 if self.use_position_profit else 0:.4f}
+  Holding Bonus: {holding_bonus if 'holding_bonus' in locals() else 0:.4f}
+  Final Reward: {reward:.4f}
+""")
 
         return next_observation, reward, done, truncated, info
 

@@ -84,6 +84,13 @@ class TradingAgent(BaseAgent):
         if not 0 <= action <= 2:
             raise ValueError(f"Invalid action value: {action}")
 
+        # Log prediction details
+        logger.info(f"""
+Agent Prediction:
+  Raw Action: {action}
+  Is Deterministic: {deterministic}
+  Current Portfolio Value: {getattr(self.env, 'net_worth', 'N/A')}
+""")
         return np.array([action])
 
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:

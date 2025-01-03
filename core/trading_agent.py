@@ -12,8 +12,8 @@ from utils.common import (
 )
 
 class TradingAgent(BaseAgent):
-    """Trading agent with quick training mode capabilities."""
-    
+    """Trading agent with discrete action support."""
+
     def __init__(
         self,
         env: Env,
@@ -22,79 +22,69 @@ class TradingAgent(BaseAgent):
         quick_mode: bool = False,
         fast_eval: bool = False
     ) -> None:
-        """
-        Initialize trading agent with optional quick mode.
-        
-        Args:
-            env: Trading environment
-            ppo_params: Optional PPO parameters
-            seed: Optional random seed
-            quick_mode: If True, use minimal parameters for fast testing
-        """
+        """Initialize trading agent with discrete actions."""
         # Store quick mode setting
         self.quick_mode = quick_mode
-        
+
         # Set quick mode parameters if enabled
         if quick_mode:
-            # Define minimal parameters for quick training within recommended ranges
             quick_params = cast(Optional[Dict[str, Union[float, int, bool, None]]], {
-                'n_steps': 256,          # Reduced steps for quick training
-                'batch_size': 128,       # Balanced batch size
-                'n_epochs': 3,           # Fewer epochs for speed
-                'learning_rate': 3e-4,   # Optimal learning rate
-                'clip_range': 0.2,       # Less aggressive clipping
-                'target_kl': 0.05,       # Relaxed KL divergence target
-                'use_sde': False         # Disable SDE for simpler training
+                'n_steps': 128,          # Reduced steps for quick training
+                'batch_size': 32,        # Smaller batch size for speed
+                'n_epochs': 3,           # Fewer epochs
+                'learning_rate': 3e-4,   # Standard learning rate
+                'clip_range': 0.2,       # Standard clipping
+                'target_kl': 0.05,       # Standard KL target
+                'use_sde': False         # Disable SDE for discrete actions
             })
             ppo_params = quick_params
-            
-        # Use default position limits for all modes
-        self.max_position_size = MAX_POSITION_SIZE
-        self.min_position_size = MIN_POSITION_SIZE
-        
-        # Initialize base agent
+
+        # Initialize base agent with policy suited for discrete actions
         super().__init__(
             env,
             ppo_params=ppo_params,
             seed=seed,
-            policy_kwargs={'net_arch': dict(pi=[32], vf=[32])} if quick_mode else None
+            policy_kwargs={
+                'net_arch': dict(pi=[64, 64], vf=[64, 64])  # Deeper network for discrete actions
+            } if not quick_mode else dict(pi=[32], vf=[32])
         )
+
+        # Trading specific parameters
+        self.max_position_size = MAX_POSITION_SIZE
+        self.min_position_size = MIN_POSITION_SIZE
         self.stop_loss = DEFAULT_STOP_LOSS
         self.fast_eval = fast_eval
-        
+
         # Optimize for fast evaluation mode
         if fast_eval:
-            self.eval_frequency = 5000  # Reduced evaluation frequency
-            self.skip_metrics = ['sortino_ratio', 'information_ratio', 'sharpe_ratio']  # Skip all expensive metrics
-            self.quick_validation = True  # Enable quick validation
-            # Use smaller network for faster inference
-            self.policy_kwargs = {'net_arch': dict(pi=[32], vf=[32])}
+            self.eval_frequency = 5000
+            self.skip_metrics = ['sortino_ratio', 'information_ratio']
+            self.quick_validation = True
 
     def predict(self, observation: np.ndarray, deterministic: bool = True) -> np.ndarray:
         """
-        Make a prediction and apply position size limits.
-        
+        Make a prediction using discrete actions.
+
         Args:
             observation: Current environment observation
             deterministic: Whether to use deterministic actions
-            
+
         Returns:
-            np.ndarray: Action scaled within position limits
+            np.ndarray: Discrete action (0=hold, 1=buy, 2=sell)
         """
+        # Get raw action from model
         action = super().predict(observation, deterministic)
-        
-        # Scale actions more aggressively
-        scaled_action = np.zeros_like(action)
-        for i in range(len(action)):
-            # Apply non-linear scaling to encourage more decisive actions
-            raw_action = np.clip(action[i], -1.0, 1.0)
-            if abs(raw_action) > 0.2:  # Threshold for taking action
-                # Amplify actions above threshold
-                scaled_action[i] = np.sign(raw_action) * (abs(raw_action) ** 0.5)
-            else:
-                scaled_action[i] = 0  # No trade if below threshold
-                
-        return scaled_action
+
+        # Ensure action is discrete and valid
+        if not isinstance(action, (np.ndarray, int)):
+            raise ValueError("Invalid action type")
+
+        # Convert to integer action
+        action = int(action)
+        if not 0 <= action <= 2:
+            raise ValueError(f"Invalid action value: {action}")
+
+        return np.array([action])
 
     def update_state(self, portfolio_value: float, positions: Dict[str, float]) -> None:
         """
@@ -108,16 +98,16 @@ class TradingAgent(BaseAgent):
                     raise ValueError(f"Invalid position size type for {symbol}")
                 if abs(size) > self.max_position_size:
                     raise ValueError(f"Position size {size} exceeds limit for {symbol}")
-        
+
         super().update_state(portfolio_value, positions)
-        
-    def train(self, total_timesteps: int, callback: Optional[Any] = None) -> None:
+
+    def train(self, total_timesteps: int, callback: Optional[BaseCallback] = None) -> None:
         """
         Train the agent with progress tracking.
 
         Args:
             total_timesteps (int): Number of steps to train
-            callback (Optional[BaseCallback]): Progress tracking callback for monitoring training
+            callback (Optional[BaseCallback]): Progress tracking callback
         """
         if not isinstance(total_timesteps, int) or total_timesteps <= 0:
             raise ValueError("total_timesteps must be a positive integer")
@@ -125,7 +115,7 @@ class TradingAgent(BaseAgent):
         # Initialize start time for progress tracking
         import time
         self.start_time = time.time()
-            
+
         if callback:
             self.model.learn(
                 total_timesteps=total_timesteps,
@@ -133,7 +123,7 @@ class TradingAgent(BaseAgent):
             )
         else:
             if self.quick_mode or self.fast_eval:
-                # Simple progress reporting for quick/fast modes with reduced timesteps
+                # Simple progress reporting for quick/fast modes
                 reduced_steps = min(total_timesteps // 4, 1000) if self.fast_eval else total_timesteps
                 print(f"Starting {'quick' if self.quick_mode else 'fast'} training...")
                 self.model.learn(total_timesteps=reduced_steps)

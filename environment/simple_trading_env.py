@@ -126,12 +126,12 @@ class SimpleTradingEnv(gym.Env):
                 self.episode_trades += 1
                 trade_executed = True
                 logger.info(f"""
-Trade Executed - SELL:
-  Shares: {shares_to_sell:.4f}
+Trade Executed - BUY:
+  Shares: {shares_to_buy:.4f}
   Price: {current_price:.2f}
-  Amount: {sell_amount:.2f}
+  Amount: {trade_amount:.2f}
   Fees: {transaction_fees:.2f}
-  Net Amount: {net_sell_amount:.2f}
+  Total Cost: {total_cost:.2f}
 """)
 
         elif action == 2:  # Sell

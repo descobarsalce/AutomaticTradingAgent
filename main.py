@@ -12,31 +12,31 @@ def main():
     # Initialize session state
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
-    if 'log_messages' not in st.session_state:
-        st.session_state.log_messages = []
+    if 'logs' not in st.session_state:
+        st.session_state.logs = []
 
-    # Create persistent logging area at the top
-    st.sidebar.header("Logs")
-    log_container = st.sidebar.expander("Application Logs", expanded=True)
-    
-    # Configure global logging to use Streamlit
-    class StreamlitHandler(logging.Handler):
+    # Create log container
+    log_container = st.sidebar.container()
+    log_container.header("Logs")
+
+    # Configure logging
+    class StreamlitLogHandler(logging.Handler):
         def emit(self, record):
             log_entry = self.format(record)
-            st.session_state.log_messages.append(log_entry)
-            # Keep only last 100 messages
-            if len(st.session_state.log_messages) > 100:
-                st.session_state.log_messages.pop(0)
-            
-    # Add streamlit handler to root logger
+            st.session_state.logs.append(log_entry)
+            if len(st.session_state.logs) > 100:
+                st.session_state.logs = st.session_state.logs[-100:]
+
+    # Set up logging handler
+    handler = StreamlitLogHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(logging.INFO)
-    streamlit_handler = StreamlitHandler()
-    streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(streamlit_handler)
-    
-    # Display logs
-    for log in st.session_state.log_messages:
-        log_container.text(log)
+
+    # Display logs in sidebar
+    with log_container:
+        for log in st.session_state.logs:
+            st.text(log)
         
     st.title("Trading Agent Configuration")
     

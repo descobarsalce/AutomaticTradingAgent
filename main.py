@@ -10,9 +10,9 @@ import pandas as pd
 
 def main():
     # Initialize session state
-    if 'ppo_params' not in st.session_state:
+    if not hasattr(st.session_state, 'ppo_params'):
         st.session_state.ppo_params = None
-    if 'logs' not in st.session_state:
+    if not hasattr(st.session_state, 'logs'):
         st.session_state.logs = []
 
     # Create log container

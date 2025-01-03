@@ -45,7 +45,7 @@ class HyperparameterOptimizer:
                     'learning_rate': [1e-4, 3e-4],  # Focused around common optimal values
                     'n_steps': [512, 1024],         # Most impactful for trading
                     'batch_size': [64, 128],        # Common optimal range
-                    'clip_range': [0.1, 0.2],       # Standard range
+                    'clip_range': [0.0, 0.2],       # Allow zero clipping
                 }
         else:
             self.param_grid = param_grid

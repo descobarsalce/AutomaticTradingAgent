@@ -38,7 +38,7 @@ class BaseAgent:
         'n_epochs': (3, 10),
         'gamma': (0.95, 0.999),
         'gae_lambda': (0.9, 0.99),
-        'clip_range': (0.1, 0.3),
+        'clip_range': (0.0, 0.3),
         'ent_coef': (0.001, 0.02),
         'vf_coef': (0.4, 0.9),
         'max_grad_norm': (0.3, 0.8),

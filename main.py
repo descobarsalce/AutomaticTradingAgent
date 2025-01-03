@@ -44,10 +44,12 @@ def main():
         clip_range = st.number_input("Clip Range", value=0.2, min_value=0.1, max_value=0.5)
         target_kl = st.number_input("Target KL Divergence", value=0.05, min_value=0.01, max_value=0.1)
         
-    # Add test button
+    # Add test buttons
     test_mode = st.checkbox("Test Mode (100 steps)", value=False)
     
-    if st.button("Start Training"):
+    col_train, col_test = st.columns(2)
+    
+    if col_train.button("Start Training"):
         # Create progress tracking elements
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
@@ -103,6 +105,63 @@ def main():
         
         agent.train(total_timesteps=total_timesteps, callback=progress_callback)
         st.success("Training completed!")
+        
+    if col_test.button("Test Model"):
+        # Create test environment and data
+        test_data = pd.DataFrame({
+            'Open': [100] * 100,
+            'High': [110] * 100,
+            'Low': [90] * 100,
+            'Close': [105] * 100,
+            'Volume': [1000] * 100
+        })
+        
+        test_env = SimpleTradingEnv(
+            data=test_data,
+            initial_balance=initial_balance,
+            transaction_cost=transaction_cost,
+            min_transaction_size=min_transaction_size,
+            max_position_pct=max_position_pct,
+            use_position_profit=use_position_profit,
+            use_holding_bonus=use_holding_bonus,
+            use_trading_penalty=use_trading_penalty
+        )
+        
+        # Initialize agent with test environment
+        test_agent = TradingAgent(
+            env=test_env,
+            ppo_params=ppo_params,
+            quick_mode=quick_mode,
+            fast_eval=fast_eval
+        )
+        
+        # Run test episode
+        obs, _ = test_env.reset()
+        done = False
+        total_reward = 0
+        steps = 0
+        
+        with st.expander("Test Results", expanded=True):
+            progress_bar = st.progress(0)
+            metrics_placeholder = st.empty()
+            
+            while not done and steps < 100:
+                action = test_agent.predict(obs)
+                obs, reward, terminated, truncated, info = test_env.step(action)
+                done = terminated or truncated
+                total_reward += reward
+                steps += 1
+                
+                # Update progress and metrics
+                progress_bar.progress(steps / 100)
+                metrics_placeholder.write({
+                    'Step': steps,
+                    'Reward': round(total_reward, 2),
+                    'Portfolio Value': round(info['net_worth'], 2),
+                    'Position': round(float(info['shares_held']), 3)
+                })
+            
+            st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")
 
 if __name__ == "__main__":
     main()

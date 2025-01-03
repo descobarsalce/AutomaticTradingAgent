@@ -160,8 +160,9 @@ Trade Executed - SELL:
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
         
-        # Log detailed portfolio state
-        logger.info(f"""
+        # Log portfolio state only when trade is executed
+        if trade_executed:
+            logger.info(f"""
 Portfolio State:
   Step: {self.current_step}
   Action: {action}
@@ -171,7 +172,6 @@ Portfolio State:
   Net Worth: {self.net_worth:.2f}
   Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}% 
   Position Value: {(self.shares_held * current_price):.2f}
-  Trade Executed: {trade_executed}
 """)
 
         # Calculate position profit (used for scaling holding bonus)

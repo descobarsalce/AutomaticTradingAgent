@@ -4,7 +4,7 @@ import pandas as pd
 import logging
 from typing import Tuple, Dict, Any, Optional, Union
 
-# Configure logging
+# Configure module logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -13,6 +13,18 @@ class SimpleTradingEnv(gym.Env):
                  max_position_pct=0.95, use_position_profit=True, use_holding_bonus=True, use_trading_penalty=True,
                  training_mode=False):
         super().__init__()
+        logger.info("Initializing SimpleTradingEnv")
+        logger.debug(f"""Environment Parameters:
+            Initial Balance: {initial_balance}
+            Transaction Cost: {transaction_cost}
+            Min Transaction Size: {min_transaction_size}
+            Max Position %: {max_position_pct}
+            Use Position Profit: {use_position_profit}
+            Use Holding Bonus: {use_holding_bonus}
+            Use Trading Penalty: {use_trading_penalty}
+            Training Mode: {training_mode}
+        """)
+
         self.use_position_profit = use_position_profit
         self.use_holding_bonus = use_holding_bonus
         self.use_trading_penalty = use_trading_penalty
@@ -72,6 +84,7 @@ class SimpleTradingEnv(gym.Env):
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state."""
         super().reset(seed=seed)
+        logger.info(f"Resetting environment (Episode {self.episode_count + 1})")
         self.current_step = 0
         self.balance = self.initial_balance
         self.shares_held = 0
@@ -96,9 +109,7 @@ class SimpleTradingEnv(gym.Env):
     def step(self, action):
         """Execute one step in the environment."""
         self.total_steps += 1
-
-        # Log action for debugging
-        logger.debug(f"Step {self.current_step}, Action: {action}, Balance: {self.balance:.2f}, Shares: {self.shares_held:.2f}")
+        logger.debug(f"Step {self.current_step}, Action: {action}")
 
         # Ensure action is valid
         action = int(action)
@@ -112,7 +123,7 @@ class SimpleTradingEnv(gym.Env):
         # Process actions
         trade_executed = False
         if action == 1:  # Buy
-            trade_amount = self.balance * 0.2  # Use 20% of available balance
+            trade_amount = self.balance * 0.2
             shares_to_buy = trade_amount / current_price
             transaction_fees = trade_amount * self.transaction_cost
             total_cost = trade_amount + transaction_fees
@@ -132,11 +143,14 @@ Trade Executed - BUY:
   Amount: {trade_amount:.2f}
   Fees: {transaction_fees:.2f}
   Total Cost: {total_cost:.2f}
+  Remaining Balance: {self.balance:.2f}
 """)
+            else:
+                logger.warning(f"Buy order rejected - Insufficient funds (Required: {total_cost:.2f}, Available: {self.balance:.2f})")
 
         elif action == 2:  # Sell
             if self.shares_held > 0:
-                shares_to_sell = self.shares_held * 0.2  # Sell 20% of holdings
+                shares_to_sell = self.shares_held * 0.2
                 sell_amount = shares_to_sell * current_price
                 transaction_fees = sell_amount * self.transaction_cost
                 net_sell_amount = sell_amount - transaction_fees
@@ -152,15 +166,16 @@ Trade Executed - SELL:
   Amount: {sell_amount:.2f}
   Fees: {transaction_fees:.2f}
   Net Amount: {net_sell_amount:.2f}
+  Remaining Shares: {self.shares_held:.4f}
 """)
-                if self.shares_held == 0:
-                    self.holding_period = 0
-                    self.last_trade_step = None
+            else:
+                logger.warning("Sell order rejected - No shares held")
 
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
         
         # Log detailed portfolio state
+        portfolio_change = ((self.net_worth - prev_net_worth) / prev_net_worth * 100)
         logger.info(f"""
 Portfolio State:
   Step: {self.current_step}
@@ -169,7 +184,7 @@ Portfolio State:
   Balance: {self.balance:.2f}
   Shares: {self.shares_held:.4f}
   Net Worth: {self.net_worth:.2f}
-  Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}% 
+  Change: {portfolio_change:.2f}%
   Position Value: {(self.shares_held * current_price):.2f}
   Trade Executed: {trade_executed}
 """)

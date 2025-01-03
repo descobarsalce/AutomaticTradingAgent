@@ -1,8 +1,7 @@
-
 import streamlit as st
 import os
 import logging
-
+from utils.logging import setup_logging, display_logs
 from utils.callbacks import ProgressBarCallback
 from environment import SimpleTradingEnv
 from core import TradingAgent
@@ -15,45 +14,36 @@ def init_session_state():
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
 
-class StreamlitLogHandler(logging.Handler):
-    def emit(self, record):
-        try:
-            log_entry = self.format(record)
-            if 'log_messages' in st.session_state:
-                st.session_state.log_messages.append(log_entry)
-                if len(st.session_state.log_messages) > 100:
-                    st.session_state.log_messages = st.session_state.log_messages[-100:]
-            print(log_entry)  # Also print to console
-        except Exception as e:
-            print(f"Logging error: {e}")
-
 def main():
     # Initialize session state first
     init_session_state()
 
     # Configure logging
-    handler = StreamlitLogHandler()
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
+    setup_logging(level='INFO', max_entries=1000)
+    logger = logging.getLogger(__name__)
+    logger.info("Starting Trading Agent Application")
 
-    # Set up logging handler
-    handler = StreamlitLogHandler()
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
-
-    # Create sidebar for logs
+    # Create sidebar for logs with better organization
     with st.sidebar:
-        st.header("Logs")
-        for log in st.session_state.log_messages:
-            st.text(log)
+        st.header("System Logs")
+        log_container = st.container()
+        with log_container:
+            display_logs()
+
+        # Add log level filter
+        log_level = st.selectbox(
+            "Log Level Filter",
+            ['ALL', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+            index=1
+        )
+        if log_level != 'ALL':
+            filtered_logs = [log for log in st.session_state.log_messages 
+                           if log['level'] == log_level]
+            st.session_state.log_messages = filtered_logs
 
     st.title("Trading Agent Configuration")
-    
-    # Rest of your main function implementation...
-    # (keeping all the existing functionality)
-    
+    logger.info("Initializing Trading Agent Configuration Interface")
+
     # Reward component controls
     st.header("Reward Components")
     use_position_profit = st.checkbox("Include Position Profit", value=False)
@@ -75,6 +65,7 @@ def main():
     with col2:
         max_position_pct = st.number_input("Maximum Position %", value=0.95, min_value=0.0, max_value=1.0)
         
+
     # Agent parameters
     st.header("Agent Parameters")
     col3, col4 = st.columns(2)
@@ -93,66 +84,81 @@ def main():
     
     col_train, col_test = st.columns(2)
     
+
     if col_train.button("Start Training"):
+        logger.info("Starting model training process")
         # Create progress tracking elements
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
-        
-        # Create sample data for testing
-        data = pd.DataFrame({
-            'Open': [100] * 1000,
-            'High': [110] * 1000,
-            'Low': [90] * 1000,
-            'Close': [105] * 1000,
-            'Volume': [1000] * 1000
-        })
-        
-        # Create environment with selected components
-        env = SimpleTradingEnv(
-            data=data,
-            initial_balance=initial_balance,
-            transaction_cost=transaction_cost,
-            min_transaction_size=min_transaction_size,
-            max_position_pct=max_position_pct,
-            use_position_profit=use_position_profit,
-            use_holding_bonus=use_holding_bonus,
-            use_trading_penalty=use_trading_penalty,
-            training_mode=True
-        )
-        
-        # Configure PPO parameters
-        st.session_state.ppo_params = {
-            'learning_rate': learning_rate,
-            'n_steps': n_steps,
-            'batch_size': batch_size,
-            'n_epochs': n_epochs,
-            'gamma': gamma,
-            'clip_range': clip_range,
-            'target_kl': target_kl
-        }
-        
-        # Initialize and train agent
-        agent = TradingAgent(
-            env=env,
-            ppo_params=st.session_state.ppo_params,
-            quick_mode=quick_mode,
-            fast_eval=fast_eval
-        )
-        
-        # Set timesteps based on test mode
-        total_timesteps = 100 if test_mode else 10000
-        
-        # Create progress callback
-        progress_callback = ProgressBarCallback(
-            total_timesteps=total_timesteps,
-            progress_bar=progress_bar,
-            status_placeholder=status_placeholder
-        )
-        
-        agent.train(total_timesteps=total_timesteps, callback=progress_callback)
-        agent.save("trained_model.zip")
-        st.success("Training completed and model saved!")
-        
+
+        try:
+            # Create sample data for testing
+            logger.debug("Creating sample training data")
+            data = pd.DataFrame({
+                'Open': [100] * 1000,
+                'High': [110] * 1000,
+                'Low': [90] * 1000,
+                'Close': [105] * 1000,
+                'Volume': [1000] * 1000
+            })
+
+            # Log environment configuration
+            logger.info(f"Configuring environment with initial balance: {initial_balance}")
+            logger.debug(f"Transaction cost: {transaction_cost}, Min transaction size: {min_transaction_size}")
+
+            # Create environment with selected components
+            env = SimpleTradingEnv(
+                data=data,
+                initial_balance=initial_balance,
+                transaction_cost=transaction_cost,
+                min_transaction_size=min_transaction_size,
+                max_position_pct=max_position_pct,
+                use_position_profit=use_position_profit,
+                use_holding_bonus=use_holding_bonus,
+                use_trading_penalty=use_trading_penalty,
+                training_mode=True
+            )
+
+            # Log training parameters
+            logger.info("Initializing PPO parameters")
+            st.session_state.ppo_params = {
+                'learning_rate': learning_rate,
+                'n_steps': n_steps,
+                'batch_size': batch_size,
+                'n_epochs': n_epochs,
+                'gamma': gamma,
+                'clip_range': clip_range,
+                'target_kl': target_kl
+            }
+            logger.debug(f"PPO Parameters: {st.session_state.ppo_params}")
+
+            # Initialize and train agent
+            logger.info("Creating and training trading agent")
+            agent = TradingAgent(
+                env=env,
+                ppo_params=st.session_state.ppo_params,
+                quick_mode=quick_mode,
+                fast_eval=fast_eval
+            )
+
+            total_timesteps = 100 if test_mode else 10000
+            logger.info(f"Starting training for {total_timesteps} timesteps")
+
+            progress_callback = ProgressBarCallback(
+                total_timesteps=total_timesteps,
+                progress_bar=progress_bar,
+                status_placeholder=status_placeholder
+            )
+
+            agent.train(total_timesteps=total_timesteps, callback=progress_callback)
+            agent.save("trained_model.zip")
+            logger.info("Training completed successfully")
+            st.success("Training completed and model saved!")
+
+        except Exception as e:
+            logger.error(f"Training failed: {str(e)}", exc_info=True)
+            st.error(f"Error during training: {str(e)}")
+
     if col_test.button("Test Model"):
         try:
             model_path = "trained_model.zip"

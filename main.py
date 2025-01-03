@@ -150,16 +150,26 @@ def main():
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )
-        try:
-            test_agent.load("trained_model.zip")
-        
         # Create log display area
         log_container = st.expander("Logs", expanded=True)
         log_placeholder = log_container.empty()
-        
+
+        try:
+            test_agent.load("trained_model.zip")
         except Exception as e:
             st.error(f"Error loading the model: {str(e)}")
             return
+        
+        # Create handler for streamlit logging
+        class StreamlitHandler(logging.Handler):
+            def emit(self, record):
+                log_entry = self.format(record)
+                log_placeholder.write(f"{log_entry}\n")
+        
+        # Add streamlit handler to logger
+        streamlit_handler = StreamlitHandler()
+        streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        logging.getLogger().addHandler(streamlit_handler)
         
         # Run test episode
         obs, _ = test_env.reset()

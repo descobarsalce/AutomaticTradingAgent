@@ -175,11 +175,12 @@ def main():
                 
                 # Update progress and metrics
                 progress_bar.progress(steps / 100)
+                current_shares = test_env.shares_held  # Get shares directly from environment
                 metrics_placeholder.write({
                     'Step': steps,
                     'Reward': round(total_reward, 2),
                     'Portfolio Value': round(info['net_worth'], 2),
-                    'Position': round(float(info['shares_held']), 3)
+                    'Position': round(float(current_shares), 3)
                 })
             
             st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")

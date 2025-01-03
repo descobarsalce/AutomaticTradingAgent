@@ -9,21 +9,22 @@ from core import TradingAgent
 import pandas as pd
 
 def main():
-    # Initialize session state first
+    # Initialize all required session state variables
     if 'logs' not in st.session_state:
-        st.session_state['logs'] = []
+        st.session_state.logs = []
+    if 'log_messages' not in st.session_state:
+        st.session_state.log_messages = []
     if 'ppo_params' not in st.session_state:
-        st.session_state['ppo_params'] = None
+        st.session_state.ppo_params = None
 
     # Configure logging
     class StreamlitLogHandler(logging.Handler):
         def emit(self, record):
             try:
                 log_entry = self.format(record)
-                if hasattr(st.session_state, 'logs'):
-                    st.session_state.logs.append(log_entry)
-                    if len(st.session_state.logs) > 100:
-                        st.session_state.logs = st.session_state.logs[-100:]
+                st.session_state.log_messages.append(log_entry)
+                if len(st.session_state.log_messages) > 100:
+                    st.session_state.log_messages = st.session_state.log_messages[-100:]
                 print(log_entry)  # Also print to console
             except Exception as e:
                 print(f"Logging error: {e}")
@@ -37,7 +38,7 @@ def main():
     # Create sidebar for logs
     with st.sidebar:
         st.header("Logs")
-        for log in st.session_state.logs:
+        for log in st.session_state.log_messages:
             st.text(log)
 
     st.title("Trading Agent Configuration")

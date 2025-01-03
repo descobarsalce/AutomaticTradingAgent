@@ -165,12 +165,12 @@ class SimpleTradingEnv(gym.Env):
 
         # 2. Position profit component (small impact)
         if self.use_position_profit and position_profit > 0:
-            reward += position_profit * 0.05  # Very small weight (5%)
+            reward += position_profit * 0.01  # Very small weight (5%)
 
         # 3. Holding bonus (dominant component)
         # Guaranteed to increase linearly with time when holding
         if self.use_holding_bonus and self.shares_held > 0:
-            holding_bonus = 0.5 * self.holding_period  # Large linear increase (50% per step)
+            holding_bonus = 0.01 * self.holding_period  # Large linear increase (50% per step)
             reward += holding_bonus
 
         # 4. Trading penalty (always makes trading worse than holding)

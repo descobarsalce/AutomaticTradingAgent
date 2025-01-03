@@ -193,18 +193,17 @@ Portfolio State:
         # 1. Base reward from portfolio change
         if prev_net_worth > 0:
             portfolio_return = (self.net_worth - prev_net_worth) / prev_net_worth
-            base_reward = portfolio_return * 0.01
+            base_reward = portfolio_return
             reward += base_reward
 
         # 2. Position profit component
         if self.use_position_profit and self.shares_held > 0:
-            curr_position_value = self.shares_held * current_price
-            position_profit_reward = position_profit * 0.01
+            position_profit_reward = position_profit  # Already calculated above
             reward += position_profit_reward
 
         # 3. Holding bonus
         if self.use_holding_bonus and self.shares_held > 0:
-            holding_bonus = 0.001 * self.holding_period
+            holding_bonus = 0.001 * self.holding_period * position_profit if position_profit > 0 else 0
             reward += holding_bonus
 
         # 4. Trading penalty (always makes trading worse than holding)

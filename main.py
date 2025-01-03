@@ -93,7 +93,7 @@ def main():
         # Initialize and train agent
         agent = TradingAgent(
             env=env,
-            ppo_params=ppo_params,
+            ppo_params=st.session_state.ppo_params,
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )

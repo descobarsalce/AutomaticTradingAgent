@@ -27,6 +27,7 @@ class SimpleTradingEnv(gym.Env):
         self.shares_held = 0
         self.net_worth = initial_balance
         self.current_step = 0
+        self.last_logged_step = -1
         self.max_steps = len(data) if data is not None else 100
 
         # Track holding period and cost basis
@@ -160,8 +161,9 @@ Trade Executed - SELL:
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
         
-        # Log portfolio state only when trade is executed
-        if trade_executed:
+        # Log portfolio state only when trade is executed and haven't logged this step yet
+        if trade_executed and self.current_step > self.last_logged_step:
+            self.last_logged_step = self.current_step
             logger.info(f"""
 Portfolio State:
   Step: {self.current_step}

@@ -8,9 +8,34 @@ from core import TradingAgent
 import pandas as pd
 
 def main():
-    # Initialize session state for PPO parameters
+    # Initialize session state
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
+    if 'log_messages' not in st.session_state:
+        st.session_state.log_messages = []
+
+    # Create persistent logging area at the top
+    st.sidebar.header("Logs")
+    log_container = st.sidebar.expander("Application Logs", expanded=True)
+    
+    # Configure global logging to use Streamlit
+    class StreamlitHandler(logging.Handler):
+        def emit(self, record):
+            log_entry = self.format(record)
+            st.session_state.log_messages.append(log_entry)
+            # Keep only last 100 messages
+            if len(st.session_state.log_messages) > 100:
+                st.session_state.log_messages.pop(0)
+            
+    # Add streamlit handler to root logger
+    logging.getLogger().setLevel(logging.INFO)
+    streamlit_handler = StreamlitHandler()
+    streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(streamlit_handler)
+    
+    # Display logs
+    for log in st.session_state.log_messages:
+        log_container.text(log)
         
     st.title("Trading Agent Configuration")
     

@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import logging
 
 from utils.callbacks import ProgressBarCallback
 

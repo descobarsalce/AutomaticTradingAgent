@@ -105,9 +105,9 @@ class SimpleTradingEnv(gym.Env):
         if not 0 <= action <= 2:
             raise ValueError(f"Invalid action {action}. Must be 0 (hold), 1 (buy), or 2 (sell)")
 
-        # Store previous state
+        # Store previous state and price
         prev_net_worth = self.net_worth
-        current_price = self.data.iloc[self.current_step]['Close']
+        current_price = float(self.data.iloc[self.current_step]['Close'])
 
         # Process actions
         trade_executed = False
@@ -157,8 +157,7 @@ Trade Executed - SELL:
                     self.holding_period = 0
                     self.last_trade_step = None
 
-        # Update portfolio value with detailed logging
-        prev_net_worth = self.net_worth
+        # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
         
         # Log detailed portfolio state
@@ -187,21 +186,25 @@ Portfolio State:
 
         # Calculate rewards with emphasis on holding profitable positions
         reward = 0
+        base_reward = 0
+        position_profit_reward = 0
+        holding_bonus = 0
 
-        # 1. Base reward (minimal impact)
+        # 1. Base reward from portfolio change
         if prev_net_worth > 0:
             portfolio_return = (self.net_worth - prev_net_worth) / prev_net_worth
-            base_reward = portfolio_return * 0.01  # Extremely small weight (1%)
+            base_reward = portfolio_return * 0.01
             reward += base_reward
 
-        # 2. Position profit component (small impact)
-        if self.use_position_profit and position_profit > 0:
-            reward += position_profit * 0.01  # Very small weight (5%)
+        # 2. Position profit component
+        if self.use_position_profit and self.shares_held > 0:
+            curr_position_value = self.shares_held * current_price
+            position_profit_reward = position_profit * 0.01
+            reward += position_profit_reward
 
-        # 3. Holding bonus (dominant component)
-        # Guaranteed to increase linearly with time when holding
+        # 3. Holding bonus
         if self.use_holding_bonus and self.shares_held > 0:
-            holding_bonus = 0.01 * self.holding_period  # Large linear increase (50% per step)
+            holding_bonus = 0.001 * self.holding_period
             reward += holding_bonus
 
         # 4. Trading penalty (always makes trading worse than holding)

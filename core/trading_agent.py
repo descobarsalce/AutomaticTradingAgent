@@ -1,7 +1,12 @@
 from typing import Dict, Any, Optional, Union, cast
 import numpy as np
+import logging
 from gymnasium import Env
 from stable_baselines3.common.callbacks import BaseCallback
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 from core.base_agent import BaseAgent
 from utils.data_utils import validate_numeric
 from utils.common import (

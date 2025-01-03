@@ -79,6 +79,7 @@ class SimpleTradingEnv(gym.Env):
         self.shares_held = 0
         self.net_worth = self.initial_balance
         self.holding_period = 0
+        self.last_logged_step = -1  # Reset logging tracker
         self.cost_basis = 0
         self.last_trade_step = None
         self.episode_trades = 0
@@ -163,7 +164,16 @@ Trade Executed - SELL:
         self.net_worth = self.balance + (self.shares_held * current_price)
         
         # Log portfolio state based on frequency and when trades are executed
-        if (trade_executed and self.current_step > self.last_logged_step) or (self.current_step - self.last_logged_step >= self.log_frequency):
+        should_log = False
+        
+        # Log on trade execution (if we haven't logged this step)
+        if trade_executed and self.current_step > self.last_logged_step:
+            should_log = True
+        # Log based on frequency
+        elif self.current_step - self.last_logged_step >= self.log_frequency:
+            should_log = True
+            
+        if should_log:
             self.last_logged_step = self.current_step
             logger.info(f"""
 Portfolio State:

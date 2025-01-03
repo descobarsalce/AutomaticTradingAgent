@@ -37,7 +37,7 @@ class SimpleTradingEnv(gym.Env):
 
         # Transaction parameters
         self.base_transaction_cost = transaction_cost
-        self.transaction_cost = transaction_cost * (0.5 if training_mode else 1.0)  # Changed from 0.2 to 0.5 for more realistic training
+        self.transaction_cost = transaction_cost * (0.2 if training_mode else 1.0)  # Reduced cost during training
         self.min_transaction_size = min_transaction_size
         self.max_position_pct = max_position_pct
 
@@ -170,7 +170,7 @@ class SimpleTradingEnv(gym.Env):
         # 3. Holding bonus (dominant component)
         # Guaranteed to increase linearly with time when holding
         if self.use_holding_bonus and self.shares_held > 0:
-            holding_bonus = 0.01 * self.holding_period  # Reduced from 0.5 to 0.01 for more balanced rewards
+            holding_bonus = 0.01 * self.holding_period  # Large linear increase (50% per step)
             reward += holding_bonus
 
         # 4. Trading penalty (always makes trading worse than holding)
@@ -178,11 +178,11 @@ class SimpleTradingEnv(gym.Env):
             # Calculate current holding reward for comparison
             holding_reward = reward
 
-            # Ensure trading reward is less than holding by scaling down moderately
+            # Ensure trading reward is less than holding by scaling down significantly
             if action == 2 and self.shares_held > 0:  # Selling
-                reward = holding_reward * 0.8  # Changed from 0.2 to 0.8 for less severe penalty
+                reward = holding_reward * 0.2  # Trading reward is 20% of what holding would give
             elif action == 1:  # Buying
-                reward = holding_reward * 0.8  # Changed from 0.3 to 0.8 for less severe penalty
+                reward = holding_reward * 0.3  # Slightly better than selling but still much worse than holding
 
         # 5. Early exploration bonus during training
         if self.training_mode and self.episode_count < 10 and trade_executed:

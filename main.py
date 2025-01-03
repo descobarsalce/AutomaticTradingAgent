@@ -1,42 +1,33 @@
+
 import streamlit as st
 import os
 import logging
 
 from utils.callbacks import ProgressBarCallback
-
 from environment import SimpleTradingEnv
 from core import TradingAgent
 import pandas as pd
 
 def main():
-    # Initialize session state first
+    # Initialize session state
     if 'logs' not in st.session_state:
-        st.session_state['logs'] = []
+        st.session_state.logs = []
     if 'ppo_params' not in st.session_state:
-        st.session_state['ppo_params'] = None
+        st.session_state.ppo_params = None
 
-    # Configure logging before creating container
+    # Configure logging
     class StreamlitLogHandler(logging.Handler):
         def emit(self, record):
-            log_entry = self.format(record)
-            st.session_state.logs.append(log_entry)
-            if len(st.session_state.logs) > 100:
-                st.session_state.logs = st.session_state.logs[-100:]
-
-    # Set up handler before container creation
-    handler = StreamlitLogHandler()
-    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
-
-    # Create log container
-    log_container = st.sidebar.container()
-    log_container.header("Logs")
-        def emit(self, record):
-            log_entry = self.format(record)
-            st.session_state.logs.append(log_entry)
-            if len(st.session_state.logs) > 100:
-                st.session_state.logs = st.session_state.logs[-100:]
+            try:
+                log_entry = self.format(record)
+                if 'logs' in st.session_state:
+                    st.session_state.logs.append(log_entry)
+                    # Keep only last 100 logs
+                    if len(st.session_state.logs) > 100:
+                        st.session_state.logs = st.session_state.logs[-100:]
+                print(log_entry)  # Also print to console
+            except Exception as e:
+                print(f"Logging error: {e}")
 
     # Set up logging handler
     handler = StreamlitLogHandler()
@@ -44,24 +35,28 @@ def main():
     logging.getLogger().addHandler(handler)
     logging.getLogger().setLevel(logging.INFO)
 
-    # Display logs in sidebar
-    with log_container:
+    # Create sidebar for logs
+    with st.sidebar:
+        st.header("Logs")
         for log in st.session_state.logs:
             st.text(log)
-        
+
     st.title("Trading Agent Configuration")
+    
+    # Rest of your main function implementation...
+    # (keeping all the existing functionality)
     
     # Reward component controls
     st.header("Reward Components")
     use_position_profit = st.checkbox("Include Position Profit", value=False)
-    use_holding_bonus = st.checkbox("Include Holding Bonus", value=False)
+    use_holding_bonus = st.checkbox("Include Holding Bonus", value=False) 
     use_trading_penalty = st.checkbox("Include Trading Penalty", value=False)
-    
+
     # Training mode parameters
     st.header("Training Mode")
     quick_mode = st.checkbox("Quick Training Mode", value=False)
     fast_eval = st.checkbox("Fast Evaluation", value=False)
-    
+
     # Environment parameters
     st.header("Environment Parameters")
     col1, col2 = st.columns(2)
@@ -82,9 +77,9 @@ def main():
         n_epochs = st.number_input("Number of Epochs", value=3, help="Suggested range: 1 to 10. Default: 3")
     with col4:
         gamma = st.number_input("Gamma (Discount Factor)", value=0.99, help="Suggested range: 0.8 to 0.999. Default: 0.99")
-        clip_range = st.number_input("Clip Range", value=0.2, help="Suggested range: 0.0 to 0.5. Default: 0.2. Set to 0 to disable clipping")
+        clip_range = st.number_input("Clip Range", value=0.2, help="Suggested range: 0.0 to 0.5. Default: 0.2")
         target_kl = st.number_input("Target KL Divergence", value=0.05, help="Suggested range: 0.01 to 0.1. Default: 0.05")
-        
+
     # Add test buttons
     test_mode = st.checkbox("Test Mode (100 steps)", value=False)
     
@@ -113,10 +108,11 @@ def main():
             max_position_pct=max_position_pct,
             use_position_profit=use_position_profit,
             use_holding_bonus=use_holding_bonus,
-            use_trading_penalty=use_trading_penalty
+            use_trading_penalty=use_trading_penalty,
+            training_mode=True
         )
         
-        # Configure PPO parameters and store in session state
+        # Configure PPO parameters
         st.session_state.ppo_params = {
             'learning_rate': learning_rate,
             'n_steps': n_steps,
@@ -134,6 +130,7 @@ def main():
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )
+        
         # Set timesteps based on test mode
         total_timesteps = 100 if test_mode else 10000
         
@@ -145,13 +142,11 @@ def main():
         )
         
         agent.train(total_timesteps=total_timesteps, callback=progress_callback)
-        # Save the trained model
         agent.save("trained_model.zip")
         st.success("Training completed and model saved!")
         
     if col_test.button("Test Model"):
         try:
-            # Load the trained model
             model_path = "trained_model.zip"
             if not os.path.exists(model_path):
                 st.error("Please train the model first before testing!")
@@ -176,66 +171,51 @@ def main():
                 use_holding_bonus=use_holding_bonus,
                 use_trading_penalty=use_trading_penalty
             )
-        except Exception as e:
-            st.error(f"Error during test setup: {str(e)}")
-            return
-        
-        # Initialize agent with test environment and load trained weights
-        test_agent = TradingAgent(
-            env=test_env,
-            ppo_params=st.session_state.ppo_params,
-            quick_mode=quick_mode,
-            fast_eval=fast_eval
-        )
-        # Create log display area
-        log_container = st.expander("Logs", expanded=True)
-        log_placeholder = log_container.empty()
-
-        try:
+            
+            # Initialize agent with test environment
+            test_agent = TradingAgent(
+                env=test_env,
+                ppo_params=st.session_state.ppo_params,
+                quick_mode=quick_mode,
+                fast_eval=fast_eval
+            )
+            
+            # Create log display area
+            log_container = st.expander("Test Logs", expanded=True)
+            log_placeholder = log_container.empty()
+            
             test_agent.load("trained_model.zip")
-        except Exception as e:
-            st.error(f"Error loading the model: {str(e)}")
-            return
-        
-        # Create handler for streamlit logging
-        class StreamlitHandler(logging.Handler):
-            def emit(self, record):
-                log_entry = self.format(record)
-                log_placeholder.write(f"{log_entry}\n")
-        
-        # Add streamlit handler to logger
-        streamlit_handler = StreamlitHandler()
-        streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        logging.getLogger().addHandler(streamlit_handler)
-        
-        # Run test episode
-        obs, _ = test_env.reset()
-        done = False
-        total_reward = 0
-        steps = 0
-        
-        with st.expander("Test Results", expanded=True):
-            progress_bar = st.progress(0)
-            metrics_placeholder = st.empty()
             
-            while not done and steps < 100:
-                action = test_agent.predict(obs)
-                obs, reward, terminated, truncated, info = test_env.step(action)
-                done = terminated or truncated
-                total_reward += reward
-                steps += 1
+            # Run test episode
+            obs, _ = test_env.reset()
+            done = False
+            total_reward = 0
+            steps = 0
+            
+            with st.expander("Test Results", expanded=True):
+                progress_bar = st.progress(0)
+                metrics_placeholder = st.empty()
                 
-                # Update progress and metrics
-                progress_bar.progress(steps / 100)
-                current_shares = test_env.shares_held  # Get shares directly from environment
-                metrics_placeholder.write({
-                    'Step': steps,
-                    'Reward': round(total_reward, 2),
-                    'Portfolio Value': round(info['net_worth'], 2),
-                    'Position': round(float(current_shares), 3)
-                })
-            
-            st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")
+                while not done and steps < 100:
+                    action = test_agent.predict(obs)
+                    obs, reward, terminated, truncated, info = test_env.step(action)
+                    done = terminated or truncated
+                    total_reward += reward
+                    steps += 1
+                    
+                    # Update progress and metrics
+                    progress_bar.progress(steps / 100)
+                    metrics_placeholder.write({
+                        'Step': steps,
+                        'Reward': round(total_reward, 2),
+                        'Portfolio Value': round(info['net_worth'], 2),
+                        'Position': round(float(test_env.shares_held), 3)
+                    })
+                
+                st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")
+                
+        except Exception as e:
+            st.error(f"Error during testing: {str(e)}")
 
 if __name__ == "__main__":
     main()

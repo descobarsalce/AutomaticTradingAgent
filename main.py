@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import logging
+import numpy as np # Added import for numpy
 from utils.logging import setup_logging, display_logs
 from utils.callbacks import ProgressBarCallback
 from environment import SimpleTradingEnv
@@ -39,9 +40,9 @@ def main():
 
         # Reward component controls
         st.header("Reward Components")
-        use_position_profit = st.checkbox("Include Position Profit", value=False)
-        use_holding_bonus = st.checkbox("Include Holding Bonus", value=False) 
-        use_trading_penalty = st.checkbox("Include Trading Penalty", value=False)
+        use_position_profit = st.checkbox("Include Position Profit", value=True)
+        use_holding_bonus = st.checkbox("Include Holding Bonus", value=True) 
+        use_trading_penalty = st.checkbox("Include Trading Penalty", value=True)
 
         # Training mode parameters
         st.header("Training Mode")
@@ -53,7 +54,7 @@ def main():
         col1, col2 = st.columns(2)
         with col1:
             initial_balance = st.number_input("Initial Balance", value=10000)
-            transaction_cost = st.number_input("Transaction Cost", value=0.0, step=0.001)
+            transaction_cost = st.number_input("Transaction Cost", value=0.001, step=0.001)
             min_transaction_size = st.number_input("Minimum Transaction Size", value=0.001, step=0.001)
         with col2:
             max_position_pct = st.number_input("Maximum Position %", value=0.95, min_value=0.0, max_value=1.0)
@@ -82,14 +83,20 @@ def main():
                 progress_bar = st.progress(0)
                 status_placeholder = st.empty()
 
-                # Create sample data
+                # Create sample data with more variation
                 logger.debug("Creating sample training data")
+                n_samples = 1000
+                base_price = 100
+                trend = np.linspace(0, 20, n_samples)  # Add upward trend
+                noise = np.random.normal(0, 2, n_samples)  # Add noise
+                prices = base_price + trend + noise
+
                 data = pd.DataFrame({
-                    'Open': [100] * 1000,
-                    'High': [110] * 1000,
-                    'Low': [90] * 1000,
-                    'Close': [105] * 1000,
-                    'Volume': [1000] * 1000
+                    'Open': prices * 0.99,  # Slight variation in OHLCV
+                    'High': prices * 1.02,
+                    'Low': prices * 0.98,
+                    'Close': prices,
+                    'Volume': np.random.normal(1000, 100, n_samples)
                 })
 
                 logger.info(f"Configuring environment with initial balance: {initial_balance}")
@@ -140,6 +147,7 @@ def main():
             except Exception as e:
                 logger.error(f"Training failed: {str(e)}", exc_info=True)
                 st.error(f"Error during training: {str(e)}")
+                return
 
         if col_test.button("Test Model"):
             try:
@@ -177,6 +185,7 @@ def main():
                 )
 
                 test_agent.load("trained_model.zip")
+                logger.info("Model loaded successfully")
 
                 obs, _ = test_env.reset()
                 done = False

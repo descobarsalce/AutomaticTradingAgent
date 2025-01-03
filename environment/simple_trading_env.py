@@ -126,11 +126,12 @@ class SimpleTradingEnv(gym.Env):
                 self.episode_trades += 1
                 trade_executed = True
                 logger.info(f"""
-Trade Executed - BUY:
-  Shares: {shares_to_buy:.4f}
+Trade Executed - SELL:
+  Shares: {shares_to_sell:.4f}
   Price: {current_price:.2f}
-  Total Cost: {total_cost:.2f}
+  Amount: {sell_amount:.2f}
   Fees: {transaction_fees:.2f}
+  Net Amount: {net_sell_amount:.2f}
 """)
 
         elif action == 2:  # Sell
@@ -145,11 +146,12 @@ Trade Executed - BUY:
                 self.episode_trades += 1
                 trade_executed = True
                 logger.info(f"""
-Trade Executed - BUY:
-  Shares: {shares_to_buy:.4f}
+Trade Executed - SELL:
+  Shares: {shares_to_sell:.4f}
   Price: {current_price:.2f}
-  Total Cost: {total_cost:.2f}
+  Amount: {sell_amount:.2f}
   Fees: {transaction_fees:.2f}
+  Net Amount: {net_sell_amount:.2f}
 """)
                 if self.shares_held == 0:
                     self.holding_period = 0

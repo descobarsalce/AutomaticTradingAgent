@@ -1,5 +1,6 @@
 
 import streamlit as st
+import os
 
 from utils.callbacks import ProgressBarCallback
 
@@ -104,10 +105,19 @@ def main():
         )
         
         agent.train(total_timesteps=total_timesteps, callback=progress_callback)
-        st.success("Training completed!")
+        # Save the trained model
+        agent.save("trained_model.zip")
+        st.success("Training completed and model saved!")
         
     if col_test.button("Test Model"):
-        # Create test environment and data
+        try:
+            # Load the trained model
+            model_path = "trained_model.zip"
+            if not os.path.exists(model_path):
+                st.error("Please train the model first before testing!")
+                return
+                
+            # Create test environment and data
         test_data = pd.DataFrame({
             'Open': [100] * 100,
             'High': [110] * 100,
@@ -127,13 +137,14 @@ def main():
             use_trading_penalty=use_trading_penalty
         )
         
-        # Initialize agent with test environment
+        # Initialize agent with test environment and load trained weights
         test_agent = TradingAgent(
             env=test_env,
             ppo_params=ppo_params,
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )
+        test_agent.load("trained_model.zip")
         
         # Run test episode
         obs, _ = test_env.reset()

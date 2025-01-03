@@ -152,6 +152,11 @@ def main():
         )
         try:
             test_agent.load("trained_model.zip")
+        
+        # Create log display area
+        log_container = st.expander("Logs", expanded=True)
+        log_placeholder = log_container.empty()
+        
         except Exception as e:
             st.error(f"Error loading the model: {str(e)}")
             return

@@ -8,6 +8,10 @@ from core import TradingAgent
 import pandas as pd
 
 def main():
+    # Initialize session state for PPO parameters
+    if 'ppo_params' not in st.session_state:
+        st.session_state.ppo_params = None
+        
     st.title("Trading Agent Configuration")
     
     # Reward component controls
@@ -75,8 +79,8 @@ def main():
             use_trading_penalty=use_trading_penalty
         )
         
-        # Configure PPO parameters
-        ppo_params = {
+        # Configure PPO parameters and store in session state
+        st.session_state.ppo_params = {
             'learning_rate': learning_rate,
             'n_steps': n_steps,
             'batch_size': batch_size,
@@ -142,7 +146,7 @@ def main():
         # Initialize agent with test environment and load trained weights
         test_agent = TradingAgent(
             env=test_env,
-            ppo_params=ppo_params,
+            ppo_params=st.session_state.ppo_params,
             quick_mode=quick_mode,
             fast_eval=fast_eval
         )

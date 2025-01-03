@@ -11,12 +11,13 @@ logger.setLevel(logging.INFO)
 class SimpleTradingEnv(gym.Env):
     def __init__(self, data, initial_balance=10000, transaction_cost=0.0, min_transaction_size=0.001, 
                  max_position_pct=0.95, use_position_profit=True, use_holding_bonus=True, use_trading_penalty=True,
-                 training_mode=False):
+                 training_mode=False, log_frequency=30):
         super().__init__()
         self.use_position_profit = use_position_profit
         self.use_holding_bonus = use_holding_bonus
         self.use_trading_penalty = use_trading_penalty
         self.training_mode = training_mode  # Flag to enable training-specific behavior
+        self.log_frequency = log_frequency  # How often to log portfolio state
 
         # Store data
         self.data = data
@@ -161,8 +162,8 @@ Trade Executed - SELL:
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
         
-        # Log portfolio state only when trade is executed and haven't logged this step yet
-        if trade_executed and self.current_step > self.last_logged_step:
+        # Log portfolio state based on frequency and when trades are executed
+        if (trade_executed and self.current_step > self.last_logged_step) or (self.current_step - self.last_logged_step >= self.log_frequency):
             self.last_logged_step = self.current_step
             logger.info(f"""
 Portfolio State:

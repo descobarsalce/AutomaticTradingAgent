@@ -122,8 +122,15 @@ class SimpleTradingEnv(gym.Env):
 
             if total_cost <= self.balance:
                 self.balance -= total_cost
+                if self.shares_held > 0:
+                    # Calculate weighted average cost basis
+                    old_cost = self.cost_basis * self.shares_held
+                    new_cost = current_price * shares_to_buy
+                    self.cost_basis = (old_cost + new_cost) / (self.shares_held + shares_to_buy)
+                else:
+                    # Initial position cost basis
+                    self.cost_basis = current_price
                 self.shares_held += shares_to_buy
-                self.cost_basis = current_price
                 self.holding_period = 0
                 self.last_trade_step = self.current_step
                 self.episode_trades += 1

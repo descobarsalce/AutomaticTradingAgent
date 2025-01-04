@@ -61,33 +61,37 @@ class TradingEnvironment(gym.Env):
             raise ValueError(f"Invalid action {action}. Must be 0 (hold), 1 (buy), or 2 (sell)")
 
         current_price = self.data.iloc[self.current_step]['Close']
-        prev_net_worth = self.net_worth
+        prev_net_worth = self.balance + self.shares_held * current_price  # Calculate true previous net worth
 
         # Fixed position sizing (20% of balance for each trade)
         trade_amount = self.balance * 0.2
 
         if action == 1:  # Buy
-            shares_bought = trade_amount / current_price
-            if shares_bought * current_price <= self.balance:
-                self.balance -= shares_bought * current_price
-                self.shares_held += shares_bought
+            max_shares = trade_amount / current_price
+            shares_to_buy = min(max_shares, trade_amount / current_price)
+            cost = shares_to_buy * current_price
+            
+            if cost <= self.balance:
+                self.balance -= cost
+                self.shares_held += shares_to_buy
                 self.cost_basis = current_price
-                self.holding_period = 0  # Reset holding period on buy
+                self.holding_period = 0
 
         elif action == 2:  # Sell
             if self.shares_held > 0:
-                shares_sold = min(self.shares_held, self.shares_held * 0.2)  # Sell 20% of holdings
-                self.balance += shares_sold * current_price
-                self.shares_held -= shares_sold
+                shares_to_sell = min(self.shares_held, self.shares_held * 0.2)
+                revenue = shares_to_sell * current_price
+                self.balance += revenue
+                self.shares_held -= shares_to_sell
                 if self.shares_held == 0:
-                    self.holding_period = 0  # Reset holding period when position is closed
+                    self.holding_period = 0
 
         # Update holding period for non-zero positions
         if self.shares_held > 0:
             self.holding_period += 1
 
-        # Calculate reward components
-        self.net_worth = self.balance + self.shares_held * current_price
+        # Update portfolio value with current price
+        self.net_worth = self.balance + (self.shares_held * current_price)
 
         # Base reward from portfolio return
         if prev_net_worth > 0:

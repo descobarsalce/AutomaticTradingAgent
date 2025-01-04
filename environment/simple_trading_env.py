@@ -314,38 +314,60 @@ Reward Components:
 
         return next_observation, reward, done, truncated, info
 
-    def test_random_actions(self, n_steps: int = 100) -> Dict[str, Union[int, float]]:
+    def test_random_actions(self, n_steps: int = 100, log: bool = False) -> Dict[str, Union[int, float]]:
         """
         Test environment with random actions to verify functionality.
 
         Args:
             n_steps: Number of random steps to take
+            log: Whether to allow logging during testing
 
         Returns:
             Dict containing test statistics
         """
-        obs, _ = self.reset()
-        total_trades = 0
-        total_rewards = 0
-        actions_taken = {0: 0, 1: 0, 2: 0}  # Count of each action type
-        trades_executed = 0
+        # Store original logging level
+        original_level = logger.getEffectiveLevel()
+        
+        try:
+            # Set logging level based on log parameter
+            if not log:
+                logger.setLevel(logging.WARNING)
+            
+            obs, _ = self.reset()
+            total_trades = 0
+            total_rewards = 0
+            actions_taken = {0: 0, 1: 0, 2: 0}  # Count of each action type
+            trades_executed = 0
 
-        for _ in range(n_steps):
-            action = self.action_space.sample()
-            obs, reward, done, truncated, info = self.step(action)
+            for step in range(n_steps):
+                action = self.action_space.sample()
+                obs, reward, done, truncated, info = self.step(action)
 
-            actions_taken[action] += 1
-            if info['trade_executed']:
-                trades_executed += 1
-            total_rewards += reward
+                actions_taken[action] += 1
+                if info['trade_executed']:
+                    trades_executed += 1
+                total_rewards += reward
 
-            if done:
-                obs, _ = self.reset()
+                # Log only every 10% of steps if logging is enabled
+                if log and step % max(1, n_steps // 10) == 0:
+                    logger.info(f"Test step {step}/{n_steps}, Current reward: {reward:.4f}")
 
-        return {
-            'total_steps': n_steps,
-            'actions_taken': actions_taken,
-            'trades_executed': trades_executed,
-            'avg_reward': total_rewards / n_steps,
-            'trade_success_rate': trades_executed / sum(actions_taken[i] for i in [1, 2]) if sum(actions_taken[i] for i in [1, 2]) > 0 else 0
-        }
+                if done:
+                    obs, _ = self.reset()
+
+            results = {
+                'total_steps': n_steps,
+                'actions_taken': actions_taken,
+                'trades_executed': trades_executed,
+                'avg_reward': total_rewards / n_steps,
+                'trade_success_rate': trades_executed / sum(actions_taken[i] for i in [1, 2]) if sum(actions_taken[i] for i in [1, 2]) > 0 else 0
+            }
+            
+            if log:
+                logger.info(f"Test results: {results}")
+                
+            return results
+            
+        finally:
+            # Restore original logging level
+            logger.setLevel(original_level)

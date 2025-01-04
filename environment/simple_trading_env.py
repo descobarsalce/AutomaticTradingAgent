@@ -243,17 +243,14 @@ Trade Executed - SELL:
                     self.holding_period = 0
                     self.last_trade_step = None
 
-        # Decide whether to log portfolio state
+        # Update portfolio value
+        self.net_worth = self.balance + (self.shares_held * current_price)
+
+        # Decide whether to log portfolio state (single consolidated check)
         should_log = False
-        
-        # Log if a trade was executed and we haven't logged this step yet
-        if trade_executed and self.current_step > self.last_logged_step:
+        if (trade_executed and self.current_step > self.last_logged_step) or \
+           (self.current_step - self.last_logged_step) >= self.log_frequency:
             should_log = True
-        # Log every self.log_frequency steps
-        elif (self.current_step - self.last_logged_step) >= self.log_frequency:
-            should_log = True
-            
-        if should_log:
             self.last_logged_step = self.current_step
             logger.info(f"""
 Portfolio State:
@@ -264,33 +261,6 @@ Portfolio State:
   Shares: {self.shares_held:.4f}
   Net Worth: {self.net_worth:.2f}
   Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}%
-  Position Value: {(self.shares_held * current_price):.2f}
-""")
-
-        # Update portfolio value
-        self.net_worth = self.balance + (self.shares_held * current_price)
-        
-        # Log portfolio state based on frequency and when trades are executed
-        should_log = False
-        
-        # Log on trade execution (if we haven't logged this step)
-        if trade_executed and self.current_step > self.last_logged_step:
-            should_log = True
-        # Log based on frequency
-        elif self.current_step - self.last_logged_step >= self.log_frequency:
-            should_log = True
-            
-        if should_log:
-            self.last_logged_step = self.current_step
-            logger.info(f"""
-Portfolio State:
-  Step: {self.current_step}
-  Action: {action}
-  Price: {current_price:.2f}
-  Balance: {self.balance:.2f}
-  Shares: {self.shares_held:.4f}
-  Net Worth: {self.net_worth:.2f}
-  Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}% 
   Position Value: {(self.shares_held * current_price):.2f}
 """)
 
@@ -342,12 +312,12 @@ Portfolio State:
             }
         }
 
-        # Log reward components
+        # Log reward components directly from _compute_reward results
         logger.info(f"""
 Reward Components:
-  Base Reward: {base_reward if 'base_reward' in locals() else 0:.4f}
-  Position Profit: {position_profit * 0.01 if self.use_position_profit else 0:.4f}
-  Holding Bonus: {holding_bonus if 'holding_bonus' in locals() else 0:.4f}
+  Base Reward: {base_reward:.4f}
+  Position Profit: {position_profit_reward:.4f}
+  Holding Bonus: {holding_bonus:.4f}
   Final Reward: {reward:.4f}
 """)
 

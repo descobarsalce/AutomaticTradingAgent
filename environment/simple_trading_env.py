@@ -22,6 +22,17 @@ class SimpleTradingEnv(gym.Env):
         # Store data
         self.data = data
 
+        # Define action space as discrete: 0 (hold), 1 (buy), 2 (sell)
+        self.action_space = gym.spaces.Discrete(3)
+
+        # Define observation space for OHLCV + position + balance
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(7,),  # OHLCV + position + balance
+            dtype=np.float32
+        )
+
         # Initialize trading state
         self.initial_balance = initial_balance
         self.balance = initial_balance

@@ -209,6 +209,7 @@ class SimpleTradingEnv(gym.Env):
                 self.last_trade_step = self.current_step
                 self.episode_trades += 1
                 trade_executed = True
+                # Immediate trade logging
                 logger.info(f"""
 Trade Executed - BUY:
   Shares: {shares_to_buy:.4f}
@@ -229,6 +230,7 @@ Trade Executed - BUY:
                 self.shares_held -= shares_to_sell
                 self.episode_trades += 1
                 trade_executed = True
+                # Immediate trade logging
                 logger.info(f"""
 Trade Executed - SELL:
   Shares: {shares_to_sell:.4f}
@@ -240,6 +242,30 @@ Trade Executed - SELL:
                 if self.shares_held == 0:
                     self.holding_period = 0
                     self.last_trade_step = None
+
+        # Decide whether to log portfolio state
+        should_log = False
+        
+        # Log if a trade was executed and we haven't logged this step yet
+        if trade_executed and self.current_step > self.last_logged_step:
+            should_log = True
+        # Log every self.log_frequency steps
+        elif (self.current_step - self.last_logged_step) >= self.log_frequency:
+            should_log = True
+            
+        if should_log:
+            self.last_logged_step = self.current_step
+            logger.info(f"""
+Portfolio State:
+  Step: {self.current_step}
+  Action: {action}
+  Price: {current_price:.2f}
+  Balance: {self.balance:.2f}
+  Shares: {self.shares_held:.4f}
+  Net Worth: {self.net_worth:.2f}
+  Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}%
+  Position Value: {(self.shares_held * current_price):.2f}
+""")
 
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)

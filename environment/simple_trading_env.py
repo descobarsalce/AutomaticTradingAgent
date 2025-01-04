@@ -43,6 +43,67 @@ class SimpleTradingEnv(gym.Env):
         self.min_transaction_size = min_transaction_size
         self.max_position_pct = max_position_pct
 
+    def _compute_reward(
+        self,
+        prev_net_worth: float,
+        current_net_worth: float,
+        action: int,
+        position_profit: float,
+        holding_period: int,
+        trade_executed: bool
+    ) -> float:
+        """
+        Calculate the reward based on trading performance and behavior.
+        
+        Args:
+            prev_net_worth: Previous portfolio value
+            current_net_worth: Current portfolio value 
+            action: Trading action taken (0=hold, 1=buy, 2=sell)
+            position_profit: Profit/loss on current position
+            holding_period: Number of steps current position is held
+            trade_executed: Whether a trade was executed
+            
+        Returns:
+            float: Calculated reward value
+        """
+        reward = 0
+        base_reward = 0
+        position_profit_reward = 0
+        holding_bonus = 0
+        
+        # Base reward from portfolio return
+        if prev_net_worth > 0:
+            portfolio_return = (current_net_worth - prev_net_worth) / prev_net_worth
+            base_reward = portfolio_return
+            reward += base_reward
+            
+        # Position profit component
+        if self.use_position_profit and self.shares_held > 0:
+            position_profit_reward = position_profit
+            reward += position_profit_reward
+            
+        # Holding bonus for profitable positions
+        if self.use_holding_bonus and self.shares_held > 0:
+            holding_bonus = 0.001 * holding_period * position_profit if position_profit > 0 else 0
+            reward += holding_bonus
+            
+        # Trading penalty
+        if self.use_trading_penalty and action != 0:
+            holding_reward = reward
+            if action == 2 and self.shares_held > 0:  # Selling
+                reward = holding_reward * 0.2
+            elif action == 1:  # Buying
+                reward = holding_reward * 0.3
+                
+        # Early exploration bonus
+        if self.training_mode and self.episode_count < 10 and trade_executed:
+            exploration_bonus = 0.1
+            reward += exploration_bonus
+            
+        return reward, base_reward, position_profit_reward, holding_bonus
+
+
+
         # Define action space as discrete: 0 (hold), 1 (buy), 2 (sell)
         self.action_space = gym.spaces.Discrete(3)
 
@@ -204,43 +265,15 @@ Portfolio State:
         if self.shares_held > 0:
             self.holding_period += 1
 
-        # Calculate rewards with emphasis on holding profitable positions
-        reward = 0
-        base_reward = 0
-        position_profit_reward = 0
-        holding_bonus = 0
-
-        # 1. Base reward from portfolio change
-        if prev_net_worth > 0:
-            portfolio_return = (self.net_worth - prev_net_worth) / prev_net_worth
-            base_reward = portfolio_return
-            reward += base_reward
-
-        # 2. Position profit component
-        if self.use_position_profit and self.shares_held > 0:
-            position_profit_reward = position_profit  # Already calculated above
-            reward += position_profit_reward
-
-        # 3. Holding bonus
-        if self.use_holding_bonus and self.shares_held > 0:
-            holding_bonus = 0.001 * self.holding_period * position_profit if position_profit > 0 else 0
-            reward += holding_bonus
-
-        # 4. Trading penalty (always makes trading worse than holding)
-        if self.use_trading_penalty and action != 0:
-            # Calculate current holding reward for comparison
-            holding_reward = reward
-
-            # Ensure trading reward is less than holding by scaling down significantly
-            if action == 2 and self.shares_held > 0:  # Selling
-                reward = holding_reward * 0.2  # Trading reward is 20% of what holding would give
-            elif action == 1:  # Buying
-                reward = holding_reward * 0.3  # Slightly better than selling but still much worse than holding
-
-        # 5. Early exploration bonus during training
-        if self.training_mode and self.episode_count < 10 and trade_executed:
-            exploration_bonus = 0.1  # Small bonus for executing trades early in training
-            reward += exploration_bonus
+        # Calculate reward using dedicated method
+        reward, base_reward, position_profit_reward, holding_bonus = self._compute_reward(
+            prev_net_worth=prev_net_worth,
+            current_net_worth=self.net_worth,
+            action=action,
+            position_profit=position_profit,
+            holding_period=self.holding_period,
+            trade_executed=trade_executed
+        )
 
         # Update state
         self.current_step += 1

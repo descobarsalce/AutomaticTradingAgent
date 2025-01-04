@@ -41,6 +41,7 @@ class SimpleTradingEnv(gym.Env):
         self.current_step = 0
         self.last_logged_step = -1
         self.max_steps = len(data) if data is not None else 100
+        self.episode_count = 0
 
         # Track holding period and cost basis
         self.holding_period = 0

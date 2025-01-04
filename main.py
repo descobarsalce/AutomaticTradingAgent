@@ -64,6 +64,7 @@ def main():
     st.header("Training Mode")
     quick_mode = st.checkbox("Quick Training Mode", value=False)
     fast_eval = st.checkbox("Fast Evaluation", value=False)
+    log_frequency = st.number_input("Log Frequency (steps)", value=50, min_value=1, help="How often to log portfolio state (in steps)")
 
     # Environment parameters
     st.header("Environment Parameters")
@@ -117,7 +118,8 @@ def main():
             use_position_profit=use_position_profit,
             use_holding_bonus=use_holding_bonus,
             use_trading_penalty=use_trading_penalty,
-            training_mode=True
+            training_mode=True,
+            log_frequency=log_frequency
         )
         
         # Configure PPO parameters

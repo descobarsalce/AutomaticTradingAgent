@@ -1,0 +1,79 @@
+1. Throttling Logs More Effectively
+
+Original Code
+In your original code, you have two separate blocks in step() that decide whether to log the portfolio state:
+
+# One block:
+if should_log:
+    ...
+    logger.info(f"... Portfolio State ...")
+
+# Another block:
+should_log = False
+if trade_executed and self.current_step > self.last_logged_step:
+    should_log = True
+elif self.current_step - self.last_logged_step >= self.log_frequency:
+    should_log = True
+
+if should_log:
+    ...
+    logger.info(f"... Portfolio State ...")
+This causes duplicate portfolio logs in the same step.
+
+Revised Code
+The revised code consolidates portfolio-logging into a single block. After processing the buy/sell action, it checks:
+
+If a trade was executed and we haven’t logged yet.
+If self.current_step - self.last_logged_step >= self.log_frequency.
+Then it logs only once per step if those conditions are satisfied. This eliminates the second redundant block and prevents duplicate messages:
+
+# Decide whether to log portfolio state
+should_log = False
+if (trade_executed and self.current_step > self.last_logged_step):
+    should_log = True
+elif (self.current_step - self.last_logged_step) >= self.log_frequency:
+    should_log = True
+
+if should_log:
+    self.last_logged_step = self.current_step
+    logger.info(f"... Portfolio State ...")
+Difference: You now get only one portfolio log per step, rather than two.
+
+2. Consistent Reward Calculation
+
+Original Code
+You had a _compute_reward() function returning (reward, base_reward, position_profit_reward, holding_bonus), but some references in the info dictionary or logs used partial/different scaling for position profit or partial checks for local variables.
+Revised Code
+The reward flow is directly returned from _compute_reward(), and everything that goes into info['reward_components'] matches exactly what is calculated in _compute_reward().
+This ensures that the final reward, base_reward, position_profit_reward, and holding_bonus are consistent between logs and internal calculations.
+Difference: The final code ensures that the logs about reward components accurately reflect the final reward computation.
+
+3. Single Logging Block for Reward Components
+
+Original Code
+You logged reward components after you formed the info dict, sometimes referencing local variables (exploration_bonus, etc.) that might or might not exist in the current scope.
+Revised Code
+The code clarifies the usage of exploration_bonus by making sure it’s accounted for in _compute_reward() and set to zero if not applied.
+The final “Reward Components” log references the exact numbers returned from _compute_reward() to avoid inconsistencies.
+Difference: The reward component log is now more streamlined—always referencing the actual return values from _compute_reward().
+
+4. Optional Logging During Testing
+
+Original Code
+In test_random_actions(), you had a parameter log=False, but only partially used it to toggle logs.
+Revised Code
+The updated code explicitly sets the logger level to WARNING if log=False, and restores the original level upon completion. This provides a clearer way to suppress logs during tests while still allowing logs if log=True.
+Difference: Testing logs are more consistently controlled—so you don’t flood logs during automated tests unless you intentionally enable them.
+
+5. Collapsed or Removed Duplicates
+
+Original Code
+The environment code repeated some lines (like re-defining action_space and observation_space) at the bottom.
+Revised Code
+Those duplicates are removed or collapsed. The final environment now has a single initialization of action_space and observation_space at the top.
+Difference: Less redundancy, more clarity in the class definition.
+
+6. Parameter Renaming / Clarity (Optional)
+
+Some internal variable names or placement might have shifted slightly (e.g., the transaction fees are computed in a single place, then subtracted from balance, etc.), but the logic remains largely the same. The main structural difference is the streamlined approach to logging and reward consistency.
+

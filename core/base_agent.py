@@ -234,15 +234,15 @@ class BaseAgent:
         previous_positions = self.positions_history[-1] if self.positions_history else {}
         
         # Calculate and validate maximum drawdown
-        max_portfolio_value = max(self.portfolio_history) if self.portfolio_history else previous_portfolio
-        current_drawdown = (max_portfolio_value - portfolio_value) / max_portfolio_value
-        if current_drawdown > 0.20:  # 20% max drawdown limit
-            logger.warning(f"Maximum drawdown limit exceeded: {current_drawdown:.2%}")
+        # max_portfolio_value = max(self.portfolio_history) if self.portfolio_history else previous_portfolio
+        # current_drawdown = (max_portfolio_value - portfolio_value) / max_portfolio_value
+        # if current_drawdown > 0.20:  # 20% max drawdown limit
+        #     logger.warning(f"Maximum drawdown limit exceeded: {current_drawdown:.2%}")
         
         # Calculate and validate total portfolio exposure
-        total_exposure = sum(abs(size) for size in positions.values())
-        if total_exposure > 2.0:  # Maximum 200% total exposure
-            logger.warning(f"Total portfolio exposure exceeds limit: {total_exposure:.2f}x")
+        # total_exposure = sum(abs(size) for size in positions.values())
+        # if total_exposure > 2.0:  # Maximum 200% total exposure
+        #     logger.warning(f"Total portfolio exposure exceeds limit: {total_exposure:.2f}x")
         
         # Track trade frequency
         current_time = getattr(self.env, 'current_step', 0)

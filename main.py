@@ -99,14 +99,25 @@ def main():
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
         
-        # Create sample data for testing
-        data = pd.DataFrame({
-            'Open': [100] * 1000,
-            'High': [110] * 1000,
-            'Low': [90] * 1000,
-            'Close': [105] * 1000,
-            'Volume': [1000] * 1000
-        })
+        # Get data from database
+        from models.database import Session
+        from models.models import StockData
+        
+        session = Session()
+        data_records = session.query(StockData).order_by(StockData.date).all()
+        
+        if not data_records:
+            st.error("No data found in database. Please add some stock data first.")
+            return
+            
+        data = pd.DataFrame([{
+            'Open': record.open,
+            'High': record.high,
+            'Low': record.low,
+            'Close': record.close,
+            'Volume': record.volume,
+            'Date': record.date
+        } for record in data_records])
         
         # Create environment with selected components
         env = SimpleTradingEnv(
@@ -163,13 +174,16 @@ def main():
                 return
                 
             # Create test environment and data
-            test_data = pd.DataFrame({
-                'Open': [100] * 100,
-                'High': [110] * 100,
-                'Low': [90] * 100,
-                'Close': [105] * 100,
-                'Volume': [1000] * 100
-            })
+            # Get test data from database (last 100 records)
+            test_records = session.query(StockData).order_by(StockData.date.desc()).limit(100).all()
+            test_data = pd.DataFrame([{
+                'Open': record.open,
+                'High': record.high,
+                'Low': record.low,
+                'Close': record.close,
+                'Volume': record.volume,
+                'Date': record.date
+            } for record in test_records])
             
             test_env = SimpleTradingEnv(
                 data=test_data,

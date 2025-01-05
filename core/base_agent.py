@@ -27,7 +27,8 @@ class BaseAgent:
         'vf_coef': 0.8,
         'max_grad_norm': 0.3,
         'use_sde': False,
-        'target_kl': 0.05
+        'target_kl': 0.05,
+        'verbose': 0  # 0 for no output, 1 for every episode, 2 for every step
     }
 
     # Parameter ranges for optimization

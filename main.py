@@ -105,21 +105,25 @@ def main():
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
         
-        # Get data from database
-        data_records = session.query(StockData).order_by(StockData.date).all()
+        # Use DataHandler to get and prepare data with features
+        from data.data_handler import DataHandler
         
-        if not data_records:
+        data_handler = DataHandler()
+        portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=None, end_date=None)
+        
+        if not portfolio_data:
             st.error("No data found in database. Please add some stock data first.")
             return
             
-        data = pd.DataFrame([{
-            'Open': record.open,
-            'High': record.high,
-            'Low': record.low,
-            'Close': record.close,
-            'Volume': record.volume,
-            'Date': record.date
-        } for record in data_records])
+        # Prepare data with technical indicators
+        prepared_data = data_handler.prepare_data()
+        
+        # Use the first symbol's data since environment expects a single DataFrame
+        data = next(iter(prepared_data.values()))
+        
+        if len(data) < 50:
+            st.error("Insufficient data points (minimum 50 required for technical indicators)")
+            return
         
         # Create environment with selected components
         env = SimpleTradingEnv(
@@ -177,15 +181,11 @@ def main():
                 
             # Create test environment and data
             # Get test data from database (last 100 records)
-            test_records = session.query(StockData).order_by(StockData.date.desc()).limit(100).all()
-            test_data = pd.DataFrame([{
-                'Open': record.open,
-                'High': record.high,
-                'Low': record.low,
-                'Close': record.close,
-                'Volume': record.volume,
-                'Date': record.date
-            } for record in test_records])
+            # Use DataHandler for test data with features
+            data_handler = DataHandler()
+            test_portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=None, end_date=None)
+            test_prepared_data = data_handler.prepare_data()
+            test_data = next(iter(test_prepared_data.values()))[-100:]  # Get last 100 records with features
             
             test_env = SimpleTradingEnv(
                 data=test_data,

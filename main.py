@@ -81,7 +81,7 @@ def main():
     col3, col4 = st.columns(2)
     with col3:
         learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e", help="Suggested range: 1e-5 to 1e-3. Default: 3e-4")
-        n_steps = st.number_input("Number of Steps", value=256, help="Suggested range: 64 to 2048. Default: 256")
+        n_steps = st.number_input("Number of Steps", value=512, help="Suggested range: 64 to 2048. Default: 256")
         batch_size = st.number_input("Batch Size", value=128, help="Suggested range: 32 to 512. Default: 128")
         n_epochs = st.number_input("Number of Epochs", value=3, help="Suggested range: 1 to 10. Default: 3")
     with col4:

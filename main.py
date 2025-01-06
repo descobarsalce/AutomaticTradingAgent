@@ -181,20 +181,20 @@ def main():
         agent.save("trained_model.zip")
         st.success("Training completed and model saved!")
         
+    # Test period dates
+    st.subheader("Test Period")
+    test_col1, test_col2 = st.columns(2)
+    with test_col1:
+        test_start_date = st.date_input("Test Start Date", value=datetime.now() - timedelta(days=30))
+    with test_col2:
+        test_end_date = st.date_input("Test End Date", value=datetime.now())
+        
     if col_test.button("Test Model"):
         try:
             model_path = "trained_model.zip"
             if not os.path.exists(model_path):
                 st.error("Please train the model first before testing!")
                 return
-                
-            # Get test period dates
-            st.subheader("Test Period")
-            test_col1, test_col2 = st.columns(2)
-            with test_col1:
-                test_start_date = st.date_input("Test Start Date", value=datetime.now() - timedelta(days=30))
-            with test_col2:
-                test_end_date = st.date_input("Test End Date", value=datetime.now())
                 
             # Create test environment and data with selected dates
             data_handler = DataHandler()

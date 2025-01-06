@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 
 from utils.callbacks import ProgressBarCallback
+from metrics.metrics_calculator import MetricsCalculator
 from environment import SimpleTradingEnv
 from core import TradingAgent
 import pandas as pd
@@ -179,6 +180,33 @@ def main():
         
         agent.train(total_timesteps=total_timesteps, callback=progress_callback)
         agent.save("trained_model.zip")
+        
+        # Calculate and display performance metrics
+        portfolio_history = env.get_portfolio_history()
+        if len(portfolio_history) > 1:
+            returns = MetricsCalculator.calculate_returns(portfolio_history)
+            
+            metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+            
+            with metrics_col1:
+                st.metric("Sharpe Ratio", 
+                         f"{MetricsCalculator.calculate_sharpe_ratio(returns):.2f}")
+                st.metric("Maximum Drawdown", 
+                         f"{MetricsCalculator.calculate_maximum_drawdown(portfolio_history):.2%}")
+                
+            with metrics_col2:
+                st.metric("Sortino Ratio",
+                         f"{MetricsCalculator.calculate_sortino_ratio(returns):.2f}")
+                st.metric("Volatility",
+                         f"{MetricsCalculator.calculate_volatility(returns):.2%}")
+                
+            with metrics_col3:
+                final_value = portfolio_history[-1]
+                initial_value = portfolio_history[0]
+                total_return = (final_value - initial_value) / initial_value
+                st.metric("Total Return", f"{total_return:.2%}")
+                st.metric("Final Portfolio Value", f"${final_value:,.2f}")
+                
         st.success("Training completed and model saved!")
         
     # Test period dates

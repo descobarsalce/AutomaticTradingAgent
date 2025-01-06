@@ -315,13 +315,42 @@ def main():
                              f"${test_env._initial_balance:,.2f}")
 
                 # Plot portfolio value over time
+                st.subheader("Portfolio Value Over Time")
                 st.line_chart(pd.DataFrame(portfolio_history, columns=['Portfolio Value']))
                 
-                # Plot returns distribution
-                if len(returns) > 0:
-                    fig = go.Figure(data=[go.Histogram(x=returns, nbinsx=50)])
-                    fig.update_layout(title="Returns Distribution", xaxis_title="Return", yaxis_title="Frequency")
-                    st.plotly_chart(fig)
+                # Create columns for charts
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    # Returns distribution
+                    if len(returns) > 0:
+                        fig = go.Figure(data=[go.Histogram(x=returns, nbinsx=50)])
+                        fig.update_layout(
+                            title="Returns Distribution",
+                            xaxis_title="Return",
+                            yaxis_title="Frequency",
+                            showlegend=True
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                    # Drawdown chart
+                    st.subheader("Drawdown Over Time")
+                    values = np.array(portfolio_history)
+                    peak = np.maximum.accumulate(values)
+                    drawdowns = (peak - values) / peak
+                    dd_df = pd.DataFrame(drawdowns, columns=['Drawdown'])
+                    st.area_chart(dd_df)
+
+                with chart_col2:
+                    # Cumulative returns
+                    st.subheader("Cumulative Returns")
+                    cum_returns = pd.DataFrame(np.cumprod(1 + returns) - 1, columns=['Returns'])
+                    st.line_chart(cum_returns)
+                    
+                    # Rolling volatility
+                    st.subheader("30-Day Rolling Volatility")
+                    rolling_vol = pd.DataFrame(returns, columns=['Returns']).rolling(30).std() * np.sqrt(252)
+                    st.line_chart(rolling_vol)
                 
                 st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")
                 

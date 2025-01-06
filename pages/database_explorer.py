@@ -115,27 +115,21 @@ st.header("Data Management")
 # Add new stock symbol
 new_symbol = st.text_input("Add New Stock Symbol (e.g., AAPL)", "").upper()
 if new_symbol:
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input("Start Date", value=datetime.now() - timedelta(days=365))
-    with col2:
-        end_date = st.date_input("End Date", value=datetime.now())
-        
     if st.button("Add Stock"):
         try:
             from data.data_handler import DataHandler
             data_handler = DataHandler()
             
             # Check existing data
-            existing_data = data_handler.sql_manager.get_cached_data(new_symbol, start_date, end_date)
+            existing_data = data_handler.sql_manager.get_cached_data(new_symbol, None, None)
             if existing_data is not None:
                 earliest_date = existing_data.index.min()
                 latest_date = existing_data.index.max()
                 st.info(f"Existing data for {new_symbol} from {earliest_date.date()} to {latest_date.date()}")
             
-            # Download new data with date range
-            st.info(f"Downloading data for {new_symbol} from {start_date} to {end_date}...")
-            data = data_handler.fetch_data([new_symbol], start_date, end_date)
+            # Download new data
+            st.info(f"Downloading data for {new_symbol}...")
+            data = data_handler.fetch_data([new_symbol], None, None)
             st.success(f"Successfully downloaded data for {new_symbol}")
             st.experimental_rerun()
         except Exception as e:

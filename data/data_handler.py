@@ -83,43 +83,27 @@ class FeatureEngineer:
         for symbol, data in portfolio_data.items():
             try:
                 prepared_df = data.copy()
-                data_length = len(prepared_df)
-                
-                # Dynamically adjust window sizes based on available data
-                sma_short = min(20, max(5, data_length // 4))
-                sma_long = min(50, max(10, data_length // 2))
-                vol_window = min(20, max(5, data_length // 4))
-                rsi_period = min(14, max(5, data_length // 5))
-                
-                # Calculate indicators with minimum periods
-                prepared_df['SMA_20'] = prepared_df['Close'].rolling(window=sma_short, min_periods=1).mean()
-                prepared_df['SMA_50'] = prepared_df['Close'].rolling(window=sma_long, min_periods=1).mean()
-                prepared_df['RSI'] = self._calculate_rsi(prepared_df['Close'], period=rsi_period)
-                prepared_df['Volatility'] = prepared_df['Close'].pct_change().rolling(window=vol_window, min_periods=1).std()
-                
-                # Calculate correlations if multiple symbols exist
-                correlations = {}
-                for other_symbol, other_data in portfolio_data.items():
-                    if other_symbol != symbol:
-                        correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
-                prepared_df['Correlations'] = str(correlations)
-                
-                # Fill missing values
-                prepared_df = prepared_df.fillna(method='ffill').fillna(method='bfill')
-                
-                # Use first value for any remaining NaN
-                prepared_df = prepared_df.fillna(prepared_df.mean())
-                
-                if not prepared_df.empty:
-                    prepared_data[symbol] = prepared_df
+                if len(prepared_df) >= 50:
+                    prepared_df['SMA_20'] = prepared_df['Close'].rolling(window=20, min_periods=20).mean()
+                    prepared_df['SMA_50'] = prepared_df['Close'].rolling(window=50, min_periods=50).mean()
+                    prepared_df['RSI'] = self._calculate_rsi(prepared_df['Close'])
+                    prepared_df['Volatility'] = prepared_df['Close'].pct_change().rolling(window=20, min_periods=20).std()
+                    correlations = {}
+                    for other_symbol, other_data in portfolio_data.items():
+                        if other_symbol != symbol:
+                            correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
+                    prepared_df['Correlations'] = str(correlations)
+                    prepared_df = prepared_df.dropna()
+                    if not prepared_df.empty:
+                        prepared_data[symbol] = prepared_df
+                    else:
+                        print(f"Warning: No valid data points remaining for {symbol} after calculations")
                 else:
-                    print(f"Warning: No valid data points for {symbol}")
+                    print(f"Warning: Insufficient data points for {symbol} (minimum 50 required)")
                     prepared_data[symbol] = data
-                    
             except Exception as e:
                 print(f"Error preparing data for {symbol}: {str(e)}")
                 prepared_data[symbol] = data
-                
         return prepared_data
 
     def _calculate_rsi(self, prices, period=14):

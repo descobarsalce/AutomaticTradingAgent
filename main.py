@@ -100,6 +100,14 @@ def main():
     
     session = Session()
 
+    # Add date selection for training period
+    st.subheader("Training Period")
+    train_col1, train_col2 = st.columns(2)
+    with train_col1:
+        train_start_date = st.date_input("Training Start Date", value=datetime.now() - timedelta(days=365))
+    with train_col2:
+        train_end_date = st.date_input("Training End Date", value=datetime.now() - timedelta(days=30))
+        
     if col_train.button("Start Training"):
         # Create progress tracking elements
         progress_bar = st.progress(0)
@@ -109,7 +117,7 @@ def main():
         from data.data_handler import DataHandler
         
         data_handler = DataHandler()
-        portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=None, end_date=None)
+        portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=train_start_date, end_date=train_end_date)
         
         if not portfolio_data:
             st.error("No data found in database. Please add some stock data first.")
@@ -179,11 +187,17 @@ def main():
                 st.error("Please train the model first before testing!")
                 return
                 
-            # Create test environment and data
-            # Get test data from database (last 100 records)
-            # Use DataHandler for test data with features
+            # Get test period dates
+            st.subheader("Test Period")
+            test_col1, test_col2 = st.columns(2)
+            with test_col1:
+                test_start_date = st.date_input("Test Start Date", value=datetime.now() - timedelta(days=30))
+            with test_col2:
+                test_end_date = st.date_input("Test End Date", value=datetime.now())
+                
+            # Create test environment and data with selected dates
             data_handler = DataHandler()
-            test_portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=None, end_date=None)
+            test_portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=test_start_date, end_date=test_end_date)
             test_prepared_data = data_handler.prepare_data()
             test_data = next(iter(test_prepared_data.values()))[-100:]  # Get last 100 records with features
             

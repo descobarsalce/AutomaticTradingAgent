@@ -1,4 +1,3 @@
-
 import streamlit as st
 import os
 import logging
@@ -109,15 +108,16 @@ def main():
     with train_col2:
         train_end_date = st.date_input("Training End Date", value=datetime.now() - timedelta(days=30))
         
+    # Use DataHandler to get and prepare data with features
+    from data.data_handler import DataHandler
+    data_handler = DataHandler()
+
     if col_train.button("Start Training"):
         # Create progress tracking elements
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
         
-        # Use DataHandler to get and prepare data with features
-        from data.data_handler import DataHandler
         
-        data_handler = DataHandler()
         portfolio_data = data_handler.fetch_data(symbols=['AAPL'], start_date=train_start_date, end_date=train_end_date)
         
         if not portfolio_data:

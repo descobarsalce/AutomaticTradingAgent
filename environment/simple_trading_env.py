@@ -23,6 +23,7 @@ class SimpleTradingEnv(gym.Env):
                  training_mode=False,
                  log_frequency=30):
         super().__init__()
+        self._portfolio_history = []  # Track portfolio value over time
         self.use_position_profit = use_position_profit
         self.use_holding_bonus = use_holding_bonus
         self.use_trading_penalty = use_trading_penalty
@@ -137,6 +138,7 @@ class SimpleTradingEnv(gym.Env):
     def reset(self, seed=None, options=None):
         """Reset the environment to initial state."""
         super().reset(seed=seed)
+        self._portfolio_history = []  # Reset portfolio history
         self.current_step = 0
         self.balance = self.initial_balance
         self.shares_held = 0
@@ -239,6 +241,7 @@ class SimpleTradingEnv(gym.Env):
 
         # Update portfolio value
         self.net_worth = self.balance + (self.shares_held * current_price)
+        self._portfolio_history.append(self.net_worth)
 
         # Decide whether to log portfolio state (single consolidated check)
         should_log = False
@@ -303,6 +306,10 @@ class SimpleTradingEnv(gym.Env):
         #             """)
 
         return next_observation, reward, done, truncated, info
+
+    def get_portfolio_history(self):
+        """Return the history of portfolio values"""
+        return self._portfolio_history
 
     def test_random_actions(self,
                             n_steps: int = 512,

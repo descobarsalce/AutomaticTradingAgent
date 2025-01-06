@@ -8,6 +8,7 @@ from metrics.metrics_calculator import MetricsCalculator
 from environment import SimpleTradingEnv
 from core import TradingAgent
 import pandas as pd
+import plotly.graph_objects as go # Added import for Plotly
 
 def init_session_state():
     """Initialize all session state variables"""
@@ -281,6 +282,46 @@ def main():
                         'Portfolio Value': round(info['net_worth'], 2),
                         'Position': round(float(test_env.shares_held), 3)
                     })
+
+                # Calculate comprehensive metrics
+                portfolio_history = test_env.get_portfolio_history()
+                returns = MetricsCalculator.calculate_returns(portfolio_history)
+                
+                # Create columns for metrics display
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Sharpe Ratio", 
+                             f"{MetricsCalculator.calculate_sharpe_ratio(returns):.2f}")
+                    st.metric("Maximum Drawdown", 
+                             f"{MetricsCalculator.calculate_maximum_drawdown(portfolio_history):.2%}")
+                    st.metric("Total Return", 
+                             f"{(info['net_worth'] - test_env._initial_balance) / test_env._initial_balance:.2%}")
+                
+                with col2:
+                    st.metric("Sortino Ratio",
+                             f"{MetricsCalculator.calculate_sortino_ratio(returns):.2f}")
+                    st.metric("Information Ratio",
+                             f"{MetricsCalculator.calculate_information_ratio(returns):.2f}")
+                    st.metric("Volatility",
+                             f"{MetricsCalculator.calculate_volatility(returns):.2%}")
+                
+                with col3:
+                    st.metric("Beta",
+                             f"{MetricsCalculator.calculate_beta(returns, data['Close'].pct_change().values):.2f}")
+                    st.metric("Final Portfolio Value", 
+                             f"${info['net_worth']:,.2f}")
+                    st.metric("Initial Balance",
+                             f"${test_env._initial_balance:,.2f}")
+
+                # Plot portfolio value over time
+                st.line_chart(pd.DataFrame(portfolio_history, columns=['Portfolio Value']))
+                
+                # Plot returns distribution
+                if len(returns) > 0:
+                    fig = go.Figure(data=[go.Histogram(x=returns, nbinsx=50)])
+                    fig.update_layout(title="Returns Distribution", xaxis_title="Return", yaxis_title="Frequency")
+                    st.plotly_chart(fig)
                 
                 st.success(f"Test completed! Final portfolio value: ${info['net_worth']:.2f}")
                 

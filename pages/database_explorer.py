@@ -109,19 +109,79 @@ if st.button("Query Data"):
     else:
         st.warning("No data available for the selected criteria.")
 
-# Cache Management
-st.header("Cache Management")
+# Data Management
+st.header("Data Management")
 
-# Display cached symbols with update buttons
+# Add new stock symbol
+new_symbol = st.text_input("Add New Stock Symbol (e.g., AAPL)", "").upper()
+if new_symbol:
+    if st.button("Add Stock"):
+        try:
+            from data.data_handler import DataHandler
+            data_handler = DataHandler()
+            
+            # Check existing data
+            existing_data = data_handler.sql_manager.get_cached_data(new_symbol, None, None)
+            if existing_data is not None:
+                earliest_date = existing_data.index.min()
+                latest_date = existing_data.index.max()
+                st.info(f"Existing data for {new_symbol} from {earliest_date.date()} to {latest_date.date()}")
+            
+            # Download new data
+            st.info(f"Downloading data for {new_symbol}...")
+            data = data_handler.fetch_data([new_symbol], None, None)
+            st.success(f"Successfully downloaded data for {new_symbol}")
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error downloading data: {str(e)}")
+
+# Display and update existing symbols
+st.subheader("Update Existing Data")
 for symbol in symbols:
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     last_update = next((update[1] for update in last_updates if update[0] == symbol), None)
     
     col1.text(f"{symbol} - Last Update: {last_update}")
-    if col2.button(f"Refresh {symbol}", key=f"refresh_{symbol}"):
-        st.warning(f"Refreshing data for {symbol}...")
-        # Note: Actual refresh logic would be implemented in data_handler.py
+    
+    if col2.button(f"Check Gaps {symbol}", key=f"check_{symbol}"):
+        from data.data_handler import DataHandler
+        data_handler = DataHandler()
+        data = data_handler.sql_manager.get_cached_data(symbol, None, None)
+        
+        if data is not None:
+            # Check for gaps in data
+            data = data.sort_index()
+            date_gaps = data.index.to_series().diff().dt.days > 1
+            gaps = date_gaps[date_gaps].index
+            
+            if len(gaps) > 0:
+                st.warning(f"Found {len(gaps)} gaps in data for {symbol}")
+                for gap in gaps[:5]:  # Show first 5 gaps
+                    st.write(f"Gap around: {gap.date()}")
+            else:
+                st.success("No gaps found in the data")
+    
+    if col3.button(f"Update {symbol}", key=f"refresh_{symbol}"):
+        try:
+            from data.data_handler import DataHandler
+            data_handler = DataHandler()
+            st.info(f"Updating data for {symbol}...")
+            data_handler.fetch_data([symbol], None, None)
+            st.success(f"Successfully updated {symbol}")
+            st.experimental_rerun()
+        except Exception as e:
+            st.error(f"Error updating data: {str(e)}")
 
-if st.button("Refresh All Data"):
-    st.warning("Refreshing all symbols...")
-    # Note: Actual refresh logic would be implemented in data_handler.py
+if st.button("Update All Symbols"):
+    try:
+        from data.data_handler import DataHandler
+        data_handler = DataHandler()
+        progress_bar = st.progress(0)
+        for i, symbol in enumerate(symbols):
+            st.info(f"Updating {symbol}...")
+            data_handler.fetch_data([symbol], None, None)
+            progress_bar.progress((i + 1) / len(symbols))
+        st.success("Successfully updated all symbols")
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f"Error updating data: {str(e)}")

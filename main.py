@@ -237,7 +237,8 @@ def main():
                 progress_bar = st.progress(0)
                 metrics_placeholder = st.empty()
                 
-                while not done and steps < 100:
+                total_steps = len(test_data)
+                while not done:
                     action = test_agent.predict(obs)
                     obs, reward, terminated, truncated, info = test_env.step(action)
                     done = terminated or truncated
@@ -245,7 +246,7 @@ def main():
                     steps += 1
                     
                     # Update progress and metrics
-                    progress_bar.progress(steps / 100)
+                    progress_bar.progress(steps / total_steps)
                     metrics_placeholder.write({
                         'Step': steps,
                         'Reward': round(total_reward, 2),

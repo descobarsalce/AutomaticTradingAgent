@@ -94,16 +94,18 @@ def main():
     
     col_train, col_test = st.columns(2)
     
+    # Initialize database session
+    from models.database import Session
+    from models.models import StockData
+    
+    session = Session()
+
     if col_train.button("Start Training"):
         # Create progress tracking elements
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
         
         # Get data from database
-        from models.database import Session
-        from models.models import StockData
-        
-        session = Session()
         data_records = session.query(StockData).order_by(StockData.date).all()
         
         if not data_records:

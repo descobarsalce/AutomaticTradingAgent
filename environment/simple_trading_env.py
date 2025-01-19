@@ -161,6 +161,11 @@ class SimpleTradingEnv(gym.Env):
         }
         return observation, info
 
+    @property
+    def _initial_balance(self):
+        """Property to maintain backward compatibility"""
+        return self.initial_balance
+
     def step(self, action):
         """Execute one step in the environment."""
         self.total_steps += 1

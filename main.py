@@ -59,6 +59,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.ppo_fin_model import PPOAgentModel
+import optuna # Added import for Optuna
 
 # Configure logging
 import logging
@@ -160,61 +161,81 @@ class StreamlitLogHandler(logging.Handler):
             print(f"Logging error: {e}")
 
 
+def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end_date: datetime, env_params: Dict[str, Any]) -> None:
+    st.header("Hyperparameter Tuning Options")
+
+    trials_number = st.number_input("Number of Trials", min_value=1, value=10, step=1)
+    st.write("Parameter Ranges:")
+    st.write("- Learning Rate: 1e-5 to 5e-4")
+    st.write("- Steps per Update: 512 to 2048")
+    st.write("- Batch Size: 64 to 512")
+    st.write("- Training Epochs: 3 to 10")
+    st.write("- Gamma (Discount): 0.90 to 0.999")
+    st.write("- GAE Lambda: 0.90 to 0.99")
+
+    if st.button("Start Hyperparameter Tuning"):
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        study = optuna.create_study(direction='maximize')
+
+        def objective(trial: optuna.Trial) -> float:
+            try:
+                ppo_params = {
+                    'learning_rate': trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                    'n_steps': trial.suggest_int('n_steps', 512, 2048),
+                    'batch_size': trial.suggest_int('batch_size', 64, 512),
+                    'n_epochs': trial.suggest_int('n_epochs', 3, 10),
+                    'gamma': trial.suggest_uniform('gamma', 0.90, 0.999),
+                    'gae_lambda': trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                }
+
+                status_text.text(f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}")
+
+                # Train with current parameters
+                metrics = st.session_state.model.train(
+                    stock_name=stock_name,
+                    start_date=train_start_date,
+                    end_date=train_end_date,
+                    env_params=env_params,
+                    ppo_params=ppo_params
+                )
+
+                # Use Sharpe ratio as optimization metric
+                trial_value = metrics.get('sharpe_ratio', float('-inf'))
+                progress = (trial.number + 1) / trials_number
+                progress_bar.progress(progress)
+
+                return trial_value
+
+            except Exception as e:
+                st.error(f"Error in trial {trial.number}: {str(e)}")
+                return float('-inf')
+
+        try:
+            study.optimize(objective, n_trials=trials_number)
+
+            st.success("Hyperparameter tuning completed!")
+
+            # Display results
+            results_df = pd.DataFrame({
+                'Parameter': list(study.best_params.keys()),
+                'Best Value': list(study.best_params.values())
+            })
+
+            st.write("Best Parameters Found:")
+            st.dataframe(results_df)
+            st.metric("Best Sharpe Ratio", f"{study.best_value:.4f}")
+
+            # Save best parameters
+            st.session_state.ppo_params = study.best_params
+
+        except Exception as e:
+            st.error(f"Optimization failed: {str(e)}")
+
+
 def main() -> None:
-    """
-    Main application entry point that sets up the Streamlit interface.
-
-    System Components:
-        1. Logging System:
-           - Custom StreamlitLogHandler for UI integration
-           - Configurable log levels and formatting
-
-        2. UI Components:
-           - Parameter input widgets
-           - Training controls
-           - Performance metrics display
-           - Interactive charts
-
-        3. Training Interface:
-           - Model configuration
-           - Progress tracking
-           - Results visualization
-
-        4. Testing Interface:
-           - Model evaluation
-           - Performance analysis
-           - Portfolio tracking
-
-    Implementation Flow:
-        1. Initialize session state and logging
-        2. Setup UI components and layouts
-        3. Handle user interactions and model training
-        4. Process and display results
-
-    Error Handling:
-        - Graceful handling of training failures
-        - User feedback for invalid inputs
-        - Session state persistence
-
-    Example Usage:
-        ```bash
-        streamlit run main.py
-        ```
-    """
     init_session_state()
-
-    # Configure logging
-    handler = StreamlitLogHandler()
-    handler.setFormatter(
-        logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
-
-    # Create sidebar for logs
-    with st.sidebar:
-        st.header("Logs")
-        for log in st.session_state.log_messages:
-            st.text(log)
 
     st.title("Trading Agent Configuration")
 
@@ -229,50 +250,52 @@ def main() -> None:
         initial_balance = st.number_input("Initial Balance", value=10000)
 
     with col2:
-        transaction_cost = st.number_input("Transaction Cost",
-                                           value=0.01,
-                                           step=0.001)
+        transaction_cost = st.number_input("Transaction Cost", value=0.01, step=0.001)
 
-    # Agent parameters
-    st.header("Agent Parameters")
-    col3, col4 = st.columns(2)
-    with col3:
-        learning_rate = st.number_input("Learning Rate",
-                                        value=3e-4,
-                                        format="%.1e")
-        ppo_steps = st.number_input("PPO Steps Per Update", value=512, help="Number of steps to collect before updating the policy")
-        batch_size = st.number_input("Batch Size", value=128)
-        n_epochs = st.number_input("Number of Epochs", value=5)
-    with col4:
-        gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
-        clip_range = st.number_input("Clip Range", value=0.2)
-        target_kl = st.number_input("Target KL Divergence", value=0.05)
+    env_params = {
+        'initial_balance': initial_balance,
+        'transaction_cost': transaction_cost,
+        'use_position_profit': False,
+        'use_holding_bonus': False,
+        'use_trading_penalty': False
+    }
 
-    col_train, col_test = st.columns(2)
-
-    # Date selection
+    # Date selection for training
     st.subheader("Training Period")
     train_col1, train_col2 = st.columns(2)
     with train_col1:
         train_start_date = st.date_input("Training Start Date",
-                                         value=datetime.now() -
-                                         timedelta(days=365 * 5))
+                                       value=datetime.now() - timedelta(days=365 * 5))
     with train_col2:
         train_end_date = st.date_input("Training End Date",
-                                       value=datetime.now() -
-                                       timedelta(days=365 + 1))
+                                     value=datetime.now() - timedelta(days=365 + 1))
+
+    tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
+
+    with tab1:
+        # Original manual parameter selection
+        st.header("Agent Parameters")
+        col3, col4 = st.columns(2)
+        with col3:
+            learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e")
+            ppo_steps = st.number_input("PPO Steps Per Update", value=512)
+            batch_size = st.number_input("Batch Size", value=128)
+            n_epochs = st.number_input("Number of Epochs", value=5)
+        with col4:
+            gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
+            clip_range = st.number_input("Clip Range", value=0.2)
+            target_kl = st.number_input("Target KL Divergence", value=0.05)
+
+    with tab2:
+        # Hyperparameter tuning section
+        hyperparameter_tuning(stock_name, train_start_date, train_end_date, env_params)
+
+
+    col_train, col_test = st.columns(2)
 
     if col_train.button("Start Training"):
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
-
-        env_params = {
-            'initial_balance': initial_balance,
-            'transaction_cost': transaction_cost,
-            'use_position_profit': False,
-            'use_holding_bonus': False,
-            'use_trading_penalty': False
-        }
 
         ppo_params = {
             'learning_rate': learning_rate,
@@ -283,6 +306,7 @@ def main() -> None:
             'clip_range': clip_range,
             'target_kl': target_kl
         }
+
 
         progress_callback = ProgressBarCallback(
             total_timesteps=(train_end_date - train_start_date).days,
@@ -412,6 +436,21 @@ def main() -> None:
 
         except Exception as e:
             st.error(f"Error during testing: {str(e)}")
+
+
+    # Configure logging
+    handler = StreamlitLogHandler()
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(handler)
+    logging.getLogger().setLevel(logging.INFO)
+
+    # Create sidebar for logs
+    with st.sidebar:
+        st.header("Logs")
+        for log in st.session_state.log_messages:
+            st.text(log)
+
 
 
 if __name__ == "__main__":

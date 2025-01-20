@@ -4,6 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import and_
 from models.database import Session, StockData
+from data.data_feature_engineer import FeatureEngineer
 
 class SQLDataManager:
     def __init__(self):
@@ -75,43 +76,6 @@ class SQLDataManager:
         except Exception as e:
             print(f"Error caching data: {e}")
             self.session.rollback()
-
-
-class FeatureEngineer:
-    def prepare_data(self, portfolio_data):
-        prepared_data = {}
-        for symbol, data in portfolio_data.items():
-            try:
-                prepared_df = data.copy()
-                if len(prepared_df) >= 50:
-                    prepared_df['SMA_20'] = prepared_df['Close'].rolling(window=20, min_periods=20).mean()
-                    prepared_df['SMA_50'] = prepared_df['Close'].rolling(window=50, min_periods=50).mean()
-                    prepared_df['RSI'] = self._calculate_rsi(prepared_df['Close'])
-                    prepared_df['Volatility'] = prepared_df['Close'].pct_change().rolling(window=20, min_periods=20).std()
-                    correlations = {}
-                    for other_symbol, other_data in portfolio_data.items():
-                        if other_symbol != symbol:
-                            correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
-                    prepared_df['Correlations'] = str(correlations)
-                    prepared_df = prepared_df.dropna()
-                    if not prepared_df.empty:
-                        prepared_data[symbol] = prepared_df
-                    else:
-                        print(f"Warning: No valid data points remaining for {symbol} after calculations")
-                else:
-                    print(f"Warning: Insufficient data points for {symbol} (minimum 50 required)")
-                    prepared_data[symbol] = data
-            except Exception as e:
-                print(f"Error preparing data for {symbol}: {str(e)}")
-                prepared_data[symbol] = data
-        return prepared_data
-
-    def _calculate_rsi(self, prices, period=14):
-        delta = prices.diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-        rs = gain / loss
-        return 100 - (100 / (1 + rs))
 
 
 class DataHandler:

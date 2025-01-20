@@ -488,6 +488,12 @@ def main() -> None:
                 else:
                     portfolio_data = st.session_state.model.data_handler.prepare_data()
                     
+                    # Clear any previous charts
+                    if 'previous_charts' in st.session_state:
+                        for key in list(st.session_state.keys()):
+                            if key.startswith('chart_'):
+                                del st.session_state[key]
+                    
                     for symbol, data in portfolio_data.items():
                         st.subheader(f"{symbol} Technical Analysis")
                         

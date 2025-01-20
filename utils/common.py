@@ -1,10 +1,19 @@
 """
-Trading platform shared utilities module.
-Contains common constants and validation functions used across the platform.
+Trading Platform Shared Utilities
+Provides common constants, validation functions, and type checking decorators used across the platform.
+
+This module centralizes:
+- Trading constants and limits
+- Parameter validation
+- Type checking decorators
+- Common mathematical constants
 """
 
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Union, Optional, Callable, get_type_hints
 import logging
+import inspect
+import numpy as np
+from gymnasium import Env
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -18,19 +27,20 @@ ch.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 
-# Add the handlers to the logger if not already added
-if not logger.handlers:
-    logger.addHandler(ch)
-
 def validate_trading_params(params: Dict[str, Any]) -> bool:
     """
-    Validate trading parameters.
-    
+    Validate trading algorithm parameters against required constraints.
+
+    Checks:
+    - Presence of required parameters
+    - Value ranges for learning rates
+    - Integer constraints for steps and batch sizes
+
     Args:
-        params: Dictionary of trading parameters
-        
+        params: Dictionary of parameter names and values
+
     Returns:
-        bool: True if valid, False otherwise
+        bool: True if parameters are valid, False otherwise
     """
     try:
         required_params = {'learning_rate', 'n_steps', 'batch_size'}
@@ -53,22 +63,22 @@ def validate_trading_params(params: Dict[str, Any]) -> bool:
         logger.error(f"Error validating trading parameters: {str(e)}")
         return False
 
-# Trading Constants
+# Trading Constants with Documentation
 
 # Position and Risk Management
-MAX_POSITION_SIZE = 100.0  # Maximum allowed position size (100% of portfolio)
+MAX_POSITION_SIZE = 100.0  # Maximum allowed position size as % of portfolio
 MIN_POSITION_SIZE = -100.0  # Minimum allowed position size (100% short)
-MAX_LEVERAGE = 5.0  # Maximum allowed leverage
-MIN_TRADE_SIZE = 0.01  # Minimum trade size allowed
-DEFAULT_STOP_LOSS = 1 #0.1  # Default stop loss percentage (2%)
-DEFAULT_TAKE_PROFIT = 1 #0.1  # Default take profit percentage (5%)
+MAX_LEVERAGE = 5.0  # Maximum allowed leverage multiplier
+MIN_TRADE_SIZE = 0.01  # Minimum trade size as % of portfolio
+DEFAULT_STOP_LOSS = 1.0  # Default stop loss percentage
+DEFAULT_TAKE_PROFIT = 1.0  # Default take profit percentage
 
 # Market Parameters
-TRADING_DAYS_PER_YEAR = 252  # Standard number of trading days in a year
-MIN_DATA_POINTS = 252  # Minimum data points required for reliable statistics
-RISK_FREE_RATE = 0.02  # Annual risk-free rate (2%)
-MAX_TRADES_PER_DAY = 10  # Maximum number of trades allowed per day
-CORRELATION_THRESHOLD = 0.7  # Threshold for significant correlation between assets
+TRADING_DAYS_PER_YEAR = 252  # Standard trading days in a year
+MIN_DATA_POINTS = 252  # Minimum data points for reliable statistics
+RISK_FREE_RATE = 0.02  # Annual risk-free rate for calculations
+MAX_TRADES_PER_DAY = 10  # Maximum allowed trades per day
+CORRELATION_THRESHOLD = 0.7  # Threshold for significant correlation
 
 # Precision Settings
 PRICE_PRECISION = 2  # Decimal places for price values
@@ -76,15 +86,24 @@ POSITION_PRECISION = 4  # Decimal places for position sizes
 
 # Calculation Constants
 ANNUALIZATION_FACTOR = 252 ** 0.5  # Square root of trading days for annualization
-from functools import wraps
-from typing import Callable, Dict, Any, get_type_hints, Union, Optional
-import inspect
-import numpy as np
-from gymnasium import Env
 
 def type_check(func: Callable) -> Callable:
     """
-    Decorator for runtime type checking of function parameters and return value.
+    Decorator for runtime type checking of function parameters and return values.
+
+    Validates:
+    - Parameter types against type hints
+    - Return value type against return hint
+    - Special handling for numpy arrays and Gym environments
+
+    Args:
+        func: Function to be type checked
+
+    Returns:
+        Callable: Wrapped function with type checking
+
+    Raises:
+        TypeError: If parameter or return types don't match hints
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -141,3 +160,5 @@ def type_check(func: Callable) -> Callable:
         return result
     
     return wrapper
+
+from functools import wraps

@@ -1,4 +1,15 @@
-from typing import Dict, Any, Optional, Union, cast
+"""
+Trading Agent Implementation
+Implements a reinforcement learning agent for automated trading using discrete actions.
+
+The agent uses PPO (Proximal Policy Optimization) for training and supports:
+- Discrete action space (buy/sell/hold)
+- Portfolio state tracking
+- Transaction cost handling
+- Position sizing rules
+"""
+
+from typing import Dict, Any, Optional, Union, Tuple, cast
 import numpy as np
 import logging
 from gymnasium import Env
@@ -6,22 +17,39 @@ from stable_baselines3.common.callbacks import BaseCallback
 from core.base_agent import BaseAgent
 from utils.data_utils import validate_numeric
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE,
-                          DEFAULT_STOP_LOSS, validate_trading_params)
+                        DEFAULT_STOP_LOSS, validate_trading_params)
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 class TradingAgent(BaseAgent):
-    """Trading agent with discrete action support."""
+    """
+    Trading agent implementation with discrete action support.
+
+    Implements a trading strategy using reinforcement learning with:
+    - Discrete action space (0=hold, 1=buy, 2=sell)
+    - Position tracking and management
+    - Risk controls including position limits and stop losses
+
+    Attributes:
+        max_position_size (float): Maximum allowed position size as % of portfolio
+        min_position_size (float): Minimum allowed position size as % of portfolio
+        stop_loss (float): Stop loss threshold as a decimal
+    """
 
     def __init__(self,
-                 env: Env,
-                 ppo_params: Optional[Dict[str, Union[float, int, bool,
-                                                      None]]] = None,
-                 seed: Optional[int] = None) -> None:
-        """Initialize trading agent with discrete actions."""
+                env: Env,
+                ppo_params: Optional[Dict[str, Union[float, int, bool, None]]] = None,
+                seed: Optional[int] = None) -> None:
+        """
+        Initialize trading agent with discrete actions.
 
+        Args:
+            env: Gymnasium environment for trading
+            ppo_params: Configuration parameters for the PPO algorithm
+            seed: Random seed for reproducibility
+        """
         # Initialize base agent with policy suited for discrete actions
         super().__init__(
             env,
@@ -39,17 +67,20 @@ class TradingAgent(BaseAgent):
         self.stop_loss = DEFAULT_STOP_LOSS
 
     def predict(self,
-                observation: np.ndarray,
-                deterministic: bool = True) -> np.ndarray:
+               observation: np.ndarray,
+               deterministic: bool = True) -> np.ndarray:
         """
-        Make a prediction using discrete actions.
+        Generate trading decisions based on current market observation.
 
         Args:
-            observation: Current environment observation
-            deterministic: Whether to use deterministic actions
+            observation: Current market state observation
+            deterministic: Whether to use deterministic action selection
 
         Returns:
             np.ndarray: Discrete action (0=hold, 1=buy, 2=sell)
+
+        Raises:
+            ValueError: If action prediction is invalid
         """
         # Get raw action from model
         action = super().predict(observation, deterministic)
@@ -73,13 +104,19 @@ class TradingAgent(BaseAgent):
         # """)
         return np.array([action])
 
-    def update_state(self, portfolio_value: float,
-                     positions: Dict[str, float]) -> None:
+    def update_state(self, 
+                    portfolio_value: float,
+                    positions: Dict[str, float]) -> None:
         """
-        Update agent state with portfolio information.
-        Uses simplified validation in fast eval mode.
-        """
+        Update agent's internal state with current portfolio information.
 
+        Args:
+            portfolio_value: Current total portfolio value
+            positions: Dictionary mapping symbols to position sizes
+
+        Raises:
+            ValueError: If position sizes are invalid or exceed limits
+        """
         # Full validation only in normal mode
         for symbol, size in positions.items():
             if not isinstance(size, (int, float)) or not np.isfinite(size):
@@ -91,14 +128,17 @@ class TradingAgent(BaseAgent):
         super().update_state(portfolio_value, positions)
 
     def train(self,
-              total_timesteps: int,
-              callback: Optional[BaseCallback] = None) -> None:
+             total_timesteps: int,
+             callback: Optional[BaseCallback] = None) -> None:
         """
-        Train the agent with progress tracking.
+        Train the agent on historical market data.
 
         Args:
-            total_timesteps (int): Number of steps to train
-            callback (Optional[BaseCallback]): Progress tracking callback
+            total_timesteps: Number of environment steps to train for
+            callback: Optional callback for tracking training progress
+
+        Raises:
+            ValueError: If total_timesteps is not a positive integer
         """
         if not isinstance(total_timesteps, int) or total_timesteps <= 0:
             raise ValueError("total_timesteps must be a positive integer")

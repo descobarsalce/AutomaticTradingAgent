@@ -1,9 +1,21 @@
+"""
+Trading Agent Web Interface
+A Streamlit-based dashboard for configuring and managing reinforcement learning trading agents.
+
+The interface allows users to:
+- Configure and train trading agents with custom parameters
+- Test agent performance on historical data
+- Visualize trading results and performance metrics
+- Monitor training progress and logs
+"""
+
 import streamlit as st
 import os
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional, Union
 from utils.callbacks import ProgressBarCallback
 from core.ppo_fin_model import PPOAgentModel
 
@@ -14,8 +26,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def init_session_state():
-    """Initialize all session state variables"""
+def init_session_state() -> None:
+    """
+    Initialize Streamlit session state variables for persistent storage across reruns.
+
+    Initializes:
+        - log_messages: List of logging messages
+        - ppo_params: PPO algorithm parameters
+        - model: Trading agent model instance
+    """
     if 'log_messages' not in st.session_state:
         st.session_state.log_messages = []
     if 'ppo_params' not in st.session_state:
@@ -25,21 +44,39 @@ def init_session_state():
 
 
 class StreamlitLogHandler(logging.Handler):
+    """
+    Custom logging handler that redirects log messages to Streamlit's interface.
 
-    def emit(self, record):
+    Maintains a fixed-size buffer of recent log messages in the session state.
+    """
+    def emit(self, record: logging.LogRecord) -> None:
+        """
+        Process a log record by formatting it and adding to the session state.
+
+        Args:
+            record: The log record to be processed
+        """
         try:
-            log_entry = self.format(record)
+            log_entry: str = self.format(record)
             if 'log_messages' in st.session_state:
                 st.session_state.log_messages.append(log_entry)
                 if len(st.session_state.log_messages) > 100:
-                    st.session_state.log_messages = st.session_state.log_messages[
-                        -100:]
+                    st.session_state.log_messages = st.session_state.log_messages[-100:]
             print(log_entry)
         except Exception as e:
             print(f"Logging error: {e}")
 
 
-def main():
+def main() -> None:
+    """
+    Main application entry point that sets up the Streamlit interface.
+
+    Configures:
+        - Logging system
+        - UI components for parameter input
+        - Training and testing interfaces
+        - Results visualization
+    """
     init_session_state()
 
     # Configure logging

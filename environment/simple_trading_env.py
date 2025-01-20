@@ -1,25 +1,66 @@
+"""
+Simple Trading Environment Implementation
+A Gymnasium environment for simulating stock trading with basic actions.
+
+Features:
+- Discrete action space (hold/buy/sell)
+- OHLCV price data observations
+- Transaction cost modeling
+- Portfolio value tracking
+- Customizable reward shaping
+"""
+
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 import logging
-from typing import Tuple, Dict, Any, Optional, Union
+from typing import Tuple, Dict, Any, Optional, Union, List
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-
 class SimpleTradingEnv(gym.Env):
+    """
+    A simplified trading environment implementing the Gymnasium interface.
+
+    Provides a basic trading simulation with:
+    - Three possible actions: hold (0), buy (1), sell (2)
+    - State observation including OHLCV data and account info
+    - Configurable initial balance and transaction costs
+    - Optional reward shaping through various mechanisms
+
+    Attributes:
+        data (pd.DataFrame): Historical OHLCV price data
+        initial_balance (float): Starting portfolio balance
+        transaction_cost (float): Cost per trade as a fraction
+        use_position_profit (bool): Whether to include position P&L in reward
+        use_holding_bonus (bool): Whether to reward holding profitable positions
+        use_trading_penalty (bool): Whether to penalize frequent trading
+    """
 
     def __init__(self,
-                 data,
-                 initial_balance=10000,
-                 transaction_cost=0.0,
-                 use_position_profit=False,
-                 use_holding_bonus=False,
-                 use_trading_penalty=False,
-                 training_mode=False,
-                 log_frequency=30):
+                data: pd.DataFrame,
+                initial_balance: float = 10000,
+                transaction_cost: float = 0.0,
+                use_position_profit: bool = False,
+                use_holding_bonus: bool = False,
+                use_trading_penalty: bool = False,
+                training_mode: bool = False,
+                log_frequency: int = 30) -> None:
+        """
+        Initialize the trading environment.
+
+        Args:
+            data: OHLCV price data for trading
+            initial_balance: Starting capital amount
+            transaction_cost: Trading fee as a fraction of trade value
+            use_position_profit: Include position P&L in reward calculation
+            use_holding_bonus: Add holding period bonus to reward
+            use_trading_penalty: Penalize frequent trading in reward
+            training_mode: Enable training-specific behaviors
+            log_frequency: Steps between logging portfolio state
+        """
         super().__init__()
         self._portfolio_history = []  # Track portfolio value over time
         self.use_position_profit = use_position_profit
@@ -61,21 +102,22 @@ class SimpleTradingEnv(gym.Env):
         # Transaction parameters
         self.transaction_cost = transaction_cost
 
-    def _compute_reward(self, prev_net_worth: float, current_net_worth: float,
-                        action: int, trade_executed: bool) -> float:
+    def _compute_reward(self, 
+                       prev_net_worth: float,
+                       current_net_worth: float,
+                       action: int,
+                       trade_executed: bool) -> float:
         """
-        Calculate the reward based on trading performance and behavior.
-        
+        Calculate the step reward based on trading performance.
+
         Args:
-            prev_net_worth: Previous portfolio value
-            current_net_worth: Current portfolio value 
-            action: Trading action taken (0=hold, 1=buy, 2=sell)
-            position_profit: Profit/loss on current position
-            holding_period: Number of steps current position is held
-            trade_executed: Whether a trade was executed
-            
+            prev_net_worth: Portfolio value before action
+            current_net_worth: Portfolio value after action
+            action: The action taken (0=hold, 1=buy, 2=sell)
+            trade_executed: Whether a trade was actually executed
+
         Returns:
-            float: Calculated reward value
+            float: Calculated reward value combining multiple components
         """
         reward = 0
         base_reward = 0
@@ -106,8 +148,21 @@ class SimpleTradingEnv(gym.Env):
                        dtype=np.float32)
         return obs
 
-    def reset(self, seed=None, options=None):
-        """Reset the environment to initial state."""
+    def reset(self, 
+             seed: Optional[int] = None,
+             options: Optional[Dict[str, Any]] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """
+        Reset the environment to initial state.
+
+        Args:
+            seed: Random seed for reproducibility
+            options: Additional reset options (unused)
+
+        Returns:
+            tuple containing:
+            - observation (np.ndarray): Initial market state
+            - info (dict): Environment information
+        """
         super().reset(seed=seed)
         self._portfolio_history = []  # Reset portfolio history
         self.current_step = 0
@@ -137,8 +192,24 @@ class SimpleTradingEnv(gym.Env):
         """Property to maintain backward compatibility"""
         return self.initial_balance
 
-    def step(self, action):
-        """Execute one step in the environment."""
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+        """
+        Execute one environment step with given action.
+
+        Args:
+            action: Trading action to take (0=hold, 1=buy, 2=sell)
+
+        Returns:
+            tuple containing:
+            - observation (np.ndarray): New market state
+            - reward (float): Reward for the action
+            - terminated (bool): Whether episode is done
+            - truncated (bool): Whether episode was truncated
+            - info (dict): Additional step information
+
+        Raises:
+            ValueError: If action is not in valid range [0,2]
+        """
         self.total_steps += 1
 
         # Log action for debugging
@@ -240,8 +311,13 @@ class SimpleTradingEnv(gym.Env):
 
         return next_observation, reward, done, truncated, info
 
-    def get_portfolio_history(self):
-        """Return the history of portfolio values"""
+    def get_portfolio_history(self) -> List[float]:
+        """
+        Retrieve the history of portfolio values.
+
+        Returns:
+            List[float]: Historical portfolio values for each step
+        """
         return self._portfolio_history
 
     def test_random_actions(self,

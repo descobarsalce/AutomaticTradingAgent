@@ -21,6 +21,11 @@ class TradingAgent(BaseAgent):
                 ppo_params: Optional[Dict[str, Union[float, int, bool, None]]] = None,
                 seed: Optional[int] = None) -> None:
         """Initialize trading agent with discrete actions."""
+        # Ensure learning rate is a number for validation
+        if ppo_params and 'learning_rate' in ppo_params:
+            if not isinstance(ppo_params['learning_rate'], (int, float)):
+                raise TypeError("learning_rate must be a number")
+        
         super().__init__(
             env,
             ppo_params=ppo_params,

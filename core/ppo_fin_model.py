@@ -40,19 +40,12 @@ class PPOAgentModel:
         data = self.prepare_training_data(stock_name, start_date, end_date)
         self.initialize_env(data, env_params)
         
-        # Configure learning rate schedule
-        learning_rate = ppo_params.get('learning_rate', 3e-4)
-        decay_steps = ppo_params.get('decay_steps', 1000)
-        decay_rate = ppo_params.get('decay_rate', 0.95)
+        # Use initial learning rate for PPO parameters
+        initial_learning_rate = ppo_params.get('learning_rate', 3e-4)
         
-        learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=learning_rate,
-            decay_steps=decay_steps,
-            decay_rate=decay_rate
-        )
-        
-        # Update PPO parameters with scheduled learning rate
-        ppo_params['learning_rate'] = learning_rate_schedule
+        # Don't modify the original ppo_params
+        agent_params = ppo_params.copy()
+        agent_params['learning_rate'] = initial_learning_rate
         
         # Initialize agent with updated parameters
         self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)

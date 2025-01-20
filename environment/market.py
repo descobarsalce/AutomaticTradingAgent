@@ -1,12 +1,14 @@
+
 from typing import Dict, Any, List, Optional
 import numpy as np
 import pandas as pd
-from .base import BaseEnvironment
+import gymnasium as gym
 from gymnasium import spaces
 
-class MarketEnvironment(BaseEnvironment):
+class MarketEnvironment(gym.Env):
     def __init__(self, data: Dict[str, pd.DataFrame], weights: Dict[str, float]):
         super().__init__()
+        self.initialized = False
         self.data = data
         self.weights = weights
 
@@ -23,6 +25,20 @@ class MarketEnvironment(BaseEnvironment):
         self.positions = {symbol: 0.0 for symbol in weights.keys()}
         self.cost_basis = {symbol: 0.0 for symbol in weights.keys()}
         self.holding_periods = {symbol: 0 for symbol in weights.keys()}
+        
+    def initialize(self, config: Dict[str, Any]) -> None:
+        """Initialize environment with configuration."""
+        if self.initialized:
+            return
+        self.initialized = True
+        self._validate_config(config)
+        
+    def _validate_config(self, config: Dict[str, Any]) -> None:
+        """Validate environment configuration."""
+        required_fields = ['observation_space', 'action_space']
+        for field in required_fields:
+            if field not in config:
+                raise ValueError(f"Missing required config field: {field}")
 
     def _process_discrete_actions(self, actions: np.ndarray) -> Dict[str, int]:
         """

@@ -4,7 +4,7 @@ Trading platform shared utilities module.
 Contains common constants and validation functions used across the platform.
 """
 
-from typing import Dict, Any, Union, Optional, Callable
+from typing import Dict, Any, Union, Optional, Callable, get_type_hints
 import logging
 import inspect
 import numpy as np

@@ -13,6 +13,12 @@ from core import TradingAgent
 import pandas as pd
 import plotly.graph_objects as go  # Added import for Plotly
 
+import logging
+from typing import Optional, List, Dict, Union, Tuple
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 def init_session_state():
     """Initialize all session state variables"""
@@ -326,7 +332,9 @@ def main():
                 portfolio_history_test = test_env.get_portfolio_history()
                 returns_test = MetricsCalculator.calculate_returns(
                     portfolio_history_test)
-                
+
+                logger.debug(len(portfolio_history_test))
+                logger.debug(len(returns_test))
                 # Create columns for metrics display
                 col1, col2, col3 = st.columns(3)
 

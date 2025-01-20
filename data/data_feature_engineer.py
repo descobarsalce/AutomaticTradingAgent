@@ -4,7 +4,6 @@ import numpy as np
 import logging
 from typing import Dict, Optional
 from scipy.fftpack import fft
-from sklearn.decomposition import PCA
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +76,7 @@ class FeatureEngineer:
         }, index=[0])
         return pd.concat([data.reset_index(drop=True), fft_df], axis=1)
 
-    def reduce_features_with_pca(self, data: pd.DataFrame, n_components: int = 10) -> pd.DataFrame:
-        numeric_data = data.select_dtypes(include=[np.number])
-        pca = PCA(n_components=n_components)
-        principal_components = pca.fit_transform(numeric_data)
-        pca_columns = [f"PCA_{i+1}" for i in range(principal_components.shape[1])]
-        return pd.DataFrame(principal_components, columns=pca_columns, index=data.index)
-
-    def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame], use_pca: bool = True, pca_components: int = 10) -> Dict[str, pd.DataFrame]:
+    def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         if not portfolio_data:
             raise ValueError("No data available. Please fetch data first.")
         
@@ -130,10 +122,6 @@ class FeatureEngineer:
                         for col in prepared_df.columns:
                             if prepared_df[col].dtype != 'object':
                                 prepared_df[col] = normalize_data(prepared_df[col])
-                        
-                        # Reduce dimensions with PCA if enabled
-                        if use_pca:
-                            prepared_df = self.reduce_features_with_pca(prepared_df, n_components=pca_components)
                         
                         # Handle missing values
                         prepared_df = prepared_df.dropna()

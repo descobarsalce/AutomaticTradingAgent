@@ -292,8 +292,8 @@ def main():
 
             # Initialize agent with test environment
             test_agent = TradingAgent(env=test_env,
-                                      ppo_params=st.session_state.ppo_params,
-                                      fast_eval=fast_eval)
+                                      ppo_params=st.session_state.ppo_params
+                                      )
 
             # Create log display area
             log_container = st.expander("Test Logs", expanded=True)

@@ -1,3 +1,4 @@
+
 import numpy as np
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
@@ -8,8 +9,6 @@ from data.data_handler import DataHandler
 import tensorflow as tf
 
 class PPOAgentModel:
-    """PPO-based trading agent model that manages training and testing workflows."""
-
     def __init__(self):
         self.agent = None
         self.env = None
@@ -17,7 +16,6 @@ class PPOAgentModel:
         self.portfolio_history = []
 
     def initialize_env(self, data, env_params):
-        """Initialize trading environment with given data and parameters."""
         from utils.common import MIN_TRADE_SIZE
         env_params['min_transaction_size'] = MIN_TRADE_SIZE
         self.env = SimpleTradingEnv(
@@ -30,7 +28,6 @@ class PPOAgentModel:
             training_mode=True)
 
     def prepare_training_data(self, stock_name: str, start_date: datetime, end_date: datetime):
-        """Prepare and validate training data for the given stock and date range."""
         portfolio_data = self.data_handler.fetch_data(symbols=[stock_name], start_date=start_date, end_date=end_date)
         if not portfolio_data:
             raise ValueError("No data found in database")
@@ -40,18 +37,25 @@ class PPOAgentModel:
     def train(self, stock_name: str, start_date: datetime, end_date: datetime,
               env_params: Dict[str, Any], ppo_params: Dict[str, Any],
               callback=None) -> Dict[str, float]:
-        """Train the agent and return performance metrics."""
         data = self.prepare_training_data(stock_name, start_date, end_date)
         self.initialize_env(data, env_params)
-        self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)
-
+        
+        # Configure learning rate schedule
+        learning_rate = ppo_params.get('learning_rate', 3e-4)
+        decay_steps = ppo_params.get('decay_steps', 1000)
+        decay_rate = ppo_params.get('decay_rate', 0.95)
+        
         learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=ppo_params.get('lr', 0.0003),
-            decay_steps=1000,
-            decay_rate=0.95)
-
-        self.agent.actor_optimizer.learning_rate = learning_rate_schedule
-        self.agent.critic_optimizer.learning_rate = learning_rate_schedule
+            initial_learning_rate=learning_rate,
+            decay_steps=decay_steps,
+            decay_rate=decay_rate
+        )
+        
+        # Update PPO parameters with scheduled learning rate
+        ppo_params['learning_rate'] = learning_rate_schedule
+        
+        # Initialize agent with updated parameters
+        self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)
 
         total_timesteps = (end_date - start_date).days
         self.agent.train(total_timesteps=total_timesteps, callback=callback)
@@ -72,7 +76,6 @@ class PPOAgentModel:
 
     def test(self, stock_name: str, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any], ppo_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Test the trained agent and return performance metrics."""
         data = self.prepare_training_data(stock_name, start_date, end_date)
         self.initialize_env(data, env_params)
         self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)

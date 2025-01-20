@@ -206,7 +206,8 @@ def main():
 
         # Set timesteps based on test mode
         # total_timesteps = 100 if test_mode else 10000
-        total_timesteps = (train_end_date - train_start_date).days
+        # Convert dates to datetime for proper subtraction
+        total_timesteps = (pd.Timestamp(train_end_date) - pd.Timestamp(train_start_date)).days
 
         # Create progress callback
         progress_callback = ProgressBarCallback(

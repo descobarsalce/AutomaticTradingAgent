@@ -1,3 +1,4 @@
+
 """
 Trading platform shared utilities module.
 Provides organized utility functions and constants used across the platform.
@@ -13,15 +14,11 @@ from .data_utils import (
 
 # Import market analysis utilities
 from .market_utils import (
-    calculate_returns,
-    calculate_volatility,
-    calculate_beta,
-    calculate_bollinger_bands,
-    calculate_rsi,
-    calculate_macd,
     is_market_hours,
     trading_days_between
 )
+
+from metrics.metrics_calculator import MetricsCalculator
 
 # Import formatting utilities
 from .formatting_utils import (
@@ -66,11 +63,12 @@ __all__ = [
     'validate_trading_params',
     'validate_portfolio_weights',
     
-    # Calculation functions
-    'calculate_returns',
-    'calculate_volatility',
-    'calculate_beta',
-    'normalize_data',
+    # Calculation functions through MetricsCalculator
+    'MetricsCalculator',
+    
+    # Market utilities
+    'is_market_hours',
+    'trading_days_between',
     
     # Formatting functions
     'format_timestamp',

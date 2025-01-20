@@ -199,9 +199,6 @@ class MetricsCalculator:
                        market_returns: np.ndarray) -> float:
         """Calculate beta (market sensitivity) against market returns."""
 
-        logger.debug(portfolio_history_test)
-        logger.debug(returns_test)
-
         if not isinstance(returns, np.ndarray) or not isinstance(
                 market_returns, np.ndarray):
             logger.warning("Invalid input types for beta calculation")

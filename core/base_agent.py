@@ -6,7 +6,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 import numpy as np
 from numpy.typing import NDArray
 from utils.common import type_check
-from .metrics import MetricsCalculator
+from metrics.metrics_calculator import MetricsCalculator
 import logging
 
 # Configure logging

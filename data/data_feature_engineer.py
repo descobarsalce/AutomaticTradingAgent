@@ -79,7 +79,10 @@ class FeatureEngineer:
 
     def reduce_features_with_pca(self, data: pd.DataFrame, n_components: int = 10) -> pd.DataFrame:
         numeric_data = data.select_dtypes(include=[np.number])
-        pca = PCA(n_components=n_components)
+        n_features = min(n_components, numeric_data.shape[1], numeric_data.shape[0])
+        if n_features < 1:
+            return data
+        pca = PCA(n_components=n_features)
         principal_components = pca.fit_transform(numeric_data)
         pca_columns = [f"PCA_{i+1}" for i in range(principal_components.shape[1])]
         return pd.DataFrame(principal_components, columns=pca_columns, index=data.index)

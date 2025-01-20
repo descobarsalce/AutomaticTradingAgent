@@ -127,7 +127,7 @@ def main():
             value=128,
             help="Suggested range: 32 to 512. Default: 128")
         n_epochs = st.number_input("Number of Epochs",
-                                   value=3,
+                                   value=5,
                                    help="Suggested range: 1 to 10. Default: 3")
     with col4:
         gamma = st.number_input(
@@ -155,7 +155,7 @@ def main():
     with train_col1:
         train_start_date = st.date_input("Training Start Date",
                                          value=datetime.now() -
-                                         timedelta(days=365 * 3))
+                                         timedelta(days=365 * 5))
     with train_col2:
         train_end_date = st.date_input("Training End Date",
                                        value=datetime.now() -

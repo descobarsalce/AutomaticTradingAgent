@@ -2,11 +2,52 @@
 Trading Agent Web Interface
 A Streamlit-based dashboard for configuring and managing reinforcement learning trading agents.
 
-The interface allows users to:
-- Configure and train trading agents with custom parameters
-- Test agent performance on historical data
-- Visualize trading results and performance metrics
-- Monitor training progress and logs
+System Architecture:
+- Web Interface Layer (Streamlit): Provides UI for configuration and visualization
+- Agent Layer (PPOAgentModel): Implements trading strategy and training logic
+- Environment Layer (SimpleTradingEnv): Simulates market interactions
+- Data Layer: Handles market data acquisition and preprocessing
+
+Key Components:
+1. Configuration Interface:
+   - Agent hyperparameter tuning
+   - Environment settings adjustment
+   - Training period selection
+
+2. Training Pipeline:
+   - Data preparation
+   - Model training with progress tracking
+   - Performance metrics calculation
+
+3. Testing Interface:
+   - Model evaluation on unseen data
+   - Performance visualization
+   - Trading behavior analysis
+
+4. Monitoring System:
+   - Real-time training progress
+   - Portfolio value tracking
+   - Transaction logging
+
+Usage Example:
+```python
+# Initialize the application
+streamlit run main.py
+
+# Configure agent parameters in UI:
+# - Set stock symbol (e.g., 'AAPL')
+# - Adjust initial balance
+# - Tune learning parameters
+# - Select date ranges
+
+# Train the agent:
+# Click "Start Training" to begin the training process
+# Monitor progress in the sidebar logs
+
+# Test the agent:
+# Click "Test Model" to evaluate on new data
+# View performance metrics and visualizations
+```
 """
 
 import streamlit as st
@@ -15,7 +56,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.ppo_fin_model import PPOAgentModel
 
@@ -31,9 +72,24 @@ def init_session_state() -> None:
     Initialize Streamlit session state variables for persistent storage across reruns.
 
     Initializes:
-        - log_messages: List of logging messages
-        - ppo_params: PPO algorithm parameters
-        - model: Trading agent model instance
+        - log_messages: List[str] - Chronological log messages
+        - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
+        - model: PPOAgentModel - Trading agent model instance
+
+    Implementation:
+        The function checks for each required key in st.session_state and
+        initializes it if missing. This ensures persistence across Streamlit reruns
+        while avoiding reinitializing existing state.
+
+    Example:
+        ```python
+        # Initialize state at app startup
+        init_session_state()
+
+        # Access state variables
+        model = st.session_state.model
+        logs = st.session_state.log_messages
+        ```
     """
     if 'log_messages' not in st.session_state:
         st.session_state.log_messages = []
@@ -48,21 +104,57 @@ class StreamlitLogHandler(logging.Handler):
     Custom logging handler that redirects log messages to Streamlit's interface.
 
     Maintains a fixed-size buffer of recent log messages in the session state.
+    Implements the observer pattern to capture logs from all components.
+
+    Attributes:
+        MAX_LOGS: int - Maximum number of logs to maintain in memory (100)
+        format: Callable - Log message formatter function
+
+    Implementation Details:
+        - Uses Streamlit session state for persistence
+        - Implements circular buffer behavior for log storage
+        - Thread-safe for concurrent logging
+
+    Example:
+        ```python
+        # Setup logging
+        handler = StreamlitLogHandler()
+        logger.addHandler(handler)
+
+        # Log messages will appear in Streamlit sidebar
+        logger.info("Training started...")
+        ```
     """
+
+    MAX_LOGS: int = 100
+
     def emit(self, record: logging.LogRecord) -> None:
         """
         Process a log record by formatting it and adding to the session state.
 
         Args:
-            record: The log record to be processed
+            record (logging.LogRecord): The log record containing:
+                - msg: str - The log message
+                - levelno: int - Logging level number
+                - created: float - Time when the log was created
+                - args: tuple - Message format arguments
+
+        Implementation:
+            1. Formats the log record using the handler's formatter
+            2. Appends to session state log buffer
+            3. Maintains maximum log count by removing oldest entries
+            4. Handles formatting exceptions gracefully
+
+        Raises:
+            Exception: If logging fails, error is printed but not propagated
         """
         try:
             log_entry: str = self.format(record)
             if 'log_messages' in st.session_state:
                 st.session_state.log_messages.append(log_entry)
-                if len(st.session_state.log_messages) > 100:
-                    st.session_state.log_messages = st.session_state.log_messages[-100:]
-            print(log_entry)
+                if len(st.session_state.log_messages) > self.MAX_LOGS:
+                    st.session_state.log_messages = st.session_state.log_messages[-self.MAX_LOGS:]
+            print(log_entry)  # Backup output
         except Exception as e:
             print(f"Logging error: {e}")
 
@@ -71,11 +163,42 @@ def main() -> None:
     """
     Main application entry point that sets up the Streamlit interface.
 
-    Configures:
-        - Logging system
-        - UI components for parameter input
-        - Training and testing interfaces
-        - Results visualization
+    System Components:
+        1. Logging System:
+           - Custom StreamlitLogHandler for UI integration
+           - Configurable log levels and formatting
+
+        2. UI Components:
+           - Parameter input widgets
+           - Training controls
+           - Performance metrics display
+           - Interactive charts
+
+        3. Training Interface:
+           - Model configuration
+           - Progress tracking
+           - Results visualization
+
+        4. Testing Interface:
+           - Model evaluation
+           - Performance analysis
+           - Portfolio tracking
+
+    Implementation Flow:
+        1. Initialize session state and logging
+        2. Setup UI components and layouts
+        3. Handle user interactions and model training
+        4. Process and display results
+
+    Error Handling:
+        - Graceful handling of training failures
+        - User feedback for invalid inputs
+        - Session state persistence
+
+    Example Usage:
+        ```bash
+        streamlit run main.py
+        ```
     """
     init_session_state()
 

@@ -16,6 +16,8 @@ class PPOAgentModel:
         self.portfolio_history = []
 
     def initialize_env(self, data, env_params):
+        from utils.common import MIN_TRADE_SIZE
+        env_params['min_transaction_size'] = MIN_TRADE_SIZE
         self.env = SimpleTradingEnv(
             data=data,
             initial_balance=env_params['initial_balance'],

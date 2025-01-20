@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
 from metrics.metrics_calculator import MetricsCalculator
 from environment import SimpleTradingEnv
-from core.trading_agent import TradingAgent
+from core.base_agent import TradingAgent
 from data.data_handler import DataHandler
 import tensorflow as tf
 

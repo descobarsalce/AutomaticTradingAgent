@@ -494,8 +494,9 @@ def main() -> None:
                             if key.startswith('chart_'):
                                 del st.session_state[key]
                     
-                    for symbol, data in portfolio_data.items():
-                        st.subheader(f"{symbol} Technical Analysis")
+                    if stock_name in portfolio_data:
+                        data = portfolio_data[stock_name]
+                        st.subheader(f"{stock_name} Technical Analysis")
                         
                         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
                                           vertical_spacing=0.03, 

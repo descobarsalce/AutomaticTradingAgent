@@ -71,14 +71,14 @@ class SimpleTradingEnv(gym.Env):
         for symbol in self.symbols:
             data = self.data[symbol].iloc[self.current_step]
             obs.extend([
-                float(data['Open']),
-                float(data['High']),
-                float(data['Low']),
-                float(data['Close']),
-                float(data['Volume']),
-                float(self.positions[symbol])
+                data['Open'].item(),
+                data['High'].item(),
+                data['Low'].item(),
+                data['Close'].item(),
+                data['Volume'].item(),
+                self.positions[symbol]
             ])
-        obs.append(float(self.balance))
+        obs.append(self.balance)
         return np.array(obs, dtype=np.float32)
 
     def _compute_reward(self, prev_net_worth: float, current_net_worth: float,

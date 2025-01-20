@@ -48,6 +48,16 @@ class PPOAgentModel:
         self.initialize_env(data, env_params)
 
         self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)
+
+        # Adaptive Learning Rates
+        learning_rate_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=ppo_params.get('lr', 0.0003),
+            decay_steps=1000,
+            decay_rate=0.95)
+
+        self.agent.actor_optimizer.learning_rate = learning_rate_schedule
+        self.agent.critic_optimizer.learning_rate = learning_rate_schedule
+
         total_timesteps = (end_date - start_date).days
 
         self.agent.train(total_timesteps=total_timesteps, callback=callback)

@@ -59,6 +59,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.ppo_fin_model import PPOAgentModel
+import tensorflow as tf
+from tensorflow.keras import layers
 
 # Configure logging
 import logging
@@ -153,7 +155,8 @@ class StreamlitLogHandler(logging.Handler):
             if 'log_messages' in st.session_state:
                 st.session_state.log_messages.append(log_entry)
                 if len(st.session_state.log_messages) > self.MAX_LOGS:
-                    st.session_state.log_messages = st.session_state.log_messages[-self.MAX_LOGS:]
+                    st.session_state.log_messages = st.session_state.log_messages[
+                        -self.MAX_LOGS:]
             print(log_entry)  # Backup output
         except Exception as e:
             print(f"Logging error: {e}")

@@ -20,4 +20,6 @@ dependencies = [
     "gymnasium>=0.29.1",
     "torch>=2.5.1",
     "tqdm",
+    "scipy>=1.15.1",
+    "scikit-learn>=1.6.1",
 ]

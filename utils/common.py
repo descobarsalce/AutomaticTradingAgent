@@ -60,8 +60,8 @@ MAX_POSITION_SIZE = 100.0  # Maximum allowed position size (100% of portfolio)
 MIN_POSITION_SIZE = -100.0  # Minimum allowed position size (100% short)
 MAX_LEVERAGE = 5.0  # Maximum allowed leverage
 MIN_TRADE_SIZE = 0.01  # Minimum trade size allowed
-DEFAULT_STOP_LOSS = 0.1  # Default stop loss percentage (2%)
-DEFAULT_TAKE_PROFIT = 0.1  # Default take profit percentage (5%)
+DEFAULT_STOP_LOSS = 1 #0.1  # Default stop loss percentage (2%)
+DEFAULT_TAKE_PROFIT = 1 #0.1  # Default take profit percentage (5%)
 
 # Market Parameters
 TRADING_DAYS_PER_YEAR = 252  # Standard number of trading days in a year

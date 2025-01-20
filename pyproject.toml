@@ -22,4 +22,5 @@ dependencies = [
     "tqdm",
     "scipy>=1.15.1",
     "scikit-learn>=1.6.1",
+    "optuna>=4.2.0",
 ]

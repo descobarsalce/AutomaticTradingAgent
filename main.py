@@ -372,7 +372,7 @@ def main():
                 with col3:
                     st.metric(
                         "Beta",
-                        f"{MetricsCalculator.calculate_beta(returns, data['Close'].pct_change().values):.2f}"
+                        f"{MetricsCalculator.calculate_beta(returns, test_data['Close'].pct_change().values):.2f}"
                     )
                     st.metric("Final Portfolio Value",
                               f"${info['net_worth']:,.2f}")

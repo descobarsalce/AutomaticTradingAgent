@@ -7,8 +7,8 @@ from typing import Dict, List, Optional, Union
 from utils import (
     format_date,
     format_money,
-    MetricsCalculator
 )
+from metrics.metrics_calculator import MetricsCalculator
 
 class TradingVisualizer:
     def __init__(self):

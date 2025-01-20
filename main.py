@@ -491,7 +491,7 @@ def main() -> None:
                     for symbol, data in portfolio_data.items():
                         st.subheader(f"{symbol} Technical Analysis")
                         
-                        fig = make_subplots(rows=2, cols=1, shared_xaxis=True, 
+                        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
                                           vertical_spacing=0.03, 
                                           row_heights=[0.7, 0.3])
 

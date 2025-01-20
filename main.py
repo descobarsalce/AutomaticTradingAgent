@@ -72,6 +72,18 @@ def main():
     use_holding_bonus = False  #st.checkbox("Include Holding Bonus", value=False)
     use_trading_penalty = False  #st.checkbox("Include Trading Penalty", value=False)
 
+
+    # log_frequency = st.number_input(
+    #     "Log Frequency (steps)",
+    #     value=50,
+    #     min_value=1,
+    #     help="How often to log portfolio state (in steps)")
+
+    # # Test mode parameters
+    st.header("Test Options")
+    stock_name = st.text_input("Stock Name", value="AAPL")
+
+    
     # Training mode parameters
     st.header("Training Options")
     log_frequency = st.number_input(
@@ -137,8 +149,6 @@ def main():
     # from models.database import Session
     from models.models import StockData
 
-    # session = Session()
-
     # Add date selection for training period
     st.subheader("Training Period")
     train_col1, train_col2 = st.columns(2)
@@ -160,7 +170,7 @@ def main():
         progress_bar = st.progress(0)
         status_placeholder = st.empty()
 
-        portfolio_data = data_handler.fetch_data(symbols=['AAPL'],
+        portfolio_data = data_handler.fetch_data(symbols=[stock_name],
                                                  start_date=train_start_date,
                                                  end_date=train_end_date)
 
@@ -175,12 +185,6 @@ def main():
         # Use the first symbol's data since environment expects a single DataFrame
         data = next(iter(prepared_data.values()))
 
-        # if len(data) < 50:
-        #     st.error(
-        #         "Insufficient data points (minimum 50 required for technical indicators)"
-        #     )
-        #     return
-
         # Create environment with selected components
         env = SimpleTradingEnv(data=data,
                                initial_balance=initial_balance,
@@ -190,8 +194,7 @@ def main():
                                use_position_profit=use_position_profit,
                                use_holding_bonus=use_holding_bonus,
                                use_trading_penalty=use_trading_penalty,
-                               training_mode=True,
-                               log_frequency=log_frequency)
+                               training_mode=True)
 
         # Configure PPO parameters
         st.session_state.ppo_params = {
@@ -208,10 +211,9 @@ def main():
         agent = TradingAgent(env=env, ppo_params=st.session_state.ppo_params)
 
         # Set timesteps based on test mode
-        # total_timesteps = 100 if test_mode else 10000
-        # Convert dates to datetime for proper subtraction
-        total_timesteps = (pd.Timestamp(train_end_date) - pd.Timestamp(train_start_date)).days
+        total_timesteps = (train_end_date - train_start_date).days     
 
+        
         # Create progress callback
         progress_callback = ProgressBarCallback(
             total_timesteps=total_timesteps,

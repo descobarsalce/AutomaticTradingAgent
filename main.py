@@ -63,34 +63,17 @@ def main():
 
     st.title("Trading Agent Configuration")
 
-    # Rest of your main function implementation...
-    # (keeping all the existing functionality)
-
     # Reward component controls
-    # st.header("Reward Components")
     use_position_profit = False  # st.checkbox("Include Position Profit", value=False)
     use_holding_bonus = False  #st.checkbox("Include Holding Bonus", value=False)
     use_trading_penalty = False  #st.checkbox("Include Trading Penalty", value=False)
-
-
-    # log_frequency = st.number_input(
-    #     "Log Frequency (steps)",
-    #     value=50,
-    #     min_value=1,
-    #     help="How often to log portfolio state (in steps)")
 
     # # Test mode parameters
     st.header("Test Options")
     stock_name = st.text_input("Stock Name", value="AAPL")
 
-    
     # Training mode parameters
     st.header("Training Options")
-    log_frequency = st.number_input(
-        "Log Frequency (steps)",
-        value=50,
-        min_value=1,
-        help="How often to log portfolio state (in steps)")
 
     # Environment parameters
     st.header("Environment Parameters")
@@ -165,6 +148,8 @@ def main():
     from data.data_handler import DataHandler
     data_handler = DataHandler()
 
+    #########################################################################################################################################################################################################################################################################################################
+
     if col_train.button("Start Training"):
         # Create progress tracking elements
         progress_bar = st.progress(0)
@@ -211,9 +196,8 @@ def main():
         agent = TradingAgent(env=env, ppo_params=st.session_state.ppo_params)
 
         # Set timesteps based on test mode
-        total_timesteps = (train_end_date - train_start_date).days     
+        total_timesteps = (train_end_date - train_start_date).days
 
-        
         # Create progress callback
         progress_callback = ProgressBarCallback(
             total_timesteps=total_timesteps,
@@ -258,6 +242,8 @@ def main():
 
         st.success("Training completed and model saved!")
 
+    #########################################################################################################################################################################################################################################################################################################
+
     # Test period dates
     st.subheader("Test Period")
     test_col1, test_col2 = st.columns(2)
@@ -278,12 +264,11 @@ def main():
             # Create test environment and data with selected dates
             data_handler = DataHandler()
             test_portfolio_data = data_handler.fetch_data(
-                symbols=['AAPL'],
+                symbols=[stock_name],
                 start_date=test_start_date,
                 end_date=test_end_date)
             test_prepared_data = data_handler.prepare_data()
-            test_data = next(iter(test_prepared_data.values()))[
-                -100:]  # Get last 100 records with features
+            test_data = next(iter(test_prepared_data.values()))
 
             test_env = SimpleTradingEnv(
                 data=test_data,
@@ -297,8 +282,7 @@ def main():
 
             # Initialize agent with test environment
             test_agent = TradingAgent(env=test_env,
-                                      ppo_params=st.session_state.ppo_params
-                                      )
+                                      ppo_params=st.session_state.ppo_params)
 
             # Create log display area
             log_container = st.expander("Test Logs", expanded=True)
@@ -339,21 +323,21 @@ def main():
                     })
 
                 # Calculate comprehensive metrics
-                portfolio_history = test_env.get_portfolio_history()
-                returns = MetricsCalculator.calculate_returns(
-                    portfolio_history)
-
+                portfolio_history_test = test_env.get_portfolio_history()
+                returns_test = MetricsCalculator.calculate_returns(
+                    portfolio_history_test)
+                
                 # Create columns for metrics display
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
                     st.metric(
                         "Sharpe Ratio",
-                        f"{MetricsCalculator.calculate_sharpe_ratio(returns):.2f}"
+                        f"{MetricsCalculator.calculate_sharpe_ratio(returns_test):.2f}"
                     )
                     st.metric(
                         "Maximum Drawdown",
-                        f"{MetricsCalculator.calculate_maximum_drawdown(portfolio_history):.2%}"
+                        f"{MetricsCalculator.calculate_maximum_drawdown(portfolio_history_test):.2%}"
                     )
                     st.metric(
                         "Total Return",
@@ -363,21 +347,22 @@ def main():
                 with col2:
                     st.metric(
                         "Sortino Ratio",
-                        f"{MetricsCalculator.calculate_sortino_ratio(returns):.2f}"
+                        f"{MetricsCalculator.calculate_sortino_ratio(returns_test):.2f}"
                     )
                     st.metric(
                         "Information Ratio",
-                        f"{MetricsCalculator.calculate_information_ratio(returns):.2f}"
+                        f"{MetricsCalculator.calculate_information_ratio(returns_test):.2f}"
                     )
                     st.metric(
                         "Volatility",
-                        f"{MetricsCalculator.calculate_volatility(returns):.2%}"
+                        f"{MetricsCalculator.calculate_volatility(returns_test):.2%}"
                     )
 
                 with col3:
+
                     st.metric(
                         "Beta",
-                        f"{MetricsCalculator.calculate_beta(returns, test_data['Close'].pct_change().values):.2f}"
+                        f"{MetricsCalculator.calculate_beta(returns_test, test_data['Close'].pct_change().values):.2f}"
                     )
                     st.metric("Final Portfolio Value",
                               f"${info['net_worth']:,.2f}")
@@ -387,7 +372,7 @@ def main():
                 # Plot portfolio value over time
                 st.subheader("Portfolio Value Over Time")
                 st.line_chart(
-                    pd.DataFrame(portfolio_history,
+                    pd.DataFrame(portfolio_history_test,
                                  columns=['Portfolio Value']))
 
                 # Create columns for charts
@@ -395,9 +380,9 @@ def main():
 
                 with chart_col1:
                     # Returns distribution
-                    if len(returns) > 0:
+                    if len(returns_test) > 0:
                         fig = go.Figure(
-                            data=[go.Histogram(x=returns, nbinsx=50)])
+                            data=[go.Histogram(x=returns_test, nbinsx=50)])
                         fig.update_layout(title="Returns Distribution",
                                           xaxis_title="Return",
                                           yaxis_title="Frequency",
@@ -406,7 +391,7 @@ def main():
 
                     # Drawdown chart
                     st.subheader("Drawdown Over Time")
-                    values = np.array(portfolio_history)
+                    values = np.array(portfolio_history_test)
                     peak = np.maximum.accumulate(values)
                     drawdowns = (peak - values) / peak
                     dd_df = pd.DataFrame(drawdowns, columns=['Drawdown'])
@@ -415,15 +400,16 @@ def main():
                 with chart_col2:
                     # Cumulative returns
                     st.subheader("Cumulative Returns")
-                    cum_returns = pd.DataFrame(np.cumprod(1 + returns) - 1,
+                    cum_returns = pd.DataFrame(np.cumprod(1 + returns_test) -
+                                               1,
                                                columns=['Returns'])
                     st.line_chart(cum_returns)
 
                     # Rolling volatility
                     st.subheader("30-Day Rolling Volatility")
-                    rolling_vol = pd.DataFrame(returns, columns=[
-                        'Returns'
-                    ]).rolling(30).std() * np.sqrt(252)
+                    rolling_vol = pd.DataFrame(
+                        returns_test,
+                        columns=['Returns']).rolling(30).std() * np.sqrt(252)
                     st.line_chart(rolling_vol)
 
                 st.success(

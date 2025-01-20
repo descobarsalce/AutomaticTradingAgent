@@ -1,7 +1,14 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
+import numpy as np
 import ta
+from typing import Dict, List, Optional, Union
+from utils import (
+    format_date,
+    format_money,
+    MetricsCalculator
+)
 
 class TradingVisualizer:
     def __init__(self):

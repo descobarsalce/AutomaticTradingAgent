@@ -146,7 +146,7 @@ from typing import Dict, Optional
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-from models.models import Session, StockData
+from data.sql_data_manager import SQLDataManager
 from data.processing import FeatureEngineer
 
 class DataHandler:

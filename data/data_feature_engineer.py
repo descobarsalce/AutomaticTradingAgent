@@ -108,8 +108,13 @@ class FeatureEngineer:
                         prepared_df = self.add_lagged_features(prepared_df, ['Close', 'RSI'], lags=5)
                         prepared_df = self.add_rolling_features(prepared_df, 'Close', windows=[7, 14, 30])
 
+                        # Store original OHLCV data
+                        ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+                        ohlcv_data = prepared_df[ohlcv_cols].copy()
+                        
                         # Add Fourier Transform features
-                        prepared_df = self.add_fourier_transform(prepared_df['Close'])
+                        fft_df = self.add_fourier_transform(prepared_df['Close'])
+                        prepared_df = pd.concat([prepared_df, fft_df], axis=1)
                         
                         # Calculate correlations with other symbols
                         correlations = {}
@@ -118,10 +123,14 @@ class FeatureEngineer:
                                 correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
                         prepared_df['Correlations'] = str(correlations)
                         
-                        # Normalize numerical features
+                        # Normalize features except OHLCV
                         for col in prepared_df.columns:
-                            if prepared_df[col].dtype != 'object':
+                            if col not in ohlcv_cols and prepared_df[col].dtype != 'object':
                                 prepared_df[col] = normalize_data(prepared_df[col])
+                                
+                        # Restore original OHLCV data
+                        for col in ohlcv_cols:
+                            prepared_df[col] = ohlcv_data[col]
                         
                         # Handle missing values
                         prepared_df = prepared_df.dropna()

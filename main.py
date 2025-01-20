@@ -240,7 +240,7 @@ def main() -> None:
         learning_rate = st.number_input("Learning Rate",
                                         value=3e-4,
                                         format="%.1e")
-        n_steps = st.number_input("Number of Steps", value=512)
+        ppo_steps = st.number_input("PPO Steps Per Update", value=512, help="Number of steps to collect before updating the policy")
         batch_size = st.number_input("Batch Size", value=128)
         n_epochs = st.number_input("Number of Epochs", value=5)
     with col4:
@@ -276,7 +276,7 @@ def main() -> None:
 
         ppo_params = {
             'learning_rate': learning_rate,
-            'n_steps': n_steps,
+            'n_steps': ppo_steps,
             'batch_size': batch_size,
             'n_epochs': n_epochs,
             'gamma': gamma,

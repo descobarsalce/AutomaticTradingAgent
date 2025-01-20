@@ -1,5 +1,5 @@
 
-run = "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"
+run = "python -m streamlit run TradingAgentUI.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"
 modules = ["python-3.11:v3-20230826-0f37faca"]
 
 hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
@@ -8,7 +8,7 @@ hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"]
+run = ["sh", "-c", "python -m streamlit run TradingAgentUI.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"]
 deploymentTarget = "cloudrun"
 
 [env]
@@ -68,5 +68,5 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
+args = "streamlit run TradingAgentUI.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501

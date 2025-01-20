@@ -32,7 +32,7 @@ Key Components:
 Usage Example:
 ```python
 # Initialize the application
-streamlit run main.py
+streamlit run TradingAgentUI.py
 
 # Configure agent parameters in UI:
 # - Set stock symbol (e.g., 'AAPL')
@@ -565,7 +565,7 @@ def main() -> None:
 
                         fig.update_layout(
                             height=800,
-                            title=f"{symbol} Price and Volume",
+                            title=f"{stock_name} Price and Volume",
                             yaxis_title="Price",
                             yaxis2_title="Volume"
                         )

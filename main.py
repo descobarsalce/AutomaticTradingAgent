@@ -365,16 +365,46 @@ def main() -> None:
     with tab1:
         # Original manual parameter selection
         st.header("Agent Parameters")
-        col3, col4 = st.columns(2)
-        with col3:
-            learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e")
-            ppo_steps = st.number_input("PPO Steps Per Update", value=512)
-            batch_size = st.number_input("Batch Size", value=128)
-            n_epochs = st.number_input("Number of Epochs", value=5)
-        with col4:
-            gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
-            clip_range = st.number_input("Clip Range", value=0.2)
-            target_kl = st.number_input("Target KL Divergence", value=0.05)
+        
+        # Add checkbox to use Optuna parameters
+        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters", value=False)
+        
+        if use_optuna_params and st.session_state.ppo_params is not None:
+            st.info("Using Optuna's optimized parameters")
+            # Display Optuna parameters as read-only
+            col3, col4 = st.columns(2)
+            with col3:
+                st.text(f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}")
+                st.text(f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
+                st.text(f"Batch Size: {st.session_state.ppo_params['batch_size']}")
+                st.text(f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}")
+            with col4:
+                st.text(f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
+                st.text(f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}")
+                
+            # Store Optuna values in variables
+            learning_rate = st.session_state.ppo_params['learning_rate']
+            ppo_steps = st.session_state.ppo_params['n_steps']
+            batch_size = st.session_state.ppo_params['batch_size']
+            n_epochs = st.session_state.ppo_params['n_epochs']
+            gamma = st.session_state.ppo_params['gamma']
+            gae_lambda = st.session_state.ppo_params['gae_lambda']
+            clip_range = 0.2  # Default value for non-tuned parameter
+            target_kl = 0.05  # Default value for non-tuned parameter
+        else:
+            if use_optuna_params:
+                st.warning("No Optuna parameters available. Please run hyperparameter tuning first.")
+            
+            col3, col4 = st.columns(2)
+            with col3:
+                learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e")
+                ppo_steps = st.number_input("PPO Steps Per Update", value=512)
+                batch_size = st.number_input("Batch Size", value=128)
+                n_epochs = st.number_input("Number of Epochs", value=5)
+            with col4:
+                gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
+                clip_range = st.number_input("Clip Range", value=0.2)
+                target_kl = st.number_input("Target KL Divergence", value=0.05)
 
     with tab2:
         # Hyperparameter tuning section

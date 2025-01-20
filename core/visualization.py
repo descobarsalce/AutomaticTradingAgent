@@ -175,7 +175,7 @@ class TradingVisualizer:
                 except Exception as e:
                     print(f"Error adding trade markers: {str(e)}")
             
-            # Update layout with interactive features
+            # Update layout with interactive features and date formatting
             fig.update_layout(
                 height=800,
                 showlegend=True,
@@ -186,8 +186,17 @@ class TradingVisualizer:
                 margin=dict(l=50, r=50, t=50, b=50)
             )
             
-            # Add buttons for zoom levels
-            fig.update_xaxes(rangeslider=dict(visible=False))
+            # Configure x-axis for date display
+            fig.update_xaxes(
+                rangeslider=dict(visible=False),
+                type='date',
+                tickformat='%Y-%m-%d',
+                tickmode='auto',
+                nticks=10,
+                showgrid=True,
+                gridcolor='rgba(128, 128, 128, 0.2)',
+                tickangle=45
+            )
             
             return fig
             

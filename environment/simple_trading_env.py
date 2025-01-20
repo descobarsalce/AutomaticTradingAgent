@@ -55,7 +55,7 @@ class SimpleTradingEnv(gym.Env):
         self.total_steps = 0
 
         # Track holding period and cost basis
-        # self.holding_period = 0
+        self.holding_period = 0
         self.cost_basis = 0
         self.last_trade_step = None
         self.episode_trades = 0
@@ -83,8 +83,6 @@ class SimpleTradingEnv(gym.Env):
         """
         reward = 0
         base_reward = 0
-        # position_profit_reward = 0
-        # holding_bonus = 0
 
         # Base reward from portfolio return
         if prev_net_worth > 0:
@@ -97,30 +95,7 @@ class SimpleTradingEnv(gym.Env):
                 "Previous portfolio value is zero. Skipping reward calculation."
             )
 
-        # Position profit component
-        # if self.use_position_profit and self.shares_held > 0:
-        #     position_profit_reward = position_profit
-        #     reward += position_profit_reward
-
-        # # Holding bonus for profitable positions
-        # if self.use_holding_bonus and self.shares_held > 0:
-        #     holding_bonus = 0.001 * holding_period * position_profit if position_profit > 0 else 0
-        #     reward += holding_bonus
-
-        # Trading penalty
-        # if self.use_trading_penalty and action != 0:
-        # holding_reward = reward
-        # if action == 2 and self.shares_held > 0:  # Selling
-        #     reward = holding_reward * 0.2
-        # elif action == 1:  # Buying
-        #     reward = holding_reward * 0.3
-
-        # Early exploration bonus
-        # if self.training_mode and self.episode_count < 10 and trade_executed:
-        #     exploration_bonus = 0.1
-        #     reward += exploration_bonus
-
-        return reward, base_reward  #, position_profit_reward, holding_bonus
+        return reward
 
     def _get_observation(self):
         """Get current observation of market and account state."""
@@ -231,15 +206,7 @@ class SimpleTradingEnv(gym.Env):
                 self.shares_held -= shares_to_sell
                 self.episode_trades += 1
                 trade_executed = True
-                # Immediate trade logging
-                # logger.info(f"""
-                # Trade Executed - SELL:
-                #   Shares: {shares_to_sell:.4f}
-                #   Price: {current_price:.2f}
-                #   Amount: {sell_amount:.2f}
-                #   Fees: {transaction_fees:.2f}
-                #   Net Amount: {net_sell_amount:.2f}
-                # """)
+
                 if self.shares_held == 0:
                     # self.holding_period = 0
                     self.last_trade_step = None
@@ -249,43 +216,36 @@ class SimpleTradingEnv(gym.Env):
         self._portfolio_history.append(self.net_worth)
 
         # Decide whether to log portfolio state (single consolidated check)
-        should_log = False
         if (self.current_step - self.last_logged_step) >= self.log_frequency:
             self.last_logged_step = self.current_step
-            # logger.info(f"""
-            #             Portfolio State:
-            #               Step: {self.current_step}
-            #               Action: {action}
-            #               Price: {current_price:.2f}
-            #               Balance: {self.balance:.2f}
-            #               Shares: {self.shares_held:.4f}
-            #               Net Worth: {self.net_worth:.2f}
-            #               Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}%
-            #               Position Value: {(self.shares_held * current_price):.2f}
-            #             """)
-
-        # # Calculate position profit (used for scaling holding bonus)
-        # position_profit = 0
-        # if self.shares_held > 0 and self.cost_basis > 0:
-        #     position_profit = (current_price -
-        #                        self.cost_basis) / self.cost_basis
-        #     position_profit = np.clip(position_profit, -1, 1)
 
         # Update holding period for any non-zero position
-        # if self.shares_held > 0:
-        #     self.holding_period += 1
+        if self.shares_held > 0:
+            self.holding_period += 1
 
         # Calculate reward using dedicated method
-        reward, base_reward = self._compute_reward(
-            prev_net_worth=prev_net_worth,
-            current_net_worth=self.net_worth,
-            action=action,
-            trade_executed=trade_executed)
+        reward = self._compute_reward(prev_net_worth=prev_net_worth,
+                                      current_net_worth=self.net_worth,
+                                      action=action,
+                                      trade_executed=trade_executed)
 
         # Update state
         self.current_step += 1
         done = self.current_step >= len(self.data) - 1
         truncated = False
+
+        # if action in [1, 2] and trade_executed:
+        #     logger.info(f"""
+        #     Portfolio State:
+        #     Step: {self.current_step}
+        #     Action: {action}
+        #     Price: {current_price:.2f}
+        #     Balance: {self.balance:.2f}
+        #     Shares: {self.shares_held:.4f}
+        #     Net Worth: {self.net_worth:.2f}
+        #     Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}%
+        #     Position Value: {(self.shares_held * current_price):.2f}
+        #     """)
 
         # Get next observation
         next_observation = self._get_observation()
@@ -303,12 +263,6 @@ class SimpleTradingEnv(gym.Env):
                 'base': base_reward if 'base_reward' in locals() else 0
             }
         }
-
-        # Log reward components directly from _compute_reward results
-        # logger.info(f"""
-        #             Reward Components:
-        #                 Base Reward: {base_reward:.4f}
-        #             """)
 
         return next_observation, reward, done, truncated, info
 
@@ -338,7 +292,6 @@ class SimpleTradingEnv(gym.Env):
                 logger.setLevel(logging.WARNING)
 
             obs, _ = self.reset()
-            total_trades = 0
             total_rewards = 0
             actions_taken = {0: 0, 1: 0, 2: 0}  # Count of each action type
             trades_executed = 0
@@ -351,12 +304,6 @@ class SimpleTradingEnv(gym.Env):
                 if info['trade_executed']:
                     trades_executed += 1
                 total_rewards += reward
-
-                # Log only every 10% of steps if logging is enabled
-                # if log and step % max(1, n_steps // 10) == 0:
-                #     logger.info(
-                #         f"Test step {step}/{n_steps}, Current reward:                                     {reward:.4f}"
-                # )
 
                 if done:
                     obs, _ = self.reset()

@@ -6,6 +6,8 @@ from environment import SimpleTradingEnv
 from core.trading_agent import TradingAgent
 from data.data_handler import DataHandler
 
+import tensorflow as tf
+
 
 class PPOAgentModel:
 

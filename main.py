@@ -59,8 +59,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.ppo_fin_model import PPOAgentModel
-import tensorflow as tf
-from tensorflow.keras import layers
 
 # Configure logging
 import logging

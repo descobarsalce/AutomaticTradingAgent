@@ -55,6 +55,8 @@ import os
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import ta
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
@@ -464,6 +466,141 @@ def main() -> None:
                                         timedelta(days=365))
     with test_col2:
         test_end_date = st.date_input("Test End Date", value=datetime.now())
+
+    # Plot controls
+    st.header("Visualization Options")
+    plot_col1, plot_col2 = st.columns(2)
+
+    with plot_col1:
+        show_rsi = st.checkbox("Show RSI", value=True)
+        show_sma20 = st.checkbox("Show SMA 20", value=True)
+    
+    with plot_col2:
+        show_sma50 = st.checkbox("Show SMA 50", value=True)
+        rsi_period = st.slider("RSI Period", min_value=7, max_value=21, value=14) if show_rsi else 14
+
+    if st.button("Generate Charts"):
+        with st.spinner("Fetching and processing data..."):
+            try:
+                portfolio_data = st.session_state.model.data_handler.fetch_data(stock_name, test_start_date, test_end_date)
+                if not portfolio_data:
+                    st.error("No data available for the selected symbol and date range.")
+                else:
+                    portfolio_data = st.session_state.model.data_handler.prepare_data()
+                    
+                    for symbol, data in portfolio_data.items():
+                        st.subheader(f"{symbol} Technical Analysis")
+                        
+                        fig = make_subplots(rows=2, cols=1, shared_xaxis=True, 
+                                          vertical_spacing=0.03, 
+                                          row_heights=[0.7, 0.3])
+
+                        # Candlestick chart
+                        fig.add_trace(go.Candlestick(
+                            x=data.index,
+                            open=data['Open'],
+                            high=data['High'],
+                            low=data['Low'],
+                            close=data['Close'],
+                            name='Price'
+                        ), row=1, col=1)
+
+                        if show_sma20:
+                            sma20 = data['Close'].rolling(window=20).mean()
+                            fig.add_trace(go.Scatter(
+                                x=data.index,
+                                y=sma20,
+                                name='SMA 20',
+                                line=dict(color='orange')
+                            ), row=1, col=1)
+
+                        if show_sma50:
+                            sma50 = data['Close'].rolling(window=50).mean()
+                            fig.add_trace(go.Scatter(
+                                x=data.index,
+                                y=sma50,
+                                name='SMA 50',
+                                line=dict(color='blue')
+                            ), row=1, col=1)
+
+                        # Volume
+                        fig.add_trace(go.Bar(
+                            x=data.index,
+                            y=data['Volume'],
+                            name='Volume'
+                        ), row=2, col=1)
+
+                        if show_rsi:
+                            rsi = ta.momentum.RSIIndicator(
+                                data['Close'], 
+                                window=rsi_period
+                            ).rsi()
+                            
+                            # Add RSI
+                            fig2 = make_subplots(rows=1, cols=1)
+                            fig2.add_trace(go.Scatter(
+                                x=data.index,
+                                y=rsi,
+                                name='RSI'
+                            ))
+                            
+                            # Add RSI threshold lines
+                            fig2.add_hline(y=70, line_color="red", line_dash="dash")
+                            fig2.add_hline(y=30, line_color="green", line_dash="dash")
+                            
+                            fig2.update_layout(
+                                title=f"RSI ({rsi_period} periods)",
+                                yaxis_title="RSI",
+                                height=300
+                            )
+                            
+                            st.plotly_chart(fig2, use_container_width=True)
+
+                        fig.update_layout(
+                            height=800,
+                            title=f"{symbol} Price and Volume",
+                            yaxis_title="Price",
+                            yaxis2_title="Volume"
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # Calculate and display metrics
+                        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+                        
+                        try:
+                            latest_close = data['Close'].iloc[-1]
+                            price_change = (latest_close - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
+                            
+                            metrics_col1.metric(
+                                "Latest Close",
+                                f"${latest_close:.2f}",
+                                f"{price_change:.2f}%"
+                            )
+                            
+                            avg_volume = data['Volume'].mean()
+                            volume_change = (data['Volume'].iloc[-1] - avg_volume) / avg_volume * 100
+                            
+                            metrics_col2.metric(
+                                "Average Volume",
+                                f"{avg_volume:,.0f}",
+                                f"{volume_change:.2f}%"
+                            )
+                            
+                            if show_rsi and 'RSI' in data.columns:
+                                latest_rsi = data['RSI'].iloc[-1]
+                                rsi_change = latest_rsi - data['RSI'].iloc[-2] if len(data) > 1 else 0
+                                
+                                metrics_col3.metric(
+                                    "Current RSI",
+                                    f"{latest_rsi:.2f}",
+                                    f"{rsi_change:.2f}"
+                                )
+                        except Exception as e:
+                            st.error(f"Error calculating metrics: {str(e)}")
+
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
 
     if col_test.button("Test Model"):
         try:

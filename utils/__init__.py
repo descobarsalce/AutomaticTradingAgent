@@ -1,4 +1,3 @@
-
 """
 Trading platform shared utilities module.
 Provides organized utility functions and constants used across the platform.
@@ -11,39 +10,18 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Import data validation utilities
-from .data_utils import (
+from .common import (
     validate_numeric,
     validate_dataframe,
     validate_portfolio_weights,
-    normalize_data
-)
-
-# Import market analysis utilities
-from .market_utils import (
-    is_market_hours,
-    trading_days_between
-)
-
-# Import metrics calculator
-from metrics.metrics_calculator import MetricsCalculator
-
-# Import formatting utilities
-from .formatting_utils import (
+    validate_trading_params,
     format_timestamp,
     format_money,
     format_date,
-    round_price
-)
-
-# Import callback utilities
-from .callbacks import (
-    PortfolioMetricsCallback,
-    ProgressBarCallback
-)
-
-# Import common trading parameters and constants
-from .common import (
+    round_price,
+    is_market_hours,
+    trading_days_between,
+    type_check,
     MAX_POSITION_SIZE,
     MIN_POSITION_SIZE,
     MAX_LEVERAGE,
@@ -57,40 +35,30 @@ from .common import (
     CORRELATION_THRESHOLD,
     PRICE_PRECISION,
     POSITION_PRECISION,
-    ANNUALIZATION_FACTOR,
-    validate_trading_params,
-    type_check
+    ANNUALIZATION_FACTOR
+)
+
+from .callbacks import (
+    PortfolioMetricsCallback,
+    ProgressBarCallback
 )
 
 __all__ = [
-    # Validation functions
     'validate_numeric',
-    'validate_dataframe', 
-    'validate_trading_params',
+    'validate_dataframe',
     'validate_portfolio_weights',
-    'normalize_data',
-    'type_check',
-    
-    # Calculator
-    'MetricsCalculator',
-    
-    # Market utilities
-    'is_market_hours',
-    'trading_days_between',
-    
-    # Formatting functions 
+    'validate_trading_params',
     'format_timestamp',
     'format_money',
     'format_date',
     'round_price',
-    
-    # Callbacks
+    'is_market_hours',
+    'trading_days_between',
+    'type_check',
     'PortfolioMetricsCallback',
     'ProgressBarCallback',
-    
-    # Constants
     'MAX_POSITION_SIZE',
-    'MIN_POSITION_SIZE', 
+    'MIN_POSITION_SIZE',
     'MAX_LEVERAGE',
     'MIN_TRADE_SIZE',
     'DEFAULT_STOP_LOSS',
@@ -102,5 +70,5 @@ __all__ = [
     'CORRELATION_THRESHOLD',
     'PRICE_PRECISION',
     'POSITION_PRECISION',
-    'ANNUALIZATION_FACTOR',
+    'ANNUALIZATION_FACTOR'
 ]

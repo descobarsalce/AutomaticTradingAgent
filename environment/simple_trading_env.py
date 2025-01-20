@@ -15,8 +15,6 @@ class SimpleTradingEnv(gym.Env):
                  data,
                  initial_balance=10000,
                  transaction_cost=0.0,
-                 min_transaction_size=0.001,
-                 max_position_pct=0.95,
                  use_position_profit=False,
                  use_holding_bonus=False,
                  use_trading_penalty=False,
@@ -62,8 +60,6 @@ class SimpleTradingEnv(gym.Env):
 
         # Transaction parameters
         self.transaction_cost = transaction_cost
-        self.min_transaction_size = min_transaction_size
-        self.max_position_pct = max_position_pct
 
     def _compute_reward(self, prev_net_worth: float, current_net_worth: float,
                         action: int, trade_executed: bool) -> float:
@@ -164,9 +160,9 @@ class SimpleTradingEnv(gym.Env):
         # Process actions
         trade_executed = False
         if action == 1:  # Buy
-            trade_amount = self.balance * 0.2  # Use 20% of available balance
+            trade_amount = self.balance - self.transaction_cost
             shares_to_buy = trade_amount / current_price
-            transaction_fees = trade_amount * self.transaction_cost
+            transaction_fees = self.transaction_cost
             total_cost = trade_amount + transaction_fees
 
             if total_cost <= self.balance:
@@ -185,22 +181,13 @@ class SimpleTradingEnv(gym.Env):
                 self.last_trade_step = self.current_step
                 self.episode_trades += 1
                 trade_executed = True
-                # # Immediate trade logging
-                # logger.info(f"""
-                # Trade Executed - BUY:
-                #   Shares: {shares_to_buy:.4f}
-                #   Price: {current_price:.2f}
-                #   Amount: {trade_amount:.2f}
-                #   Fees: {transaction_fees:.2f}
-                #   Total Cost: {total_cost:.2f}
-                # """)
 
         elif action == 2:  # Sell
             if self.shares_held > 0:
-                shares_to_sell = self.shares_held * 0.2  # Sell 20% of holdings
+                shares_to_sell = self.shares_held
                 sell_amount = shares_to_sell * current_price
-                transaction_fees = sell_amount * self.transaction_cost
-                net_sell_amount = sell_amount - transaction_fees
+                transaction_fees = self.transaction_cost
+                net_sell_amount = sell_amount
 
                 self.balance += net_sell_amount
                 self.shares_held -= shares_to_sell
@@ -233,19 +220,6 @@ class SimpleTradingEnv(gym.Env):
         self.current_step += 1
         done = self.current_step >= len(self.data) - 1
         truncated = False
-
-        # if action in [1, 2] and trade_executed:
-        #     logger.info(f"""
-        #     Portfolio State:
-        #     Step: {self.current_step}
-        #     Action: {action}
-        #     Price: {current_price:.2f}
-        #     Balance: {self.balance:.2f}
-        #     Shares: {self.shares_held:.4f}
-        #     Net Worth: {self.net_worth:.2f}
-        #     Change: {((self.net_worth - prev_net_worth) / prev_net_worth * 100):.2f}%
-        #     Position Value: {(self.shares_held * current_price):.2f}
-        #     """)
 
         # Get next observation
         next_observation = self._get_observation()

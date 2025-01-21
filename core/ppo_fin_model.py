@@ -27,7 +27,7 @@ class PPOAgentModel:
             use_trading_penalty=env_params.get('use_trading_penalty', False),
             training_mode=True)
 
-    def prepare_training_data(self, stock_name: str, start_date: datetime, end_date: datetime):
+    def prepare_processed_data(self, stock_name: str, start_date: datetime, end_date: datetime):
         portfolio_data = self.data_handler.fetch_data(symbols=[stock_name], start_date=start_date, end_date=end_date)
         if not portfolio_data:
             raise ValueError("No data found in database")
@@ -37,7 +37,7 @@ class PPOAgentModel:
     def train(self, stock_name: str, start_date: datetime, end_date: datetime,
               env_params: Dict[str, Any], ppo_params: Dict[str, Any],
               callback=None) -> Dict[str, float]:
-        data = self.prepare_training_data(stock_name, start_date, end_date)
+        data = self.prepare_processed_data(stock_name, start_date, end_date)
         self.initialize_env(data, env_params)
         
         # Use initial learning rate for PPO parameters
@@ -69,7 +69,7 @@ class PPOAgentModel:
 
     def test(self, stock_name: str, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any], ppo_params: Dict[str, Any]) -> Dict[str, Any]:
-        data = self.prepare_training_data(stock_name, start_date, end_date)
+        data = self.prepare_processed_data(stock_name, start_date, end_date)
         self.initialize_env(data, env_params)
         self.agent = TradingAgent(env=self.env, ppo_params=ppo_params)
         self.agent.load("trained_model.zip")

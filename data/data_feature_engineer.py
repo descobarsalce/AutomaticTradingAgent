@@ -70,11 +70,24 @@ class FeatureEngineer:
 
     @staticmethod
     def add_fourier_transform(data: pd.Series, top_n: int = 5) -> pd.DataFrame:
-        fft_result = fft(data.values)
-        fft_df = pd.DataFrame({
-            f'FFT_{i+1}': np.abs(fft_result[i]) for i in range(top_n)
-        }, index=[0])
-        return pd.concat([data.reset_index(drop=True), fft_df], axis=1)
+        if len(data) < top_n:
+            logger.warning(f"Data length {len(data)} is less than requested FFT components {top_n}")
+            return pd.DataFrame(index=data.index)
+            
+        try:
+            fft_result = fft(data.values)
+            fft_values = {f'FFT_{i+1}': np.abs(fft_result[i]) for i in range(top_n)}
+            
+            # Create a DataFrame with FFT values repeated for each row
+            fft_columns = pd.DataFrame({
+                col: [val] * len(data) for col, val in fft_values.items()
+            }, index=data.index)
+            
+            # Return DataFrame with original index preserved
+            return fft_columns
+        except Exception as e:
+            logger.error(f"Error calculating FFT: {str(e)}")
+            return pd.DataFrame(index=data.index)
 
     def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         if not portfolio_data:
@@ -114,7 +127,10 @@ class FeatureEngineer:
                         
                         # Add Fourier Transform features
                         fft_df = self.add_fourier_transform(prepared_df['Close'])
-                        prepared_df = pd.concat([prepared_df, fft_df], axis=1)
+                        if not fft_df.empty:
+                            prepared_df = pd.concat([prepared_df, fft_df], axis=1)
+                        else:
+                            logger.warning(f"Skipping FFT features for {symbol} due to insufficient data")
                         
                         # Calculate correlations with other symbols
                         correlations = {}

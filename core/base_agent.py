@@ -209,7 +209,7 @@ class UnifiedTradingAgent:
             raise ValueError("Model not initialized")
             
         action, _ = self.model.predict(observation, deterministic=deterministic)
-        action_val = int(action[0] if isinstance(action, (np.ndarray, list)) else action)
+        action_val = int(action.item() if isinstance(action, np.ndarray) else action)
         
         if not 0 <= action_val <= 2:
             raise ValueError(f"Invalid action value: {action_val}")

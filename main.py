@@ -673,12 +673,23 @@ def main() -> None:
                 'transaction_cost': transaction_cost,
             }
 
+            # Use either Optuna optimized or manual parameters
+            test_ppo_params = st.session_state.ppo_params if use_optuna_params else {
+                'learning_rate': learning_rate,
+                'n_steps': ppo_steps,
+                'batch_size': batch_size,
+                'n_epochs': n_epochs,
+                'gamma': gamma,
+                'clip_range': clip_range,
+                'target_kl': target_kl
+            }
+
             test_results = st.session_state.model.test(
                 stock_name=stock_name,
                 start_date=test_start_date,
                 end_date=test_end_date,
                 env_params=env_params,
-                ppo_params=st.session_state.ppo_params)
+                ppo_params=test_ppo_params)
 
             with st.expander("Test Results", expanded=True):
                 progress_bar = st.progress(0)

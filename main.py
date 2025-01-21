@@ -4,7 +4,7 @@ A Streamlit-based dashboard for configuring and managing reinforcement learning 
 
 System Architecture:
 - Web Interface Layer (Streamlit): Provides UI for configuration and visualization
-- Agent Layer (PPOAgentModel): Implements trading strategy and training logic
+- Agent Layer (UnifiedTradingAgent): Implements trading strategy and training logic
 - Environment Layer (SimpleTradingEnv): Simulates market interactions
 - Data Layer: Handles market data acquisition and preprocessing
 
@@ -60,8 +60,8 @@ import ta
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
-from core.base_agent import PPOAgentModel
-import optuna # Added import for Optuna
+from core.base_agent import UnifiedTradingAgent
+import optuna  # Added import for Optuna
 
 # Configure logging
 import logging
@@ -77,7 +77,7 @@ def init_session_state() -> None:
     Initializes:
         - log_messages: List[str] - Chronological log messages
         - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
-        - model: PPOAgentModel - Trading agent model instance
+        - model: UnifiedTradingAgent - Trading agent model instance
 
     Implementation:
         The function checks for each required key in st.session_state and
@@ -99,7 +99,7 @@ def init_session_state() -> None:
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
     if 'model' not in st.session_state:
-        st.session_state.model = PPOAgentModel()
+        st.session_state.model = UnifiedTradingAgent()
 
 
 class StreamlitLogHandler(logging.Handler):
@@ -163,47 +163,70 @@ class StreamlitLogHandler(logging.Handler):
             print(f"Logging error: {e}")
 
 
-def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end_date: datetime, env_params: Dict[str, Any]) -> None:
+def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
+                          train_end_date: datetime,
+                          env_params: Dict[str, Any]) -> None:
     st.header("Hyperparameter Tuning Options")
 
     with st.expander("Tuning Configuration", expanded=True):
-        trials_number = st.number_input("Number of Trials", min_value=1, value=20, step=1)
+        trials_number = st.number_input("Number of Trials",
+                                        min_value=1,
+                                        value=20,
+                                        step=1)
         pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
-        
+
         st.subheader("Parameter Search Ranges")
-        
+
         col1, col2 = st.columns(2)
         with col1:
-            lr_min = st.number_input("Learning Rate Min", value=1e-5, format="%.1e")
-            lr_max = st.number_input("Learning Rate Max", value=5e-4, format="%.1e")
+            lr_min = st.number_input("Learning Rate Min",
+                                     value=1e-5,
+                                     format="%.1e")
+            lr_max = st.number_input("Learning Rate Max",
+                                     value=5e-4,
+                                     format="%.1e")
             steps_min = st.number_input("Steps Min", value=512, step=64)
             steps_max = st.number_input("Steps Max", value=2048, step=64)
             batch_min = st.number_input("Batch Size Min", value=64, step=32)
             batch_max = st.number_input("Batch Size Max", value=512, step=32)
-            
+
         with col2:
-            epochs_min = st.number_input("Training Epochs Min", value=3, step=1)
-            epochs_max = st.number_input("Training Epochs Max", value=10, step=1)
-            gamma_min = st.number_input("Gamma Min", value=0.90, step=0.01, format="%.3f")
-            gamma_max = st.number_input("Gamma Max", value=0.999, step=0.001, format="%.3f")
-            gae_min = st.number_input("GAE Lambda Min", value=0.90, step=0.01, format="%.2f")
-            gae_max = st.number_input("GAE Lambda Max", value=0.99, step=0.01, format="%.2f")
-            
+            epochs_min = st.number_input("Training Epochs Min",
+                                         value=3,
+                                         step=1)
+            epochs_max = st.number_input("Training Epochs Max",
+                                         value=10,
+                                         step=1)
+            gamma_min = st.number_input("Gamma Min",
+                                        value=0.90,
+                                        step=0.01,
+                                        format="%.3f")
+            gamma_max = st.number_input("Gamma Max",
+                                        value=0.999,
+                                        step=0.001,
+                                        format="%.3f")
+            gae_min = st.number_input("GAE Lambda Min",
+                                      value=0.90,
+                                      step=0.01,
+                                      format="%.2f")
+            gae_max = st.number_input("GAE Lambda Max",
+                                      value=0.99,
+                                      step=0.01,
+                                      format="%.2f")
+
         optimization_metric = st.selectbox(
             "Optimization Metric",
             ["sharpe_ratio", "sortino_ratio", "total_return"],
-            help="Metric to optimize during hyperparameter search"
-        )
+            help="Metric to optimize during hyperparameter search")
 
     if st.button("Start Hyperparameter Tuning"):
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         # Create study with pruning
         study = optuna.create_study(
             direction='maximize',
-            pruner=optuna.pruners.MedianPruner() if pruning_enabled else None
-        )
+            pruner=optuna.pruners.MedianPruner() if pruning_enabled else None)
         status_text = st.empty()
 
         study = optuna.create_study(direction='maximize')
@@ -211,15 +234,23 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end
         def objective(trial: optuna.Trial) -> float:
             try:
                 ppo_params = {
-                    'learning_rate': trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
-                    'n_steps': trial.suggest_int('n_steps', 512, 2048),
-                    'batch_size': trial.suggest_int('batch_size', 64, 512),
-                    'n_epochs': trial.suggest_int('n_epochs', 3, 10),
-                    'gamma': trial.suggest_uniform('gamma', 0.90, 0.999),
-                    'gae_lambda': trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                    'learning_rate':
+                    trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                    'n_steps':
+                    trial.suggest_int('n_steps', 512, 2048),
+                    'batch_size':
+                    trial.suggest_int('batch_size', 64, 512),
+                    'n_epochs':
+                    trial.suggest_int('n_epochs', 3, 10),
+                    'gamma':
+                    trial.suggest_uniform('gamma', 0.90, 0.999),
+                    'gae_lambda':
+                    trial.suggest_uniform('gae_lambda', 0.90, 0.99),
                 }
 
-                status_text.text(f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}")
+                status_text.text(
+                    f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}"
+                )
 
                 # Train with current parameters
                 metrics = st.session_state.model.train(
@@ -227,8 +258,7 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end
                     start_date=train_start_date,
                     end_date=train_end_date,
                     env_params=env_params,
-                    ppo_params=ppo_params
-                )
+                    ppo_params=ppo_params)
 
                 # Use Sharpe ratio as optimization metric
                 trial_value = metrics.get('sharpe_ratio', float('-inf'))
@@ -247,17 +277,18 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end
             st.success("Hyperparameter tuning completed!")
 
             # Create detailed results dataframe
-            trials_df = pd.DataFrame([
-                {
-                    'Trial': t.number,
-                    'Value': t.value,
-                    **t.params
-                } for t in study.trials if t.value is not None
-            ])
+            trials_df = pd.DataFrame([{
+                'Trial': t.number,
+                'Value': t.value,
+                **t.params
+            } for t in study.trials if t.value is not None])
 
             # Display results in tabs
-            tab1, tab2, tab3 = st.tabs(["Best Parameters", "Optimization History", "Parameter Importance"])
-            
+            tab1, tab2, tab3 = st.tabs([
+                "Best Parameters", "Optimization History",
+                "Parameter Importance"
+            ])
+
             with tab1:
                 st.subheader("Best Configuration Found")
                 for param, value in study.best_params.items():
@@ -267,56 +298,53 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime, train_end
                         st.metric(f"Best {param}", f"{value:.4f}")
                     else:
                         st.metric(f"Best {param}", f"{int(value)}")
-                st.metric(f"Best {optimization_metric}", f"{study.best_value:.6f}")
+                st.metric(f"Best {optimization_metric}",
+                          f"{study.best_value:.6f}")
 
             with tab2:
                 st.subheader("Trial History")
                 history_fig = go.Figure()
-                history_fig.add_trace(go.Scatter(
-                    x=trials_df.index,
-                    y=trials_df['Value'],
-                    mode='lines+markers',
-                    name='Trial Value'
-                ))
+                history_fig.add_trace(
+                    go.Scatter(x=trials_df.index,
+                               y=trials_df['Value'],
+                               mode='lines+markers',
+                               name='Trial Value'))
                 history_fig.update_layout(
                     title='Optimization History',
                     xaxis_title='Trial Number',
-                    yaxis_title=optimization_metric.replace('_', ' ').title()
-                )
+                    yaxis_title=optimization_metric.replace('_', ' ').title())
                 st.plotly_chart(history_fig)
 
             with tab3:
                 st.subheader("Parameter Importance")
-                importance_dict = optuna.importance.get_param_importances(study)
+                importance_dict = optuna.importance.get_param_importances(
+                    study)
                 importance_df = pd.DataFrame({
-                    'Parameter': list(importance_dict.keys()),
-                    'Importance': list(importance_dict.values())
+                    'Parameter':
+                    list(importance_dict.keys()),
+                    'Importance':
+                    list(importance_dict.values())
                 }).sort_values('Importance', ascending=True)
-                
+
                 importance_fig = go.Figure()
-                importance_fig.add_trace(go.Bar(
-                    x=importance_df['Importance'],
-                    y=importance_df['Parameter'],
-                    orientation='h'
-                ))
+                importance_fig.add_trace(
+                    go.Bar(x=importance_df['Importance'],
+                           y=importance_df['Parameter'],
+                           orientation='h'))
                 importance_fig.update_layout(
                     title='Parameter Importance Analysis',
                     xaxis_title='Relative Importance',
                     yaxis_title='Parameter',
-                    height=400
-                )
+                    height=400)
                 st.plotly_chart(importance_fig)
 
             # Save full results to CSV
             trials_df.to_csv('hyperparameter_tuning_results.csv', index=False)
-            
+
             # Download button for results
-            st.download_button(
-                "Download Complete Results CSV",
-                trials_df.to_csv(index=False),
-                "hyperparameter_tuning_results.csv",
-                "text/csv"
-            )
+            st.download_button("Download Complete Results CSV",
+                               trials_df.to_csv(index=False),
+                               "hyperparameter_tuning_results.csv", "text/csv")
 
             # Save best parameters
             st.session_state.ppo_params = study.best_params
@@ -342,7 +370,9 @@ def main() -> None:
         initial_balance = st.number_input("Initial Balance", value=10000)
 
     with col2:
-        transaction_cost = st.number_input("Transaction Cost", value=0.01, step=0.001)
+        transaction_cost = st.number_input("Transaction Cost",
+                                           value=0.01,
+                                           step=0.001)
 
     env_params = {
         'initial_balance': initial_balance,
@@ -357,13 +387,13 @@ def main() -> None:
     train_col1, train_col2 = st.columns(2)
     with train_col1:
         train_start_date = datetime.combine(
-        st.date_input("Training Start Date", 
-                     value=datetime.now() - timedelta(days=365 * 5)),
-        datetime.min.time())
+            st.date_input("Training Start Date",
+                          value=datetime.now() - timedelta(days=365 * 5)),
+            datetime.min.time())
     with train_col2:
         train_end_date = datetime.combine(
             st.date_input("Training End Date",
-                         value=datetime.now() - timedelta(days=365 + 1)),
+                          value=datetime.now() - timedelta(days=365 + 1)),
             datetime.min.time())
 
     tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
@@ -371,23 +401,31 @@ def main() -> None:
     with tab1:
         # Original manual parameter selection
         st.header("Agent Parameters")
-        
+
         # Add checkbox to use Optuna parameters
-        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters", value=False)
-        
+        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
+                                        value=False)
+
         if use_optuna_params and st.session_state.ppo_params is not None:
             st.info("Using Optuna's optimized parameters")
             # Display Optuna parameters as read-only
             col3, col4 = st.columns(2)
             with col3:
-                st.text(f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}")
+                st.text(
+                    f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}"
+                )
                 st.text(f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
-                st.text(f"Batch Size: {st.session_state.ppo_params['batch_size']}")
-                st.text(f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}")
+                st.text(
+                    f"Batch Size: {st.session_state.ppo_params['batch_size']}")
+                st.text(
+                    f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}"
+                )
             with col4:
                 st.text(f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
-                st.text(f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}")
-                
+                st.text(
+                    f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}"
+                )
+
             # Store Optuna values in variables
             learning_rate = st.session_state.ppo_params['learning_rate']
             ppo_steps = st.session_state.ppo_params['n_steps']
@@ -399,11 +437,15 @@ def main() -> None:
             target_kl = 0.05  # Default value for non-tuned parameter
         else:
             if use_optuna_params:
-                st.warning("No Optuna parameters available. Please run hyperparameter tuning first.")
-            
+                st.warning(
+                    "No Optuna parameters available. Please run hyperparameter tuning first."
+                )
+
             col3, col4 = st.columns(2)
             with col3:
-                learning_rate = st.number_input("Learning Rate", value=3e-4, format="%.1e")
+                learning_rate = st.number_input("Learning Rate",
+                                                value=3e-4,
+                                                format="%.1e")
                 ppo_steps = st.number_input("PPO Steps Per Update", value=512)
                 batch_size = st.number_input("Batch Size", value=128)
                 n_epochs = st.number_input("Number of Epochs", value=5)
@@ -414,8 +456,8 @@ def main() -> None:
 
     with tab2:
         # Hyperparameter tuning section
-        hyperparameter_tuning(stock_name, train_start_date, train_end_date, env_params)
-
+        hyperparameter_tuning(stock_name, train_start_date, train_end_date,
+                              env_params)
 
     col_train, col_test = st.columns(2)
 
@@ -432,7 +474,6 @@ def main() -> None:
             'clip_range': clip_range,
             'target_kl': target_kl
         }
-
 
         progress_callback = ProgressBarCallback(
             total_timesteps=(train_end_date - train_start_date).days,
@@ -478,43 +519,51 @@ def main() -> None:
     with plot_col1:
         show_rsi = st.checkbox("Show RSI", value=True)
         show_sma20 = st.checkbox("Show SMA 20", value=True)
-    
+
     with plot_col2:
         show_sma50 = st.checkbox("Show SMA 50", value=True)
-        rsi_period = st.slider("RSI Period", min_value=7, max_value=21, value=14) if show_rsi else 14
+        rsi_period = st.slider(
+            "RSI Period", min_value=7, max_value=21,
+            value=14) if show_rsi else 14
 
     if st.button("Generate Charts"):
         with st.spinner("Fetching and processing data..."):
             try:
-                portfolio_data = st.session_state.model.data_handler.fetch_data(stock_name, test_start_date, test_end_date)
+                portfolio_data = st.session_state.model.data_handler.fetch_data(
+                    stock_name, test_start_date, test_end_date)
                 if not portfolio_data:
-                    st.error("No data available for the selected symbol and date range.")
+                    st.error(
+                        "No data available for the selected symbol and date range."
+                    )
                 else:
-                    portfolio_data = st.session_state.model.data_handler.prepare_data()
-                    
+                    portfolio_data = st.session_state.model.data_handler.prepare_data(
+                    )
+
                     # Clear any previous charts
                     if 'previous_charts' in st.session_state:
                         for key in list(st.session_state.keys()):
                             if key.startswith('chart_'):
                                 del st.session_state[key]
-                    
+
                     if stock_name in portfolio_data:
                         data = portfolio_data[stock_name]
                         st.subheader(f"{stock_name} Technical Analysis")
-                        
-                        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                                          vertical_spacing=0.03, 
-                                          row_heights=[0.7, 0.3])
+
+                        fig = make_subplots(rows=2,
+                                            cols=1,
+                                            shared_xaxes=True,
+                                            vertical_spacing=0.03,
+                                            row_heights=[0.7, 0.3])
 
                         # Candlestick chart
-                        fig.add_trace(go.Candlestick(
-                            x=data.index,
-                            open=data['Open'],
-                            high=data['High'],
-                            low=data['Low'],
-                            close=data['Close'],
-                            name='Price'
-                        ), row=1, col=1)
+                        fig.add_trace(go.Candlestick(x=data.index,
+                                                     open=data['Open'],
+                                                     high=data['High'],
+                                                     low=data['Low'],
+                                                     close=data['Close'],
+                                                     name='Price'),
+                                      row=1,
+                                      col=1)
 
                         if show_sma20:
                             sma20 = data['Close'].rolling(window=20).mean()
@@ -522,91 +571,88 @@ def main() -> None:
                                 x=data.index,
                                 y=sma20,
                                 name='SMA 20',
-                                line=dict(color='orange')
-                            ), row=1, col=1)
+                                line=dict(color='orange')),
+                                          row=1,
+                                          col=1)
 
                         if show_sma50:
                             sma50 = data['Close'].rolling(window=50).mean()
-                            fig.add_trace(go.Scatter(
-                                x=data.index,
-                                y=sma50,
-                                name='SMA 50',
-                                line=dict(color='blue')
-                            ), row=1, col=1)
+                            fig.add_trace(go.Scatter(x=data.index,
+                                                     y=sma50,
+                                                     name='SMA 50',
+                                                     line=dict(color='blue')),
+                                          row=1,
+                                          col=1)
 
                         # Volume
-                        fig.add_trace(go.Bar(
-                            x=data.index,
-                            y=data['Volume'],
-                            name='Volume'
-                        ), row=2, col=1)
+                        fig.add_trace(go.Bar(x=data.index,
+                                             y=data['Volume'],
+                                             name='Volume'),
+                                      row=2,
+                                      col=1)
 
                         if show_rsi:
                             rsi = ta.momentum.RSIIndicator(
-                                data['Close'], 
-                                window=rsi_period
-                            ).rsi()
-                            
+                                data['Close'], window=rsi_period).rsi()
+
                             # Add RSI
                             fig2 = make_subplots(rows=1, cols=1)
-                            fig2.add_trace(go.Scatter(
-                                x=data.index,
-                                y=rsi,
-                                name='RSI'
-                            ))
-                            
+                            fig2.add_trace(
+                                go.Scatter(x=data.index, y=rsi, name='RSI'))
+
                             # Add RSI threshold lines
-                            fig2.add_hline(y=70, line_color="red", line_dash="dash")
-                            fig2.add_hline(y=30, line_color="green", line_dash="dash")
-                            
+                            fig2.add_hline(y=70,
+                                           line_color="red",
+                                           line_dash="dash")
+                            fig2.add_hline(y=30,
+                                           line_color="green",
+                                           line_dash="dash")
+
                             fig2.update_layout(
                                 title=f"RSI ({rsi_period} periods)",
                                 yaxis_title="RSI",
-                                height=300
-                            )
-                            
+                                height=300)
+
                             st.plotly_chart(fig2, use_container_width=True)
 
                         fig.update_layout(
                             height=800,
                             title=f"{stock_name} Price and Volume",
                             yaxis_title="Price",
-                            yaxis2_title="Volume"
-                        )
-                        
+                            yaxis2_title="Volume")
+
                         st.plotly_chart(fig, use_container_width=True)
 
                         # Calculate and display metrics
-                        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
-                        
+                        metrics_col1, metrics_col2, metrics_col3 = st.columns(
+                            3)
+
                         try:
                             latest_close = data['Close'].iloc[-1]
-                            price_change = (latest_close - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
-                            
-                            metrics_col1.metric(
-                                "Latest Close",
-                                f"${latest_close:.2f}",
-                                f"{price_change:.2f}%"
-                            )
-                            
+                            price_change = (latest_close -
+                                            data['Close'].iloc[0]
+                                            ) / data['Close'].iloc[0] * 100
+
+                            metrics_col1.metric("Latest Close",
+                                                f"${latest_close:.2f}",
+                                                f"{price_change:.2f}%")
+
                             avg_volume = data['Volume'].mean()
-                            volume_change = (data['Volume'].iloc[-1] - avg_volume) / avg_volume * 100
-                            
-                            metrics_col2.metric(
-                                "Average Volume",
-                                f"{avg_volume:,.0f}",
-                                f"{volume_change:.2f}%"
-                            )
-                            
+                            volume_change = (data['Volume'].iloc[-1] -
+                                             avg_volume) / avg_volume * 100
+
+                            metrics_col2.metric("Average Volume",
+                                                f"{avg_volume:,.0f}",
+                                                f"{volume_change:.2f}%")
+
                             if show_rsi and 'RSI' in data.columns:
                                 latest_rsi = data['RSI'].iloc[-1]
-                                rsi_change = latest_rsi - data['RSI'].iloc[-2] if len(data) > 1 else 0
-                                
-                                metrics_col3.metric(
-                                    "Current RSI",
-                                    f"{latest_rsi:.2f}",
-                                    f"{rsi_change:.2f}"
-                                )
+                                rsi_change = latest_rsi - data['RSI'].iloc[
+                                    -2] if len(data) > 1 else 0
+
+                                metrics_col3.metric("Current RSI",
+                                                    f"{latest_rsi:.2f}",
+                                                    f"{rsi_change:.2f}")
                         except Exception as e:
                             st.error(f"Error calculating metrics: {str(e)}")
 
@@ -691,11 +737,13 @@ def main() -> None:
 
                 with chart_col2:
                     st.subheader("Agent Actions")
-                    st.plotly_chart(test_results['action_plot'], use_container_width=True)
-                    
+                    st.plotly_chart(test_results['action_plot'],
+                                    use_container_width=True)
+
                     st.subheader("Price and Actions")
-                    st.plotly_chart(test_results['combined_plot'], use_container_width=True)
-                    
+                    st.plotly_chart(test_results['combined_plot'],
+                                    use_container_width=True)
+
                     st.subheader("Cumulative Returns")
                     cum_returns = pd.DataFrame(
                         np.cumprod(1 + test_results['returns']) - 1,
@@ -711,7 +759,6 @@ def main() -> None:
         except Exception as e:
             st.error(f"Error during testing: {str(e)}")
 
-
     # Configure logging
     handler = StreamlitLogHandler()
     handler.setFormatter(
@@ -724,7 +771,6 @@ def main() -> None:
         st.header("Logs")
         for log in st.session_state.log_messages:
             st.text(log)
-
 
 
 if __name__ == "__main__":

@@ -91,10 +91,17 @@ class PPOAgentModel:
         portfolio_history = self.env.get_portfolio_history()
         returns = MetricsCalculator.calculate_returns(portfolio_history)
 
+        # Generate action visualization
+        from core.visualization import plot_discrete_actions, plot_actions_with_price
+        action_fig = plot_discrete_actions(info_history)
+        combined_fig = plot_actions_with_price(info_history, data)
+        
         return {
             'portfolio_history': portfolio_history,
             'returns': returns,
             'info_history': info_history,
+            'action_plot': action_fig,
+            'combined_plot': combined_fig,
             'metrics': {
                 'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
                 'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),

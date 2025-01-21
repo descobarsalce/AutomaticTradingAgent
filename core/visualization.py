@@ -32,7 +32,7 @@ class TradingVisualizer:
             
         return self.figs
         
-    def create_single_chart(self, symbol, data, trades=None):
+    def create_single_chart(self, symbol, data, trades=None, info_history=None):
         """Create interactive trading chart with RSI indicator"""
         try:
             # Create a copy of data to avoid modifying original
@@ -61,11 +61,11 @@ class TradingVisualizer:
             
             # Create figure with dynamic subplots
             fig = make_subplots(
-                rows=num_rows, cols=1,
+                rows=num_rows + 1, cols=1, # Added a row for actions
                 shared_xaxes=True,
                 vertical_spacing=0.03,
-                row_heights=[0.5] + [0.25] * (num_rows - 1),
-                subplot_titles=subplot_titles
+                row_heights=[0.5] + [0.25] * (num_rows), #Adjusted row heights
+                subplot_titles=subplot_titles + ['Agent Actions'] #Added subplot title
             )
             
             # Add candlestick chart
@@ -175,9 +175,14 @@ class TradingVisualizer:
                 except Exception as e:
                     print(f"Error adding trade markers: {str(e)}")
             
+            #Added action visualization
+            if info_history is not None:
+                self.plot_actions_with_price(info_history, chart_data, fig)
+
+
             # Update layout with interactive features and date formatting
             fig.update_layout(
-                height=800,
+                height=1000, #Increased height for action plot
                 showlegend=True,
                 xaxis_rangeslider_visible=False,
                 template='plotly_dark',
@@ -203,3 +208,61 @@ class TradingVisualizer:
         except Exception as e:
             print(f"Error creating chart for {symbol}: {str(e)}")
             return None
+
+    def plot_discrete_actions(self, info_history: List[Dict], fig: Optional[go.Figure] = None) -> go.Figure:
+        """
+        Creates a scatter plot of discrete actions over time using plotly.
+
+        Args:
+            info_history: List of info dictionaries from environment steps
+            fig: Optional existing figure to add traces to
+        """
+        if fig is None:
+            fig = go.Figure()
+
+        # Extract actions and dates
+        dates = [info['date'] for info in info_history]
+        actions = [info['actions'][0] if isinstance(info['actions'], list) else info['actions'] for info in info_history]
+
+        # Create a scatter plot for each action type
+        action_colors = {0: 'blue', 1: 'green', 2: 'red'}
+        action_names = {0: 'Hold', 1: 'Buy', 2: 'Sell'}
+
+        for action_value in [0, 1, 2]:
+            mask = [a == action_value for a in actions]
+            if any(mask):
+                fig.add_trace(go.Scatter(
+                    x=[d for d, m in zip(dates, mask) if m],
+                    y=[action_value] * sum(mask),
+                    mode='markers',
+                    name=action_names[action_value],
+                    marker=dict(color=action_colors[action_value], size=8),
+                ))
+
+        fig.update_layout(
+            title='Agent Actions Over Time',
+            xaxis_title='Date',
+            yaxis=dict(
+                title='Action',
+                ticktext=['Hold (0)', 'Buy (1)', 'Sell (2)'],
+                tickvals=[0, 1, 2],
+            ),
+            showlegend=True
+        )
+
+        return fig
+
+    def plot_actions_with_price(self, info_history: List[Dict], price_data: pd.DataFrame, fig: go.Figure) -> go.Figure:
+        """
+        Creates a combined plot of price and actions.
+
+        Args:
+            info_history: List of info dictionaries from environment steps
+            price_data: DataFrame containing price data with 'Close' column
+            fig: Existing figure to add traces to
+        """
+
+        # Add actions to the last subplot
+        self.plot_discrete_actions(info_history, fig)
+        fig.update_layout(height=1000, title='Price and Agent Actions')
+        return fig

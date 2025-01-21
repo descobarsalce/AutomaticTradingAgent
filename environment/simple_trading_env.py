@@ -207,7 +207,10 @@ class SimpleTradingEnv(gym.Env):
             'positions': self.positions.copy(),
             'trades_executed': trades_executed,
             'episode_trades': self.episode_trades.copy(),
+            'actions': actions,  # Store actions in info
+            'date': self.data[self.symbols[0]].iloc[self.current_step].name
         }
+        self.last_info = info  # Store last info for callbacks
 
         return observation, reward, done, truncated, info
 

@@ -686,6 +686,12 @@ def main() -> None:
                                                columns=['Drawdown']))
 
                 with chart_col2:
+                    st.subheader("Agent Actions")
+                    st.plotly_chart(test_results['action_plot'], use_container_width=True)
+                    
+                    st.subheader("Price and Actions")
+                    st.plotly_chart(test_results['combined_plot'], use_container_width=True)
+                    
                     st.subheader("Cumulative Returns")
                     cum_returns = pd.DataFrame(
                         np.cumprod(1 + test_results['returns']) - 1,

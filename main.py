@@ -356,11 +356,15 @@ def main() -> None:
     st.subheader("Training Period")
     train_col1, train_col2 = st.columns(2)
     with train_col1:
-        train_start_date = st.date_input("Training Start Date",
-                                       value=datetime.now() - timedelta(days=365 * 5))
+        train_start_date = datetime.combine(
+        st.date_input("Training Start Date", 
+                     value=datetime.now() - timedelta(days=365 * 5)),
+        datetime.min.time())
     with train_col2:
-        train_end_date = st.date_input("Training End Date",
-                                     value=datetime.now() - timedelta(days=365 + 1))
+        train_end_date = datetime.combine(
+            st.date_input("Training End Date",
+                         value=datetime.now() - timedelta(days=365 + 1)),
+            datetime.min.time())
 
     tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
 

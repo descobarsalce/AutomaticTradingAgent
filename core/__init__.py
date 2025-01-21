@@ -1,4 +1,4 @@
 
-from .base_agent import BaseAgent, TradingAgent
+from .base_agent import UnifiedTradingAgent
 
-__all__ = ['BaseAgent', 'TradingAgent']
+__all__ = ['UnifiedTradingAgent']

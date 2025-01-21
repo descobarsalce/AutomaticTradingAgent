@@ -2,6 +2,7 @@
 #!/usr/bin/env python
 import logging
 import numpy as np
+import pandas as pd
 from datetime import datetime, timedelta
 from gymnasium import Env
 from stable_baselines3 import PPO

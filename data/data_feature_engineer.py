@@ -132,17 +132,32 @@ class FeatureEngineer:
                         else:
                             logger.warning(f"Skipping FFT features for {symbol} due to insufficient data")
                         
-                        # Calculate correlations with other symbols
+                        # Calculate correlations with other symbols using aligned data
                         correlations = {}
                         for other_symbol, other_data in portfolio_data.items():
                             if other_symbol != symbol and validate_dataframe(other_data, ['Close']):
-                                correlations[other_symbol] = prepared_df['Close'].corr(other_data['Close'])
+                                # Align data on index and calculate correlation
+                                aligned = pd.concat([
+                                    prepared_df['Close'], 
+                                    other_data['Close']
+                                ], axis=1, join='inner').dropna()
+                                
+                                if len(aligned) > 1:  # Ensure enough data points for correlation
+                                    correlations[other_symbol] = aligned.iloc[:,0].corr(aligned.iloc[:,1])
+                                else:
+                                    logger.warning(f"Insufficient overlapping data for correlation between {symbol} and {other_symbol}")
+                                    correlations[other_symbol] = None
+                                    
                         prepared_df['Correlations'] = str(correlations)
                         
-                        # Normalize features except OHLCV
+                        # Normalize features except OHLCV with validation
                         for col in prepared_df.columns:
                             if col not in ohlcv_cols and prepared_df[col].dtype != 'object':
-                                prepared_df[col] = normalize_data(prepared_df[col])
+                                col_data = prepared_df[col]
+                                if col_data.nunique() > 1:  # Only normalize if column has variation
+                                    prepared_df[col] = normalize_data(col_data)
+                                else:
+                                    logger.warning(f"Column {col} is constant or has insufficient variation for normalization")
                                 
                         # Restore original OHLCV data
                         for col in ohlcv_cols:

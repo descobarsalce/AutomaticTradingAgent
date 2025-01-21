@@ -506,11 +506,14 @@ def main() -> None:
     st.subheader("Test Period")
     test_col1, test_col2 = st.columns(2)
     with test_col1:
-        test_start_date = st.date_input("Test Start Date",
-                                        value=datetime.now() -
-                                        timedelta(days=365))
+        test_start_date = datetime.combine(
+            st.date_input("Test Start Date",
+                          value=datetime.now() - timedelta(days=365)),
+            datetime.min.time())
     with test_col2:
-        test_end_date = st.date_input("Test End Date", value=datetime.now())
+        test_end_date = datetime.combine(
+            st.date_input("Test End Date", value=datetime.now()),
+            datetime.min.time())
 
     # Plot controls
     st.header("Visualization Options")

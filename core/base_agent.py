@@ -266,8 +266,7 @@ class UnifiedTradingAgent:
                 'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
                 'information_ratio': MetricsCalculator.calculate_information_ratio(returns),
                 'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(portfolio_history),
-                'volatility': MetricsCalculator.calculate_volatility(returns),
-                'beta': MetricsCalculator.calculate_beta(returns, data['Close'].pct_change().values)
+                'volatility': MetricsCalculator.calculate_volatility(returns)
             }
         }
 

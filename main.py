@@ -715,7 +715,6 @@ def main() -> None:
                     st.metric("Volatility", f"{metrics['volatility']:.2%}")
 
                 with col3:
-                    st.metric("Beta", f"{metrics['beta']:.2f}")
                     st.metric(
                         "Final Portfolio Value",
                         f"${test_results['portfolio_history'][-1]:,.2f}")

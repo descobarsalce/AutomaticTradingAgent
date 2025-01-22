@@ -195,43 +195,6 @@ class MetricsCalculator:
             return 0.0
 
     @staticmethod
-    def calculate_beta(returns: np.ndarray,
-                       market_returns: np.ndarray) -> float:
-        """Calculate beta (market sensitivity) against market returns."""
-
-        if not isinstance(returns, np.ndarray) or not isinstance(
-                market_returns, np.ndarray):
-            logger.warning("Invalid input types for beta calculation")
-            return 0.0
-
-        if len(returns) != len(market_returns) or len(returns) < 2:
-            logger.debug(
-                "Mismatched lengths or insufficient data points for beta calculation"
-            )
-            return 0.0
-
-        try:
-            valid_mask = np.isfinite(returns) & np.isfinite(market_returns)
-            valid_returns = returns[valid_mask]
-            valid_market_returns = market_returns[valid_mask]
-
-            if len(valid_returns) < 2:
-                return 0.0
-
-            covariance = np.cov(valid_returns, valid_market_returns)[0][1]
-            market_variance = np.var(valid_market_returns, ddof=1)
-
-            if market_variance > 1e-8:
-                beta = covariance / market_variance
-                return float(np.clip(beta, -10, 10))
-
-            return 0.0
-
-        except Exception as e:
-            logger.exception("Error calculating beta")
-            return 0.0
-
-    @staticmethod
     def calculate_bollinger_bands(
             data: np.ndarray,
             window: int = 20,

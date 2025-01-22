@@ -536,13 +536,16 @@ def main() -> None:
                 portfolio_data = st.session_state.model.data_handler.fetch_data(
                     stock_name, test_start_date, test_end_date)
                 if not portfolio_data:
-                    st.error("No data available for the selected symbol and date range.")
+                    st.error(
+                        "No data available for the selected symbol and date range."
+                    )
                 else:
-                    portfolio_data = st.session_state.model.data_handler.prepare_data()
+                    portfolio_data = st.session_state.model.data_handler.prepare_data(
+                    )
 
                     if stock_name in portfolio_data:
                         data = portfolio_data[stock_name]
-                        
+
                         # Create TradingVisualizer instance with user preferences
                         visualizer = TradingVisualizer()
                         visualizer.show_rsi = show_rsi
@@ -552,55 +555,68 @@ def main() -> None:
 
                         # Technical Analysis Charts
                         st.subheader("Technical Analysis")
-                        main_chart = visualizer.create_single_chart(stock_name, data)
+                        main_chart = visualizer.create_single_chart(
+                            stock_name, data)
                         if main_chart:
-                            st.plotly_chart(main_chart, use_container_width=True)
+                            st.plotly_chart(main_chart,
+                                            use_container_width=True)
 
                         # Performance Analysis
                         st.subheader("Performance Analysis")
-                        
+
                         # Create two columns for charts
                         col1, col2 = st.columns(2)
-                        
+
                         with col1:
                             # Plot cumulative returns
-                            cum_returns_fig = plot_cumulative_returns({stock_name: data})
-                            st.plotly_chart(cum_returns_fig, use_container_width=True)
-                            
+                            cum_returns_fig = visualizer.plot_cumulative_returns(
+                                {stock_name: data})
+                            st.plotly_chart(cum_returns_fig,
+                                            use_container_width=True)
+
                             # Plot drawdown
-                            drawdown_fig = plot_drawdown({stock_name: data}, stock_name)
-                            st.plotly_chart(drawdown_fig, use_container_width=True)
+                            drawdown_fig = visualizer.plot_drawdown(
+                                {stock_name: data}, stock_name)
+                            st.plotly_chart(drawdown_fig,
+                                            use_container_width=True)
 
                         with col2:
                             # Plot performance and drawdown combined
-                            perf_dd_fig = plot_performance_and_drawdown({stock_name: data}, stock_name)
-                            st.plotly_chart(perf_dd_fig, use_container_width=True)
+                            perf_dd_fig = visualizer.plot_performance_and_drawdown(
+                                {stock_name: data}, stock_name)
+                            st.plotly_chart(perf_dd_fig,
+                                            use_container_width=True)
 
                         # Metrics Display
-                        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+                        metrics_col1, metrics_col2, metrics_col3 = st.columns(
+                            3)
 
                         try:
                             latest_close = data['Close'].iloc[-1]
-                            price_change = (latest_close - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
+                            price_change = (latest_close -
+                                            data['Close'].iloc[0]
+                                            ) / data['Close'].iloc[0] * 100
 
                             metrics_col1.metric("Latest Close",
-                                f"${latest_close:.2f}",
-                                f"{price_change:.2f}%")
+                                                f"${latest_close:.2f}",
+                                                f"{price_change:.2f}%")
 
                             avg_volume = data['Volume'].mean()
-                            volume_change = (data['Volume'].iloc[-1] - avg_volume) / avg_volume * 100
+                            volume_change = (data['Volume'].iloc[-1] -
+                                             avg_volume) / avg_volume * 100
 
                             metrics_col2.metric("Average Volume",
-                                f"{avg_volume:,.0f}",
-                                f"{volume_change:.2f}%")
+                                                f"{avg_volume:,.0f}",
+                                                f"{volume_change:.2f}%")
 
                             if show_rsi and 'RSI' in data.columns:
                                 latest_rsi = data['RSI'].iloc[-1]
-                                rsi_change = latest_rsi - data['RSI'].iloc[-2] if len(data) > 1 else 0
+                                rsi_change = latest_rsi - data['RSI'].iloc[
+                                    -2] if len(data) > 1 else 0
 
                                 metrics_col3.metric("Current RSI",
-                                    f"{latest_rsi:.2f}",
-                                    f"{rsi_change:.2f}")
+                                                    f"{latest_rsi:.2f}",
+                                                    f"{rsi_change:.2f}")
 
                         except Exception as e:
                             st.error(f"Error calculating metrics: {str(e)}")

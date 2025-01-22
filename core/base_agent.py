@@ -3,6 +3,10 @@
 import logging
 import numpy as np
 import pandas as pd
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TF logging
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning)
 from datetime import datetime, timedelta
 from gymnasium import Env
 from stable_baselines3 import PPO

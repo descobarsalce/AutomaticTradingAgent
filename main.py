@@ -541,7 +541,7 @@ def main() -> None:
                     )
                 else:
                     portfolio_data = st.session_state.model.data_handler.prepare_data(
-                    )
+                        portfolio_data)
 
                     if stock_name in portfolio_data:
                         data = portfolio_data[stock_name]

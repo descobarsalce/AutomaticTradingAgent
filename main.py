@@ -540,8 +540,7 @@ def main() -> None:
                         "No data available for the selected symbol and date range."
                     )
                 else:
-                    portfolio_data = st.session_state.model.data_handler.prepare_data(
-                        portfolio_data)
+                    portfolio_data = st.session_state.model.data_handler.prepare_data()
 
                     if stock_name in portfolio_data:
                         data = portfolio_data[stock_name]

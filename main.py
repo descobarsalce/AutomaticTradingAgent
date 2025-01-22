@@ -561,9 +561,6 @@ def main() -> None:
                             st.plotly_chart(main_chart,
                                             use_container_width=True)
 
-                        # Performance Analysis
-                        st.subheader("Performance Analysis")
-
                         # Create two columns for charts
                         col1, col2 = st.columns(2)
 

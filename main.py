@@ -355,6 +355,27 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             logger.exception("Hyperparameter optimization error")
 
 
+def parse_stock_list(stock_string):
+    # Handle empty or None input
+    if not stock_string or not isinstance(stock_string, str):
+        return []
+
+    # Split by comma and clean each stock symbol
+    stocks = [
+        stock.strip().upper()  # Convert to uppercase and remove whitespace
+        for stock in stock_string.split(',')
+        if stock.strip()  # Skip empty entries
+    ]
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_stocks = [
+        stock for stock in stocks if not (stock in seen or seen.add(stock))
+    ]
+
+    return unique_stocks
+
+
 def main() -> None:
     init_session_state()
 
@@ -540,7 +561,8 @@ def main() -> None:
                         "No data available for the selected symbol and date range."
                     )
                 else:
-                    portfolio_data = st.session_state.model.data_handler.prepare_data()
+                    portfolio_data = st.session_state.model.data_handler.prepare_data(
+                    )
 
                     if stock_name in portfolio_data:
                         data = portfolio_data[stock_name]

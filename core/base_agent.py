@@ -18,7 +18,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 from typing import Dict, Any, Optional, List, Union, Tuple, cast
 from numpy.typing import NDArray
-from core.visualization import plot_discrete_actions, plot_actions_with_price
+from core.visualization import TradingVisualizer
 
 from metrics.metrics_calculator import MetricsCalculator
 from environment import SimpleTradingEnv
@@ -257,8 +257,8 @@ class UnifiedTradingAgent:
             'portfolio_history': portfolio_history,
             'returns': returns,
             'info_history': info_history,
-            'action_plot': plot_discrete_actions(info_history),
-            'combined_plot': plot_actions_with_price(info_history, data),
+            'action_plot': TradingVisualizer().plot_discrete_actions(info_history),
+            'combined_plot': TradingVisualizer().plot_actions_with_price(info_history, data),
             'metrics': {
                 'sharpe_ratio':
                 MetricsCalculator.calculate_sharpe_ratio(returns),

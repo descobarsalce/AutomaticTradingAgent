@@ -376,7 +376,7 @@ class TradingVisualizer:
                           height=800)
         return fig
 
-    def plot_discrete_actions(info_history: List[Dict],
+    def plot_discrete_actions(self, info_history: List[Dict],
                               fig: Optional[go.Figure] = None) -> go.Figure:
         """Create scatter plot of discrete actions over time."""
         if fig is None:
@@ -417,7 +417,7 @@ class TradingVisualizer:
 
         return fig
 
-    def plot_actions_with_price(info_history: List[Dict],
+    def plot_actions_with_price(self, info_history: List[Dict],
                                 price_data: pd.DataFrame) -> go.Figure:
         """Create combined plot of price and actions."""
         fig = make_subplots(rows=2,

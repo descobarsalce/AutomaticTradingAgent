@@ -210,7 +210,7 @@ class TradingVisualizer:
             print(f"Error creating chart for {symbol}: {str(e)}")
             return None
 
-    def plot_correlation_heatmap(portfolio_data: Dict[str, pd.DataFrame],
+    def plot_correlation_heatmap(self, portfolio_data: Dict[str, pd.DataFrame],
                                  price_col: str = 'Close') -> go.Figure:
         """
         Creates a correlation heatmap for daily returns of multiple symbols in 'portfolio_data'.
@@ -245,7 +245,7 @@ class TradingVisualizer:
         fig.update_layout(template="plotly_dark")
         return fig
 
-    def plot_cumulative_returns(portfolio_data: Dict[str, pd.DataFrame],
+    def plot_cumulative_returns(self, portfolio_data: Dict[str, pd.DataFrame],
                                 price_col: str = 'Close') -> go.Figure:
         """
         Plots cumulative returns of each symbol in 'portfolio_data' on the same chart.
@@ -272,7 +272,7 @@ class TradingVisualizer:
                           hovermode="x unified")
         return fig
 
-    def plot_drawdown(portfolio_data: Dict[str, pd.DataFrame],
+    def plot_drawdown(self, portfolio_data: Dict[str, pd.DataFrame],
                       symbol: str,
                       price_col: str = 'Close') -> go.Figure:
         """
@@ -324,7 +324,7 @@ class TradingVisualizer:
         # We could add a second y-axis for drawdowns if you want them separate
         return fig
 
-    def plot_performance_and_drawdown(portfolio_data: Dict[str, pd.DataFrame],
+    def plot_performance_and_drawdown(self, portfolio_data: Dict[str, pd.DataFrame],
                                       symbol: str,
                                       price_col: str = 'Close') -> go.Figure:
         """

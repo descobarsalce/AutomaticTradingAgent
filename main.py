@@ -61,6 +61,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
+from core.visualization import TradingVisualizer
 import optuna  # Added import for Optuna
 
 # Configure logging

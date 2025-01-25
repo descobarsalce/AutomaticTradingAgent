@@ -63,6 +63,9 @@ from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
 from core.visualization import TradingVisualizer
 import optuna
+from sqlalchemy import func, distinct
+from models.database import Session
+from models.models import StockData
 
 # Configure logging
 import logging
@@ -236,17 +239,17 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             try:
                 ppo_params = {
                     'learning_rate':
-                    trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                        trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
                     'n_steps':
-                    trial.suggest_int('n_steps', 512, 2048),
+                        trial.suggest_int('n_steps', 512, 2048),
                     'batch_size':
-                    trial.suggest_int('batch_size', 64, 512),
+                        trial.suggest_int('batch_size', 64, 512),
                     'n_epochs':
-                    trial.suggest_int('n_epochs', 3, 10),
+                        trial.suggest_int('n_epochs', 3, 10),
                     'gamma':
-                    trial.suggest_uniform('gamma', 0.90, 0.999),
+                        trial.suggest_uniform('gamma', 0.90, 0.999),
                     'gae_lambda':
-                    trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                        trial.suggest_uniform('gae_lambda', 0.90, 0.99),
                 }
 
                 status_text.text(
@@ -322,9 +325,9 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                     study)
                 importance_df = pd.DataFrame({
                     'Parameter':
-                    list(importance_dict.keys()),
+                        list(importance_dict.keys()),
                     'Importance':
-                    list(importance_dict.values())
+                        list(importance_dict.values())
                 }).sort_values('Importance', ascending=True)
 
                 importance_fig = go.Figure()
@@ -376,14 +379,116 @@ def parse_stock_list(stock_string):
     return unique_stocks
 
 
+def display_database_explorer():
+    """Display the database explorer interface"""
+    st.title("Database Explorer")
+    st.header("Database Statistics")
+
+    # Initialize database session
+    session = Session()
+
+    col1, col2, col3 = st.columns(3)
+
+    # Total unique symbols
+    unique_symbols = session.query(func.count(distinct(StockData.symbol))).scalar()
+    col1.metric("Total Unique Symbols", unique_symbols)
+
+    # Date range
+    min_date = session.query(func.min(StockData.date)).scalar()
+    max_date = session.query(func.max(StockData.date)).scalar()
+    if min_date and max_date:
+        date_range = f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
+        col2.metric("Date Range", date_range)
+
+    # Database file size
+    if os.path.exists('trading_data.db'):
+        db_size = os.path.getsize('trading_data.db') / (1024 * 1024)  # Convert to MB
+        col3.metric("Database Size", f"{db_size:.2f} MB")
+
+    # Last update timestamps
+    st.subheader("Last Update Timestamps")
+    last_updates = session.query(
+        StockData.symbol,
+        func.max(StockData.last_updated).label('last_update')
+    ).group_by(StockData.symbol).all()
+
+    update_df = pd.DataFrame(last_updates, columns=['Symbol', 'Last Update'])
+    st.dataframe(update_df)
+
+    # Query Interface
+    st.header("Query Interface")
+
+    # Symbol selection
+    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+    if symbols:
+        selected_symbol = st.selectbox("Select Symbol", symbols)
+
+        # Date range selection
+        date_col1, date_col2 = st.columns(2)
+        start_date = date_col1.date_input("Start Date", min_date if min_date else None)
+        end_date = date_col2.date_input("End Date", max_date if max_date else None)
+
+        if st.button("Query Data"):
+            # Fetch data
+            query_data = session.query(StockData).filter(
+                StockData.symbol == selected_symbol,
+                StockData.date >= start_date,
+                StockData.date <= end_date
+            ).order_by(StockData.date).all()
+
+            # Convert to DataFrame
+            df = pd.DataFrame([{
+                'Date': record.date,
+                'Open': record.open,
+                'High': record.high,
+                'Low': record.low,
+                'Close': record.close,
+                'Volume': record.volume
+            } for record in query_data])
+
+            if not df.empty:
+                # Calculate basic statistics
+                stats_col1, stats_col2, stats_col3 = st.columns(3)
+                stats_col1.metric("Average Price", f"${df['Close'].mean():.2f}")
+                stats_col2.metric("Highest Price", f"${df['High'].max():.2f}")
+                stats_col3.metric("Lowest Price", f"${df['Low'].min():.2f}")
+
+                # Display table view
+                st.subheader("Table View")
+                st.dataframe(df)
+
+                # Display chart view
+                st.subheader("Chart View")
+                fig = go.Figure(data=[go.Candlestick(
+                    x=df['Date'],
+                    open=df['Open'],
+                    high=df['High'],
+                    low=df['Low'],
+                    close=df['Close']
+                )])
+
+                fig.update_layout(
+                    title=f'{selected_symbol} Price History',
+                    yaxis_title='Price ($)',
+                    template='plotly_dark',
+                    height=600
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No data available for the selected criteria.")
+
+
+
 def main() -> None:
     init_session_state()
 
     st.title("Trading Analysis and Agent Platform")
 
-    # Create tabs for Technical Analysis and Model Training
-    tab_analysis, tab_training = st.tabs(
-        ["Technical Analysis", "Model Training"])
+    # Create tabs for Technical Analysis, Model Training, and Database Explorer
+    tab_analysis, tab_training, tab_database = st.tabs([
+        "Technical Analysis", "Model Training", "Database Explorer"
+    ])
 
     with tab_analysis:
         st.header("Technical Analysis Dashboard")
@@ -519,11 +624,11 @@ def main() -> None:
                                            y=data['RSI'] * 100,
                                            name=f'{stock} RSI'))
                             rsi_fig.add_hline(y=70,
-                                              line_dash="dash",
-                                              line_color="red")
+                                               line_dash="dash",
+                                               line_color="red")
                             rsi_fig.add_hline(y=30,
-                                              line_dash="dash",
-                                              line_color="green")
+                                               line_dash="dash",
+                                               line_color="green")
                             rsi_fig.update_layout(
                                 title=f'{stock} RSI ({rsi_period} periods)')
                             rsi_charts[stock] = rsi_fig
@@ -628,7 +733,7 @@ def main() -> None:
 
             # Add checkbox to use Optuna parameters
             use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                            value=False)
+                                             value=False)
 
             if use_optuna_params and st.session_state.ppo_params is not None:
                 st.info("Using Optuna's optimized parameters")
@@ -963,6 +1068,8 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Error during testing: {str(e)}")
 
+    with tab_database:
+        display_database_explorer()
 
 if __name__ == "__main__":
     main()

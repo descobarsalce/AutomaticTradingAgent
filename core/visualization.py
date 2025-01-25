@@ -437,7 +437,7 @@ class TradingVisualizer:
                       col=1)
 
         # Add actions to bottom subplot
-        action_fig = plot_discrete_actions(info_history)
+        action_fig = self.plot_discrete_actions(info_history)
         for trace in action_fig.data:
             fig.add_trace(trace, row=2, col=1)
 

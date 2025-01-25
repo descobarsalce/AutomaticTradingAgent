@@ -306,28 +306,29 @@ class FeatureEngineer:
 
     @staticmethod
     def add_fourier_transform(prices: pd.Series,
-                              top_n: int = 3) -> pd.DataFrame:
+                              top_n: int = 3,
+                              window: int = 30) -> pd.DataFrame:
         """
-        Adds top_n Fourier Transform coefficients as columns. 
-        If data is shorter than top_n, returns empty DataFrame.
+        Adds top_n Fourier Transform coefficients using rolling windows.
         """
-        if len(prices) < top_n:
+        if len(prices) < window:
             logger.warning(
-                f"Data length {len(prices)} < requested FFT components {top_n}. Returning empty."
+                f"Data length {len(prices)} < window size {window}. Returning empty."
             )
             return pd.DataFrame(index=prices.index)
-        try:
-            fft_result = fft(prices.values)
-            fft_values = {
-                f"FFT_{i+1}": np.abs(fft_result[i])
-                for i in range(top_n)
-            }
-            # Repeat the top_n values for each row
-            repeated = {
-                col: [val] * len(prices)
-                for col, val in fft_values.items()
-            }
-            return pd.DataFrame(repeated, index=prices.index)
+            
+        result = pd.DataFrame(index=prices.index)
+        
+        for i in range(window, len(prices) + 1):
+            window_data = prices.iloc[i-window:i]
+            try:
+                fft_result = fft(window_data.values)
+                for j in range(top_n):
+                    result.loc[prices.index[i-1], f'FFT_{j+1}'] = np.abs(fft_result[j])
+            except Exception as e:
+                logger.error(f"FFT calculation error in window: {e}")
+                
+        return result.fillna(method='ffill')
         except Exception as e:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)

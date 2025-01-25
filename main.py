@@ -409,15 +409,16 @@ def main() -> None:
         plot_col1, plot_col2 = st.columns(2)
 
         with plot_col1:
-            show_rsi = st.checkbox("Show RSI", value=True)
-            show_sma20 = st.checkbox("Show SMA 20", value=True)
+            show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
+            show_sma20 = st.checkbox("Show SMA 20", value=True, key="analysis_sma20")
 
         with plot_col2:
-            show_sma50 = st.checkbox("Show SMA 50", value=True)
+            show_sma50 = st.checkbox("Show SMA 50", value=True, key="analysis_sma50")
             rsi_period = st.slider("RSI Period",
                                     min_value=7,
                                     max_value=21,
-                                    value=14) if show_rsi else 14
+                                    value=14,
+                                    key="analysis_rsi_period") if show_rsi else 14
 
         if st.button("Generate Analysis"):
             analysis_container = st.container()
@@ -646,14 +647,16 @@ def main() -> None:
         plot_col1, plot_col2 = st.columns(2)
 
         with plot_col1:
-            show_rsi = st.checkbox("Show RSI", value=True)
-            show_sma20 = st.checkbox("Show SMA 20", value=True)
+            show_rsi = st.checkbox("Show RSI", value=True, key="training_rsi")
+            show_sma20 = st.checkbox("Show SMA 20", value=True, key="training_sma20")
 
         with plot_col2:
-            show_sma50 = st.checkbox("Show SMA 50", value=True)
-            rsi_period = st.slider(
-                "RSI Period", min_value=7, max_value=21,
-                value=14) if show_rsi else 14
+            show_sma50 = st.checkbox("Show SMA 50", value=True, key="training_sma50")
+            rsi_period = st.slider("RSI Period",
+                                    min_value=7,
+                                    max_value=21,
+                                    value=14,
+                                    key="training_rsi_period") if show_rsi else 14
 
         if st.button("Generate Charts"):
             with st.spinner("Fetching and processing data..."):

@@ -421,10 +421,42 @@ def main() -> None:
                                     key="analysis_rsi_period") if show_rsi else 14
 
         with plot_col3:
+            st.write("Layout Settings")
             num_columns = st.selectbox("Number of Columns", 
                                      options=[1, 2, 3, 4], 
                                      value=2,
                                      key="num_columns")
+
+            # Layout Preview
+            st.write("Layout Preview")
+            preview_container = st.container()
+            with preview_container:
+                # Create a visual preview of the layout
+                preview_cols = st.columns(num_columns)
+                for i in range(num_columns):
+                    with preview_cols[i]:
+                        st.markdown(
+                            f"""
+                            <div style="
+                                border: 2px dashed #666;
+                                border-radius: 5px;
+                                padding: 10px;
+                                margin: 5px;
+                                text-align: center;
+                                background-color: rgba(100, 100, 100, 0.1);
+                                min-height: 80px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            ">
+                                <span style="color: #666;">Chart {i+1}</span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+            # Add a note about the layout
+            st.caption(f"Charts will be arranged in {num_columns} column{'s' if num_columns > 1 else ''}")
 
         if st.button("Generate Analysis"):
             analysis_container = st.container()

@@ -381,9 +381,7 @@ def main() -> None:
 
     st.title("Trading Analysis and Agent Platform")
 
-    # Create tabs for Technical Analysis and Model Training
-    tab_analysis, tab_training = st.tabs(
-        ["Technical Analysis", "Model Training"])
+I want
 
     with tab_analysis:
         st.header("Technical Analysis Dashboard")
@@ -516,7 +514,7 @@ def main() -> None:
                             rsi_fig = go.Figure()
                             rsi_fig.add_trace(
                                 go.Scatter(x=data.index,
-                                           y=data['RSI'],
+                                           y=data['RSI'] * 100,
                                            name=f'{stock} RSI'))
                             rsi_fig.add_hline(y=70,
                                               line_dash="dash",

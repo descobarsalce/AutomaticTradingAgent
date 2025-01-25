@@ -239,17 +239,17 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             try:
                 ppo_params = {
                     'learning_rate':
-                        trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                    trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
                     'n_steps':
-                        trial.suggest_int('n_steps', 512, 2048),
+                    trial.suggest_int('n_steps', 512, 2048),
                     'batch_size':
-                        trial.suggest_int('batch_size', 64, 512),
+                    trial.suggest_int('batch_size', 64, 512),
                     'n_epochs':
-                        trial.suggest_int('n_epochs', 3, 10),
+                    trial.suggest_int('n_epochs', 3, 10),
                     'gamma':
-                        trial.suggest_uniform('gamma', 0.90, 0.999),
+                    trial.suggest_uniform('gamma', 0.90, 0.999),
                     'gae_lambda':
-                        trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                    trial.suggest_uniform('gae_lambda', 0.90, 0.99),
                 }
 
                 status_text.text(
@@ -325,9 +325,9 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                     study)
                 importance_df = pd.DataFrame({
                     'Parameter':
-                        list(importance_dict.keys()),
+                    list(importance_dict.keys()),
                     'Importance':
-                        list(importance_dict.values())
+                    list(importance_dict.values())
                 }).sort_values('Importance', ascending=True)
 
                 importance_fig = go.Figure()
@@ -390,7 +390,8 @@ def display_database_explorer():
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols
-    unique_symbols = session.query(func.count(distinct(StockData.symbol))).scalar()
+    unique_symbols = session.query(func.count(distinct(
+        StockData.symbol))).scalar()
     col1.metric("Total Unique Symbols", unique_symbols)
 
     # Date range
@@ -402,7 +403,8 @@ def display_database_explorer():
 
     # Database file size
     if os.path.exists('trading_data.db'):
-        db_size = os.path.getsize('trading_data.db') / (1024 * 1024)  # Convert to MB
+        db_size = os.path.getsize('trading_data.db') / (1024 * 1024
+                                                        )  # Convert to MB
         col3.metric("Database Size", f"{db_size:.2f} MB")
 
     # Stock Data Summary
@@ -410,7 +412,9 @@ def display_database_explorer():
 
     # Query for stock summary information
     stock_summary = []
-    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+    symbols = [
+        row[0] for row in session.query(distinct(StockData.symbol)).all()
+    ]
 
     for symbol in symbols:
         # Get statistics for each stock
@@ -419,44 +423,52 @@ def display_database_explorer():
             func.min(StockData.date).label('start_date'),
             func.max(StockData.date).label('end_date'),
             func.count(StockData.id).label('data_points'),
-            func.max(StockData.last_updated).label('last_update')
-        ).filter(StockData.symbol == symbol).group_by(StockData.symbol).first()
+            func.max(StockData.last_updated).label('last_update')).filter(
+                StockData.symbol == symbol).group_by(StockData.symbol).first()
 
         if symbol_data:
             # Calculate coverage percentage
-            total_days = (symbol_data.end_date - symbol_data.start_date).days + 1
+            total_days = (symbol_data.end_date -
+                          symbol_data.start_date).days + 1
             coverage = (symbol_data.data_points / total_days) * 100
 
             stock_summary.append({
-                'Symbol': symbol,
-                'Start Date': symbol_data.start_date.strftime('%Y-%m-%d'),
-                'End Date': symbol_data.end_date.strftime('%Y-%m-%d'),
-                'Data Points': symbol_data.data_points,
-                'Coverage (%)': f"{coverage:.1f}%",
-                'Last Update': symbol_data.last_update.strftime('%Y-%m-%d %H:%M:%S')
+                'Symbol':
+                symbol,
+                'Start Date':
+                symbol_data.start_date.strftime('%Y-%m-%d'),
+                'End Date':
+                symbol_data.end_date.strftime('%Y-%m-%d'),
+                'Data Points':
+                symbol_data.data_points,
+                'Coverage (%)':
+                f"{coverage:.1f}%",
+                'Last Update':
+                symbol_data.last_update.strftime('%Y-%m-%d %H:%M:%S')
             })
 
     if stock_summary:
         # Convert to DataFrame and display
         summary_df = pd.DataFrame(stock_summary)
-        st.dataframe(
-            summary_df,
-            column_config={
-                'Symbol': st.column_config.TextColumn('Symbol', width='small'),
-                'Coverage (%)': st.column_config.TextColumn('Coverage (%)', width='small'),
-                'Data Points': st.column_config.NumberColumn('Data Points', format="%d")
-            }
-        )
+        st.dataframe(summary_df,
+                     column_config={
+                         'Symbol':
+                         st.column_config.TextColumn('Symbol', width='small'),
+                         'Coverage (%)':
+                         st.column_config.TextColumn('Coverage (%)',
+                                                     width='small'),
+                         'Data Points':
+                         st.column_config.NumberColumn('Data Points',
+                                                       format="%d")
+                     })
 
         # Add download button for the summary
         csv = summary_df.to_csv(index=False)
-        st.download_button(
-            "Download Summary CSV",
-            csv,
-            "stock_data_summary.csv",
-            "text/csv",
-            key='download-csv'
-        )
+        st.download_button("Download Summary CSV",
+                           csv,
+                           "stock_data_summary.csv",
+                           "text/csv",
+                           key='download-csv')
     else:
         st.info("No stock data available in the database.")
 
@@ -464,22 +476,25 @@ def display_database_explorer():
     st.header("Query Interface")
 
     # Symbol selection
-    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+    symbols = [
+        row[0] for row in session.query(distinct(StockData.symbol)).all()
+    ]
     if symbols:
         selected_symbol = st.selectbox("Select Symbol", symbols)
 
         # Date range selection
         date_col1, date_col2 = st.columns(2)
-        start_date = date_col1.date_input("Start Date", min_date if min_date else None)
-        end_date = date_col2.date_input("End Date", max_date if max_date else None)
+        start_date = date_col1.date_input("Start Date",
+                                          min_date if min_date else None)
+        end_date = date_col2.date_input("End Date",
+                                        max_date if max_date else None)
 
         if st.button("Query Data"):
             # Fetch data
             query_data = session.query(StockData).filter(
-                StockData.symbol == selected_symbol,
-                StockData.date >= start_date,
-                StockData.date <= end_date
-            ).order_by(StockData.date).all()
+                StockData.symbol == selected_symbol, StockData.date
+                >= start_date, StockData.date
+                <= end_date).order_by(StockData.date).all()
 
             # Convert to DataFrame
             df = pd.DataFrame([{
@@ -494,7 +509,8 @@ def display_database_explorer():
             if not df.empty:
                 # Calculate basic statistics
                 stats_col1, stats_col2, stats_col3 = st.columns(3)
-                stats_col1.metric("Average Price", f"${df['Close'].mean():.2f}")
+                stats_col1.metric("Average Price",
+                                  f"${df['Close'].mean():.2f}")
                 stats_col2.metric("Highest Price", f"${df['High'].max():.2f}")
                 stats_col3.metric("Lowest Price", f"${df['Low'].min():.2f}")
 
@@ -504,20 +520,18 @@ def display_database_explorer():
 
                 # Display chart view
                 st.subheader("Chart View")
-                fig = go.Figure(data=[go.Candlestick(
-                    x=df['Date'],
-                    open=df['Open'],
-                    high=df['High'],
-                    low=df['Low'],
-                    close=df['Close']
-                )])
+                fig = go.Figure(data=[
+                    go.Candlestick(x=df['Date'],
+                                   open=df['Open'],
+                                   high=df['High'],
+                                   low=df['Low'],
+                                   close=df['Close'])
+                ])
 
-                fig.update_layout(
-                    title=f'{selected_symbol} Price History',
-                    yaxis_title='Price ($)',
-                    template='plotly_dark',
-                    height=600
-                )
+                fig.update_layout(title=f'{selected_symbol} Price History',
+                                  yaxis_title='Price ($)',
+                                  template='plotly_dark',
+                                  height=600)
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
@@ -530,9 +544,8 @@ def main() -> None:
     st.title("Trading Analysis and Agent Platform")
 
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
-    tab_analysis, tab_training, tab_database = st.tabs([
-        "Technical Analysis", "Model Training", "Database Explorer"
-    ])
+    tab_analysis, tab_training, tab_database = st.tabs(
+        ["Technical Analysis", "Model Training", "Database Explorer"])
 
     with tab_analysis:
         st.header("Technical Analysis Dashboard")
@@ -668,11 +681,11 @@ def main() -> None:
                                            y=data['RSI'] * 100,
                                            name=f'{stock} RSI'))
                             rsi_fig.add_hline(y=70,
-                                               line_dash="dash",
-                                               line_color="red")
+                                              line_dash="dash",
+                                              line_color="red")
                             rsi_fig.add_hline(y=30,
-                                               line_dash="dash",
-                                               line_color="green")
+                                              line_dash="dash",
+                                              line_color="green")
                             rsi_fig.update_layout(
                                 title=f'{stock} RSI ({rsi_period} periods)')
                             rsi_charts[stock] = rsi_fig
@@ -777,7 +790,7 @@ def main() -> None:
 
             # Add checkbox to use Optuna parameters
             use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                             value=False)
+                                            value=False)
 
             if use_optuna_params and st.session_state.ppo_params is not None:
                 st.info("Using Optuna's optimized parameters")
@@ -896,111 +909,6 @@ def main() -> None:
                 st.date_input("Test End Date", value=datetime.now()),
                 datetime.min.time())
 
-        # Plot controls
-        st.header("Visualization Options")
-        plot_col1, plot_col2 = st.columns(2)
-
-        with plot_col1:
-            show_rsi = st.checkbox("Show RSI", value=True, key="training_rsi")
-            show_sma20 = st.checkbox("Show SMA 20",
-                                     value=True,
-                                     key="training_sma20")
-
-        with plot_col2:
-            show_sma50 = st.checkbox("Show SMA 50",
-                                     value=True,
-                                     key="training_sma50")
-            rsi_period = st.slider(
-                "RSI Period",
-                min_value=7,
-                max_value=21,
-                value=14,
-                key="training_rsi_period") if show_rsi else 14
-
-        if st.button("Generate Charts"):
-            with st.spinner("Fetching and processing data..."):
-                try:
-                    portfolio_data = st.session_state.model.data_handler.fetch_data(
-                        stock_name, test_start_date, test_end_date)
-                    if not portfolio_data:
-                        st.error(
-                            "No data available for the selected symbol and date range."
-                        )
-                    else:
-                        portfolio_data = st.session_state.model.data_handler.prepare_data(
-                        )
-
-                        if stock_name in portfolio_data:
-                            data = portfolio_data[stock_name]
-
-                            # Create TradingVisualizer instance with user preferences
-                            visualizer = TradingVisualizer()
-                            visualizer.show_rsi = show_rsi
-                            visualizer.show_sma20 = show_sma20
-                            visualizer.show_sma50 = show_sma50
-                            visualizer.rsi_period = rsi_period
-
-                            # Create two columns for charts
-                            col1, col2 = st.columns(2)
-
-                            with col1:
-                                # Plot cumulative returns
-                                cum_returns_fig = visualizer.plot_cumulative_returns(
-                                    {stock_name: data})
-                                st.plotly_chart(cum_returns_fig,
-                                                use_container_width=True)
-
-                                # Plot drawdown
-                                drawdown_fig = visualizer.plot_drawdown(
-                                    {stock_name: data}, stock_name)
-                                st.plotly_chart(drawdown_fig,
-                                                use_container_width=True)
-
-                            with col2:
-                                # Plot performance and drawdown combined
-                                perf_dd_fig = visualizer.plot_performance_and_drawdown(
-                                    {stock_name: data}, stock_name)
-                                st.plotly_chart(perf_dd_fig,
-                                                use_container_width=True)
-
-                            # Metrics Display
-                            metrics_col1, metrics_col2, metrics_col3 = st.columns(
-                                3)
-
-                            try:
-                                latest_close = data['Close'].iloc[-1]
-                                price_change = (latest_close -
-                                                data['Close'].iloc[0]
-                                                ) / data['Close'].iloc[0] * 100
-
-                                metrics_col1.metric("Latest Close",
-                                                    f"${latest_close:.2f}",
-                                                    f"{price_change:.2f}%")
-
-                                avg_volume = data['Volume'].mean()
-                                volume_change = (data['Volume'].iloc[-1] -
-                                                 avg_volume) / avg_volume * 100
-
-                                metrics_col2.metric("Average Volume",
-                                                    f"{avg_volume:,.0f}",
-                                                    f"{volume_change:.2f}%")
-
-                                if show_rsi and 'RSI' in data.columns:
-                                    latest_rsi = data['RSI'].iloc[-1]
-                                    rsi_change = latest_rsi - data['RSI'].iloc[
-                                        -2] if len(data) > 1 else 0
-
-                                    metrics_col3.metric(
-                                        "Current RSI", f"{latest_rsi:.2f}",
-                                        f"{rsi_change:.2f}")
-
-                            except Exception as e:
-                                st.error(
-                                    f"Error calculating metrics: {str(e)}")
-
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
-
         if col_test.button("Test Model"):
             try:
                 if not os.path.exists("trained_model.zip"):
@@ -1114,6 +1022,7 @@ def main() -> None:
 
     with tab_database:
         display_database_explorer()
+
 
 if __name__ == "__main__":
     main()

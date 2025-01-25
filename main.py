@@ -470,6 +470,7 @@ def main() -> None:
                 # First collect all data and create charts
                 for stock in viz_stocks:
                     try:
+                        st.info(f"Loading data for {stock}...")
                         data = st.session_state.model.data_handler.fetch_data(
                             [stock], viz_start_date, viz_end_date)
 
@@ -479,6 +480,12 @@ def main() -> None:
 
                         # Get the DataFrame for the current stock
                         df = data[stock].copy()  # Create a copy to avoid modifying original data
+
+                        if df.empty:
+                            st.error(f"Empty dataset received for {stock}")
+                            continue
+
+                        st.success(f"Successfully loaded data for {stock}")
 
                         # Calculate technical indicators
                         try:
@@ -501,10 +508,16 @@ def main() -> None:
                             open=df['Open'],
                             high=df['High'],
                             low=df['Low'],
-                            close=df['Close'],
-                            name=stock
+                            close=df['Close']
                         )])
-                        price_fig.update_layout(title=f'{stock} Price History')
+
+                        price_fig.update_layout(
+                            title=f'{stock} Price History',
+                            yaxis_title='Price ($)',
+                            template='plotly_dark',
+                            height=600
+                        )
+
                         price_charts[stock] = price_fig
 
                         # Create volume chart
@@ -514,7 +527,11 @@ def main() -> None:
                             y=df['Volume'],
                             name=f'{stock} Volume'
                         ))
-                        volume_fig.update_layout(title=f'{stock} Trading Volume')
+                        volume_fig.update_layout(
+                            title=f'{stock} Trading Volume',
+                            template='plotly_dark',
+                            height=400
+                        )
                         volume_charts[stock] = volume_fig
 
                         # Create RSI chart if enabled and calculated
@@ -527,7 +544,11 @@ def main() -> None:
                             ))
                             rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
                             rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
-                            rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
+                            rsi_fig.update_layout(
+                                title=f'{stock} RSI ({rsi_period} periods)',
+                                template='plotly_dark',
+                                height=300
+                            )
                             rsi_charts[stock] = rsi_fig
 
                         # Create Moving Averages chart if enabled and calculated
@@ -542,22 +563,26 @@ def main() -> None:
                                 ma_fig.add_trace(go.Scatter(
                                     x=df.index,
                                     y=df['SMA20'],
-                                    name=f'{stock} SMA 20'
+                                    name=f'SMA 20'
                                 ))
                             if show_sma50 and 'SMA50' in df.columns:
                                 ma_fig.add_trace(go.Scatter(
                                     x=df.index,
                                     y=df['SMA50'],
-                                    name=f'{stock} SMA 50'
+                                    name=f'SMA 50'
                                 ))
-                            ma_fig.update_layout(title=f'{stock} Moving Averages')
+                            ma_fig.update_layout(
+                                title=f'{stock} Moving Averages',
+                                template='plotly_dark',
+                                height=400
+                            )
                             ma_charts[stock] = ma_fig
 
                     except Exception as e:
                         st.error(f"Error analyzing {stock}: {str(e)}")
                         continue
 
-                # Now display charts grouped by type with dynamic columns
+                # Display charts in the selected number of columns
                 def display_charts_grid(charts, title):
                     if charts:
                         st.subheader(title)
@@ -832,8 +857,7 @@ def main() -> None:
 
                                 if show_rsi and 'RSI' in data.columns:
                                     latest_rsi = data['RSI'].iloc[-1]
-                                    rsi_change = latest_rsi - data['RSI'].iloc[
-                                        -2] if len(data) > 1 else 0
+                                    rsi_change = latest_rsi - data['RSI'].iloc[-2] if len(data) > 1 else 0
 
                                     metrics_col3.metric("Current RSI",
                                                         f"{latest_rsi:.2f}",

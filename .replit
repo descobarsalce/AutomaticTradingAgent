@@ -1,6 +1,6 @@
 
 run = "python -m streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true"
-modules = ["python-3.11:v3-20230826-0f37faca"]
+modules = ["python-3.11"]
 
 hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 
@@ -23,7 +23,16 @@ REPLIT_DISABLE_PACKAGE_LAYER = "1"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 8501
+externalPort = 3000
+
+[[ports]]
+localPort = 8888
+externalPort = 3001
+
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -37,6 +46,10 @@ args = "Trading Environment Test"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Flask Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Jupyter Server"
 
 [[workflows.workflow]]
 name = "Trading Environment Test"
@@ -66,3 +79,18 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501
+
+[[workflows.workflow]]
+name = "Jupyter Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "jupyter notebook --ip 0.0.0.0 --port 8888 --no-browser --allow-root"
+waitForPort = 8888

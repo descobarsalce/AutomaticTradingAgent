@@ -54,22 +54,22 @@ class TradingVisualizer:
             # RSI
             chart_data['RSI'] = ta.momentum.RSIIndicator(
                 chart_data['Close'], window=self.rsi_period).rsi()
-            
+
             # SMAs
             chart_data['SMA_20'] = ta.trend.sma_indicator(chart_data['Close'], window=20)
             chart_data['SMA_50'] = ta.trend.sma_indicator(chart_data['Close'], window=50)
-            
+
             # MACD
             macd = ta.trend.MACD(chart_data['Close'])
             chart_data['MACD'] = macd.macd()
             chart_data['MACD_Signal'] = macd.macd_signal()
-            
+
             # Bollinger Bands
             bollinger = ta.volatility.BollingerBands(chart_data['Close'])
             chart_data['BB_High'] = bollinger.bollinger_hband()
             chart_data['BB_Low'] = bollinger.bollinger_lband()
             chart_data['BB_Mid'] = bollinger.bollinger_mavg()
-            
+
             # Stochastic Oscillator
             stoch = ta.momentum.StochasticOscillator(
                 chart_data['High'], chart_data['Low'], chart_data['Close'])
@@ -119,7 +119,7 @@ class TradingVisualizer:
             if self.show_sma20:
                 sma20_col = f'{symbol}_SMA_20'
                 chart_data[sma20_col] = ta.trend.sma_indicator(chart_data['Close'], window=20)
-            
+
             if self.show_sma50:
                 sma50_col = f'{symbol}_SMA_50'
                 chart_data[sma50_col] = ta.trend.sma_indicator(chart_data['Close'], window=50)

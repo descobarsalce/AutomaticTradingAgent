@@ -62,7 +62,7 @@ from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
 from core.visualization import TradingVisualizer
-import optuna  # Added import for Optuna
+import optuna
 
 # Configure logging
 import logging
@@ -379,282 +379,219 @@ def parse_stock_list(stock_string):
 def main() -> None:
     init_session_state()
 
-    st.title("Trading Agent Configuration")
+    st.title("Trading Analysis and Agent Platform")
 
-    # Input parameters
-    st.header("Test Options")
-    stock_name = st.text_input("Stock Name", value="AAPL")
+    # Create tabs for Technical Analysis and Model Training
+    tab_analysis, tab_training = st.tabs(["Technical Analysis", "Model Training"])
 
-    # Environment parameters
-    st.header("Environment Parameters")
-    col1, col2 = st.columns(2)
-    with col1:
-        initial_balance = st.number_input("Initial Balance", value=10000)
+    with tab_analysis:
+        st.header("Technical Analysis Dashboard")
 
-    with col2:
-        transaction_cost = st.number_input("Transaction Cost",
-                                           value=0.01,
-                                           step=0.001)
+        # Visualization stock selection (separate from training)
+        viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)", value="AAPL, MSFT, GOOGL")
+        viz_stocks = parse_stock_list(viz_stock_input)
 
-    env_params = {
-        'initial_balance': initial_balance,
-        'transaction_cost': transaction_cost,
-        'use_position_profit': False,
-        'use_holding_bonus': False,
-        'use_trading_penalty': False
-    }
+        # Date selection for visualization
+        viz_col1, viz_col2 = st.columns(2)
+        with viz_col1:
+            viz_start_date = datetime.combine(
+                st.date_input("Analysis Start Date",
+                              value=datetime.now() - timedelta(days=365)),
+                datetime.min.time())
+        with viz_col2:
+            viz_end_date = datetime.combine(
+                st.date_input("Analysis End Date",
+                              value=datetime.now()),
+                datetime.min.time())
 
-    # Date selection for training
-    st.subheader("Training Period")
-    train_col1, train_col2 = st.columns(2)
-    with train_col1:
-        train_start_date = datetime.combine(
-            st.date_input("Training Start Date",
-                          value=datetime.now() - timedelta(days=365 * 5)),
-            datetime.min.time())
-    with train_col2:
-        train_end_date = datetime.combine(
-            st.date_input("Training End Date",
-                          value=datetime.now() - timedelta(days=365 + 1)),
-            datetime.min.time())
+        # Plot controls
+        st.subheader("Visualization Options")
+        plot_col1, plot_col2 = st.columns(2)
 
-    tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
+        with plot_col1:
+            show_rsi = st.checkbox("Show RSI", value=True)
+            show_sma20 = st.checkbox("Show SMA 20", value=True)
 
-    with tab1:
-        # Original manual parameter selection
-        st.header("Agent Parameters")
+        with plot_col2:
+            show_sma50 = st.checkbox("Show SMA 50", value=True)
+            rsi_period = st.slider("RSI Period",
+                                    min_value=7,
+                                    max_value=21,
+                                    value=14) if show_rsi else 14
 
-        # Add checkbox to use Optuna parameters
-        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                        value=False)
+        if st.button("Generate Analysis"):
+            analysis_container = st.container()
+            with analysis_container:
+                for stock in viz_stocks:
+                    try:
+                        portfolio_data = st.session_state.model.data_handler.fetch_data(
+                            stock, viz_start_date, viz_end_date)
 
-        if use_optuna_params and st.session_state.ppo_params is not None:
-            st.info("Using Optuna's optimized parameters")
-            # Display Optuna parameters as read-only
-            col3, col4 = st.columns(2)
-            with col3:
-                st.text(
-                    f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}"
-                )
-                st.text(f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
-                st.text(
-                    f"Batch Size: {st.session_state.ppo_params['batch_size']}")
-                st.text(
-                    f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}"
-                )
-            with col4:
-                st.text(f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
-                st.text(
-                    f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}"
-                )
+                        if not portfolio_data:
+                            st.error(f"No data available for {stock}")
+                            continue
 
-            # Store Optuna values in variables
-            learning_rate = st.session_state.ppo_params['learning_rate']
-            ppo_steps = st.session_state.ppo_params['n_steps']
-            batch_size = st.session_state.ppo_params['batch_size']
-            n_epochs = st.session_state.ppo_params['n_epochs']
-            gamma = st.session_state.ppo_params['gamma']
-            gae_lambda = st.session_state.ppo_params['gae_lambda']
-            clip_range = 0.2  # Default value for non-tuned parameter
-            target_kl = 0.05  # Default value for non-tuned parameter
-        else:
-            if use_optuna_params:
-                st.warning(
-                    "No Optuna parameters available. Please run hyperparameter tuning first."
-                )
+                        portfolio_data = st.session_state.model.data_handler.prepare_data()
 
-            col3, col4 = st.columns(2)
-            with col3:
-                learning_rate = st.number_input("Learning Rate",
-                                                value=3e-4,
-                                                format="%.1e")
-                ppo_steps = st.number_input("PPO Steps Per Update", value=512)
-                batch_size = st.number_input("Batch Size", value=128)
-                n_epochs = st.number_input("Number of Epochs", value=5)
-            with col4:
-                gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
-                clip_range = st.number_input("Clip Range", value=0.2)
-                target_kl = st.number_input("Target KL Divergence", value=0.05)
+                        if stock in portfolio_data:
+                            data = portfolio_data[stock]
 
-    with tab2:
-        # Hyperparameter tuning section
-        hyperparameter_tuning(stock_name, train_start_date, train_end_date,
-                              env_params)
+                            st.subheader(f"{stock} Analysis")
 
-    col_train, col_test = st.columns(2)
+                            # Create TradingVisualizer instance
+                            visualizer = TradingVisualizer()
+                            visualizer.show_rsi = show_rsi
+                            visualizer.show_sma20 = show_sma20
+                            visualizer.show_sma50 = show_sma50
+                            visualizer.rsi_period = rsi_period
 
-    if col_train.button("Start Training"):
-        progress_bar = st.progress(0)
-        status_placeholder = st.empty()
+                            # Technical Analysis Charts
+                            main_chart = visualizer.create_single_chart(stock, data)
+                            if main_chart:
+                                st.plotly_chart(main_chart, use_container_width=True)
 
-        ppo_params = {
-            'learning_rate': learning_rate,
-            'n_steps': ppo_steps,
-            'batch_size': batch_size,
-            'n_epochs': n_epochs,
-            'gamma': gamma,
-            'clip_range': clip_range,
-            'target_kl': target_kl
+                            # Metrics for the stock
+                            metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+
+                            try:
+                                latest_close = data['Close'].iloc[-1]
+                                price_change = (latest_close - data['Close'].iloc[0]) / data['Close'].iloc[0] * 100
+
+                                metrics_col1.metric("Latest Close",
+                                                    f"${latest_close:.2f}",
+                                                    f"{price_change:.2f}%")
+
+                                avg_volume = data['Volume'].mean()
+                                volume_change = (data['Volume'].iloc[-1] - avg_volume) / avg_volume * 100
+
+                                metrics_col2.metric("Average Volume",
+                                                    f"{avg_volume:,.0f}",
+                                                    f"{volume_change:.2f}%")
+
+                                if show_rsi and 'RSI' in data.columns:
+                                    latest_rsi = data['RSI'].iloc[-1]
+                                    rsi_change = latest_rsi - data['RSI'].iloc[-2] if len(data) > 1 else 0
+
+                                    metrics_col3.metric("Current RSI",
+                                                        f"{latest_rsi:.2f}",
+                                                        f"{rsi_change:.2f}")
+
+                            except Exception as e:
+                                st.error(f"Error calculating metrics for {stock}: {str(e)}")
+
+                    except Exception as e:
+                        st.error(f"Error analyzing {stock}: {str(e)}")
+
+    with tab_training:
+        st.header("Trading Agent Configuration")
+
+        # Input parameters
+        st.subheader("Training Options")
+        stock_name = st.text_input("Training Stock Symbol", value="AAPL")
+
+        # Environment parameters
+        st.header("Environment Parameters")
+        col1, col2 = st.columns(2)
+        with col1:
+            initial_balance = st.number_input("Initial Balance", value=10000)
+
+        with col2:
+            transaction_cost = st.number_input("Transaction Cost",
+                                               value=0.01,
+                                               step=0.001)
+
+        env_params = {
+            'initial_balance': initial_balance,
+            'transaction_cost': transaction_cost,
+            'use_position_profit': False,
+            'use_holding_bonus': False,
+            'use_trading_penalty': False
         }
 
-        progress_callback = ProgressBarCallback(
-            total_timesteps=(train_end_date - train_start_date).days,
-            progress_bar=progress_bar,
-            status_placeholder=status_placeholder)
+        # Date selection for training
+        st.subheader("Training Period")
+        train_col1, train_col2 = st.columns(2)
+        with train_col1:
+            train_start_date = datetime.combine(
+                st.date_input("Training Start Date",
+                              value=datetime.now() - timedelta(days=365 * 5)),
+                datetime.min.time())
+        with train_col2:
+            train_end_date = datetime.combine(
+                st.date_input("Training End Date",
+                              value=datetime.now() - timedelta(days=365 + 1)),
+                datetime.min.time())
 
-        metrics = st.session_state.model.train(stock_name=stock_name,
-                                               start_date=train_start_date,
-                                               end_date=train_end_date,
-                                               env_params=env_params,
-                                               ppo_params=ppo_params,
-                                               callback=progress_callback)
+        tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
 
-        if metrics:
-            metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
-            with metrics_col1:
-                st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
-            with metrics_col2:
-                st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-                st.metric("Volatility", f"{metrics['volatility']:.2%}")
-            with metrics_col3:
-                st.metric("Total Return", f"{metrics['total_return']:.2%}")
-                st.metric("Final Portfolio Value",
-                          f"${metrics['final_value']:,.2f}")
+        with tab1:
+            # Original manual parameter selection
+            st.header("Agent Parameters")
 
-        st.success("Training completed and model saved!")
+            # Add checkbox to use Optuna parameters
+            use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
+                                             value=False)
 
-    # Test period dates
-    st.subheader("Test Period")
-    test_col1, test_col2 = st.columns(2)
-    with test_col1:
-        test_start_date = datetime.combine(
-            st.date_input("Test Start Date",
-                          value=datetime.now() - timedelta(days=365)),
-            datetime.min.time())
-    with test_col2:
-        test_end_date = datetime.combine(
-            st.date_input("Test End Date", value=datetime.now()),
-            datetime.min.time())
-
-    # Plot controls
-    st.header("Visualization Options")
-    plot_col1, plot_col2 = st.columns(2)
-
-    with plot_col1:
-        show_rsi = st.checkbox("Show RSI", value=True)
-        show_sma20 = st.checkbox("Show SMA 20", value=True)
-
-    with plot_col2:
-        show_sma50 = st.checkbox("Show SMA 50", value=True)
-        rsi_period = st.slider(
-            "RSI Period", min_value=7, max_value=21,
-            value=14) if show_rsi else 14
-
-    if st.button("Generate Charts"):
-        with st.spinner("Fetching and processing data..."):
-            try:
-                portfolio_data = st.session_state.model.data_handler.fetch_data(
-                    stock_name, test_start_date, test_end_date)
-                if not portfolio_data:
-                    st.error(
-                        "No data available for the selected symbol and date range."
+            if use_optuna_params and st.session_state.ppo_params is not None:
+                st.info("Using Optuna's optimized parameters")
+                # Display Optuna parameters as read-only
+                col3, col4 = st.columns(2)
+                with col3:
+                    st.text(
+                        f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}"
                     )
-                else:
-                    portfolio_data = st.session_state.model.data_handler.prepare_data(
+                    st.text(f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
+                    st.text(
+                        f"Batch Size: {st.session_state.ppo_params['batch_size']}")
+                    st.text(
+                        f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}"
+                    )
+                with col4:
+                    st.text(f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
+                    st.text(
+                        f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}"
                     )
 
-                    if stock_name in portfolio_data:
-                        data = portfolio_data[stock_name]
+                # Store Optuna values in variables
+                learning_rate = st.session_state.ppo_params['learning_rate']
+                ppo_steps = st.session_state.ppo_params['n_steps']
+                batch_size = st.session_state.ppo_params['batch_size']
+                n_epochs = st.session_state.ppo_params['n_epochs']
+                gamma = st.session_state.ppo_params['gamma']
+                gae_lambda = st.session_state.ppo_params['gae_lambda']
+                clip_range = 0.2  # Default value for non-tuned parameter
+                target_kl = 0.05  # Default value for non-tuned parameter
+            else:
+                if use_optuna_params:
+                    st.warning(
+                        "No Optuna parameters available. Please run hyperparameter tuning first."
+                    )
 
-                        # Create TradingVisualizer instance with user preferences
-                        visualizer = TradingVisualizer()
-                        visualizer.show_rsi = show_rsi
-                        visualizer.show_sma20 = show_sma20
-                        visualizer.show_sma50 = show_sma50
-                        visualizer.rsi_period = rsi_period
+                col3, col4 = st.columns(2)
+                with col3:
+                    learning_rate = st.number_input("Learning Rate",
+                                                     value=3e-4,
+                                                     format="%.1e")
+                    ppo_steps = st.number_input("PPO Steps Per Update", value=512)
+                    batch_size = st.number_input("Batch Size", value=128)
+                    n_epochs = st.number_input("Number of Epochs", value=5)
+                with col4:
+                    gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
+                    clip_range = st.number_input("Clip Range", value=0.2)
+                    target_kl = st.number_input("Target KL Divergence", value=0.05)
 
-                        # Technical Analysis Charts
-                        st.subheader("Technical Analysis")
-                        main_chart = visualizer.create_single_chart(
-                            stock_name, data)
-                        if main_chart:
-                            st.plotly_chart(main_chart,
-                                            use_container_width=True)
+        with tab2:
+            # Hyperparameter tuning section
+            hyperparameter_tuning(stock_name, train_start_date, train_end_date,
+                                  env_params)
 
-                        # Create two columns for charts
-                        col1, col2 = st.columns(2)
+        col_train, col_test = st.columns(2)
 
-                        with col1:
-                            # Plot cumulative returns
-                            cum_returns_fig = visualizer.plot_cumulative_returns(
-                                {stock_name: data})
-                            st.plotly_chart(cum_returns_fig,
-                                            use_container_width=True)
+        if col_train.button("Start Training"):
+            progress_bar = st.progress(0)
+            status_placeholder = st.empty()
 
-                            # Plot drawdown
-                            drawdown_fig = visualizer.plot_drawdown(
-                                {stock_name: data}, stock_name)
-                            st.plotly_chart(drawdown_fig,
-                                            use_container_width=True)
-
-                        with col2:
-                            # Plot performance and drawdown combined
-                            perf_dd_fig = visualizer.plot_performance_and_drawdown(
-                                {stock_name: data}, stock_name)
-                            st.plotly_chart(perf_dd_fig,
-                                            use_container_width=True)
-
-                        # Metrics Display
-                        metrics_col1, metrics_col2, metrics_col3 = st.columns(
-                            3)
-
-                        try:
-                            latest_close = data['Close'].iloc[-1]
-                            price_change = (latest_close -
-                                            data['Close'].iloc[0]
-                                            ) / data['Close'].iloc[0] * 100
-
-                            metrics_col1.metric("Latest Close",
-                                                f"${latest_close:.2f}",
-                                                f"{price_change:.2f}%")
-
-                            avg_volume = data['Volume'].mean()
-                            volume_change = (data['Volume'].iloc[-1] -
-                                             avg_volume) / avg_volume * 100
-
-                            metrics_col2.metric("Average Volume",
-                                                f"{avg_volume:,.0f}",
-                                                f"{volume_change:.2f}%")
-
-                            if show_rsi and 'RSI' in data.columns:
-                                latest_rsi = data['RSI'].iloc[-1]
-                                rsi_change = latest_rsi - data['RSI'].iloc[
-                                    -2] if len(data) > 1 else 0
-
-                                metrics_col3.metric("Current RSI",
-                                                    f"{latest_rsi:.2f}",
-                                                    f"{rsi_change:.2f}")
-
-                        except Exception as e:
-                            st.error(f"Error calculating metrics: {str(e)}")
-
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-
-    if col_test.button("Test Model"):
-        try:
-            if not os.path.exists("trained_model.zip"):
-                st.error("Please train the model first before testing!")
-                return
-
-            env_params = {
-                'initial_balance': initial_balance,
-                'transaction_cost': transaction_cost,
-            }
-
-            # Use either Optuna optimized or manual parameters
-            test_ppo_params = st.session_state.ppo_params if use_optuna_params else {
+            ppo_params = {
                 'learning_rate': learning_rate,
                 'n_steps': ppo_steps,
                 'batch_size': batch_size,
@@ -664,106 +601,251 @@ def main() -> None:
                 'target_kl': target_kl
             }
 
-            test_results = st.session_state.model.test(
-                stock_name=stock_name,
-                start_date=test_start_date,
-                end_date=test_end_date,
-                env_params=env_params,
-                ppo_params=test_ppo_params)
+            progress_callback = ProgressBarCallback(
+                total_timesteps=(train_end_date - train_start_date).days,
+                progress_bar=progress_bar,
+                status_placeholder=status_placeholder)
 
-            with st.expander("Test Results", expanded=True):
-                progress_bar = st.progress(0)
-                metrics_placeholder = st.empty()
+            metrics = st.session_state.model.train(stock_name=stock_name,
+                                                   start_date=train_start_date,
+                                                   end_date=train_end_date,
+                                                   env_params=env_params,
+                                                   ppo_params=ppo_params,
+                                                   callback=progress_callback)
 
-                col1, col2, col3 = st.columns(3)
-                metrics = test_results['metrics']
-
-                with col1:
+            if metrics:
+                metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+                with metrics_col1:
                     st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                    st.metric("Maximum Drawdown",
-                              f"{metrics['max_drawdown']:.2%}")
-                    st.metric(
-                        "Total Return",
-                        f"{(test_results['portfolio_history'][-1] - test_results['portfolio_history'][0]) / test_results['portfolio_history'][0]:.2%}"
-                    )
-
-                with col2:
-                    st.metric("Sortino Ratio",
-                              f"{metrics['sortino_ratio']:.2f}")
-                    st.metric("Information Ratio",
-                              f"{metrics['information_ratio']:.2f}")
+                    st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
+                with metrics_col2:
+                    st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
                     st.metric("Volatility", f"{metrics['volatility']:.2%}")
+                with metrics_col3:
+                    st.metric("Total Return", f"{metrics['total_return']:.2%}")
+                    st.metric("Final Portfolio Value",
+                              f"${metrics['final_value']:,.2f}")
 
-                with col3:
-                    st.metric(
-                        "Final Portfolio Value",
-                        f"${test_results['portfolio_history'][-1]:,.2f}")
-                    st.metric("Initial Balance",
-                              f"${test_results['portfolio_history'][0]:,.2f}")
+            st.success("Training completed and model saved!")
 
-                # Plot portfolio value over time
-                st.subheader("Portfolio Value Over Time")
-                st.line_chart(
-                    pd.DataFrame(test_results['portfolio_history'],
-                                 columns=['Portfolio Value']))
+        # Test period dates
+        st.subheader("Test Period")
+        test_col1, test_col2 = st.columns(2)
+        with test_col1:
+            test_start_date = datetime.combine(
+                st.date_input("Test Start Date",
+                              value=datetime.now() - timedelta(days=365)),
+                datetime.min.time())
+        with test_col2:
+            test_end_date = datetime.combine(
+                st.date_input("Test End Date", value=datetime.now()),
+                datetime.min.time())
 
-                # Create columns for charts
-                chart_col1, chart_col2 = st.columns(2)
+        # Plot controls
+        st.header("Visualization Options")
+        plot_col1, plot_col2 = st.columns(2)
 
-                with chart_col1:
-                    if len(test_results['returns']) > 0:
-                        fig = go.Figure(data=[
-                            go.Histogram(x=test_results['returns'], nbinsx=50)
-                        ])
-                        fig.update_layout(title="Returns Distribution",
-                                          xaxis_title="Return",
-                                          yaxis_title="Frequency",
-                                          showlegend=True)
-                        st.plotly_chart(fig, use_container_width=True)
+        with plot_col1:
+            show_rsi = st.checkbox("Show RSI", value=True)
+            show_sma20 = st.checkbox("Show SMA 20", value=True)
 
-                    values = np.array(test_results['portfolio_history'])
-                    peak = np.maximum.accumulate(values)
-                    drawdowns = (peak - values) / peak
-                    st.subheader("Drawdown Over Time")
-                    st.area_chart(pd.DataFrame(drawdowns,
-                                               columns=['Drawdown']))
+        with plot_col2:
+            show_sma50 = st.checkbox("Show SMA 50", value=True)
+            rsi_period = st.slider(
+                "RSI Period", min_value=7, max_value=21,
+                value=14) if show_rsi else 14
 
-                with chart_col2:
-                    st.subheader("Agent Actions")
-                    st.plotly_chart(test_results['action_plot'],
-                                    use_container_width=True)
+        if st.button("Generate Charts"):
+            with st.spinner("Fetching and processing data..."):
+                try:
+                    portfolio_data = st.session_state.model.data_handler.fetch_data(
+                        stock_name, test_start_date, test_end_date)
+                    if not portfolio_data:
+                        st.error(
+                            "No data available for the selected symbol and date range."
+                        )
+                    else:
+                        portfolio_data = st.session_state.model.data_handler.prepare_data(
+                        )
 
-                    st.subheader("Price and Actions")
-                    st.plotly_chart(test_results['combined_plot'],
-                                    use_container_width=True)
+                        if stock_name in portfolio_data:
+                            data = portfolio_data[stock_name]
 
-                    st.subheader("Cumulative Returns")
-                    cum_returns = pd.DataFrame(
-                        np.cumprod(1 + test_results['returns']) - 1,
-                        columns=['Returns'])
-                    st.line_chart(cum_returns)
+                            # Create TradingVisualizer instance with user preferences
+                            visualizer = TradingVisualizer()
+                            visualizer.show_rsi = show_rsi
+                            visualizer.show_sma20 = show_sma20
+                            visualizer.show_sma50 = show_sma50
+                            visualizer.rsi_period = rsi_period
 
-                    st.subheader("30-Day Rolling Volatility")
-                    rolling_vol = pd.DataFrame(
-                        test_results['returns'],
-                        columns=['Returns']).rolling(30).std() * np.sqrt(252)
-                    st.line_chart(rolling_vol)
+                            # Technical Analysis Charts
+                            st.subheader("Technical Analysis")
+                            main_chart = visualizer.create_single_chart(
+                                stock_name, data)
+                            if main_chart:
+                                st.plotly_chart(main_chart,
+                                                use_container_width=True)
 
-        except Exception as e:
-            st.error(f"Error during testing: {str(e)}")
+                            # Create two columns for charts
+                            col1, col2 = st.columns(2)
 
-    # Configure logging
-    handler = StreamlitLogHandler()
-    handler.setFormatter(
-        logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logging.getLogger().addHandler(handler)
-    logging.getLogger().setLevel(logging.INFO)
+                            with col1:
+                                # Plot cumulative returns
+                                cum_returns_fig = visualizer.plot_cumulative_returns(
+                                    {stock_name: data})
+                                st.plotly_chart(cum_returns_fig,
+                                                use_container_width=True)
 
-    # Create sidebar for logs
-    with st.sidebar:
-        st.header("Logs")
-        for log in st.session_state.log_messages:
-            st.text(log)
+                                # Plot drawdown
+                                drawdown_fig = visualizer.plot_drawdown(
+                                    {stock_name: data}, stock_name)
+                                st.plotly_chart(drawdown_fig,
+                                                use_container_width=True)
+
+                            with col2:
+                                # Plot performance and drawdown combined
+                                perf_dd_fig = visualizer.plot_performance_and_drawdown(
+                                    {stock_name: data}, stock_name)
+                                st.plotly_chart(perf_dd_fig,
+                                                use_container_width=True)
+
+                            # Metrics Display
+                            metrics_col1, metrics_col2, metrics_col3 = st.columns(
+                                3)
+
+                            try:
+                                latest_close = data['Close'].iloc[-1]
+                                price_change = (latest_close -
+                                                data['Close'].iloc[0]
+                                                ) / data['Close'].iloc[0] * 100
+
+                                metrics_col1.metric("Latest Close",
+                                                    f"${latest_close:.2f}",
+                                                    f"{price_change:.2f}%")
+
+                                avg_volume = data['Volume'].mean()
+                                volume_change = (data['Volume'].iloc[-1] -
+                                                 avg_volume) / avg_volume * 100
+
+                                metrics_col2.metric("Average Volume",
+                                                    f"{avg_volume:,.0f}",
+                                                    f"{volume_change:.2f}%")
+
+                                if show_rsi and 'RSI' in data.columns:
+                                    latest_rsi = data['RSI'].iloc[-1]
+                                    rsi_change = latest_rsi - data['RSI'].iloc[
+                                        -2] if len(data) > 1 else 0
+
+                                    metrics_col3.metric("Current RSI",
+                                                        f"{latest_rsi:.2f}",
+                                                        f"{rsi_change:.2f}")
+
+                            except Exception as e:
+                                st.error(f"Error calculating metrics: {str(e)}")
+
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
+
+        if col_test.button("Test Model"):
+            try:
+                if not os.path.exists("trained_model.zip"):
+                    st.error("Please train the model first before testing!")
+                    return
+
+                env_params = {
+                    'initial_balance': initial_balance,
+                    'transaction_cost': transaction_cost,
+                }
+
+                # Use either Optuna optimized or manual parameters
+                test_ppo_params = st.session_state.ppo_params if use_optuna_params else {
+                    'learning_rate': learning_rate,
+                    'n_steps': ppo_steps,
+                    'batch_size': batch_size,
+                    'n_epochs': n_epochs,
+                    'gamma': gamma,
+                    'clip_range': clip_range,
+                    'target_kl': target_kl
+                }
+
+                test_results = st.session_state.model.test(
+                    stock_name=stock_name,
+                    start_date=test_start_date,
+                    end_date=test_end_date,
+                    env_params=env_params,
+                    ppo_params=test_ppo_params)
+
+                with st.expander("Test Results", expanded=True):
+                    col1, col2, col3 = st.columns(3)
+                    metrics = test_results['metrics']
+
+                    with col1:
+                        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
+                        st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
+                        st.metric(
+                            "Total Return",
+                            f"{(test_results['portfolio_history'][-1] - test_results['portfolio_history'][0]) / test_results['portfolio_history'][0]:.2%}"
+                        )
+
+                    with col2:
+                        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                        st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
+                        st.metric("Volatility", f"{metrics['volatility']:.2%}")
+
+                    with col3:
+                        st.metric("Final Portfolio Value",
+                                  f"${test_results['portfolio_history'][-1]:,.2f}")
+                        st.metric("Initial Balance",
+                                  f"${test_results['portfolio_history'][0]:,.2f}")
+
+                    # Plot portfolio value over time
+                    st.subheader("Portfolio Value Over Time")
+                    st.line_chart(pd.DataFrame(test_results['portfolio_history'],
+                                              columns=['Portfolio Value']))
+
+                    # Create columns for charts
+                    chart_col1, chart_col2 = st.columns(2)
+
+                    with chart_col1:
+                        if len(test_results['returns']) > 0:
+                            fig = go.Figure(data=[
+                                go.Histogram(x=test_results['returns'], nbinsx=50)
+                            ])
+                            fig.update_layout(title="Returns Distribution",
+                                              xaxis_title="Return",
+                                              yaxis_title="Frequency",
+                                              showlegend=True)
+                            st.plotly_chart(fig, use_container_width=True)
+
+                        values = np.array(test_results['portfolio_history'])
+                        peak = np.maximum.accumulate(values)
+                        drawdowns = (peak - values) / peak
+                        st.subheader("Drawdown Over Time")
+                        st.area_chart(pd.DataFrame(drawdowns, columns=['Drawdown']))
+
+                    with chart_col2:
+                        st.subheader("Agent Actions")
+                        st.plotly_chart(test_results['action_plot'],
+                                       use_container_width=True)
+
+                        st.subheader("Price and Actions")
+                        st.plotly_chart(test_results['combined_plot'],
+                                       use_container_width=True)
+
+                        st.subheader("Cumulative Returns")
+                        cum_returns = pd.DataFrame(
+                            np.cumprod(1 + test_results['returns']) - 1,
+                            columns=['Returns'])
+                        st.line_chart(cum_returns)
+
+                        st.subheader("30-Day Rolling Volatility")
+                        rolling_vol = pd.DataFrame(
+                            test_results['returns'],
+                            columns=['Returns']).rolling(30).std() * np.sqrt(252)
+                        st.line_chart(rolling_vol)
+
+            except Exception as e:
+                st.error(f"Error during testing: {str(e)}")
 
 
 if __name__ == "__main__":

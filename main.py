@@ -32,7 +32,7 @@ Key Components:
 Usage Example:
 ```python
 # Initialize the application
-streamlit run main.py --server.port=5000 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true
+streamlit run main.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true
 
 # Configure agent parameters in UI:
 # - Set stock symbol (e.g., 'AAPL')

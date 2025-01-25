@@ -105,18 +105,18 @@ class TradingVisualizer:
 
             # Add moving averages if enabled
             if self.show_sma20:
-                chart_data['SMA20'] = ta.trend.sma_indicator(chart_data['Close'], window=20)
+                chart_data['SMA_20'] = ta.trend.sma_indicator(chart_data['Close'], window=20)
                 fig.add_trace(go.Scatter(x=chart_data.index,
-                                         y=chart_data['SMA20'],
+                                         y=chart_data['SMA_20'],
                                          name='SMA 20',
                                          line=dict(color='orange')),
                               row=1,
                               col=1)
 
             if self.show_sma50:
-                chart_data['SMA50'] = ta.trend.sma_indicator(chart_data['Close'], window=50)
+                chart_data['SMA_50'] = ta.trend.sma_indicator(chart_data['Close'], window=50)
                 fig.add_trace(go.Scatter(x=chart_data.index,
-                                         y=chart_data['SMA50'],
+                                         y=chart_data['SMA_50'],
                                          name='SMA 50',
                                          line=dict(color='blue')),
                               row=1,

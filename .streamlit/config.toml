@@ -1,6 +1,6 @@
 
 [server]
-port = 5000
+port = 8501
 address = "0.0.0.0"
 headless = true
 enableCORS = true
@@ -9,7 +9,7 @@ maxUploadSize = 200
 
 [browser]
 serverAddress = "0.0.0.0"
-serverPort = 5000
+serverPort = 8501
 gatherUsageStats = false
 
 [theme]

@@ -422,10 +422,10 @@ def main() -> None:
 
         with plot_col3:
             st.write("Layout Settings")
-            num_columns = st.selectbox("Number of Columns", 
-                                     options=[1, 2, 3, 4], 
-                                     index=1,
-                                     key="num_columns")
+            num_columns = st.selectbox("Number of Columns",
+                                        options=[1, 2, 3, 4],
+                                        index=1,
+                                        key="num_columns")
 
             # Layout Preview
             st.write("Layout Preview")
@@ -436,7 +436,7 @@ def main() -> None:
                 for i in range(num_columns):
                     with preview_cols[i]:
                         st.markdown(
-                            f"""
+                            """
                             <div style="
                                 border: 2px dashed #666;
                                 border-radius: 5px;
@@ -470,75 +470,88 @@ def main() -> None:
                 # First collect all data and create charts
                 for stock in viz_stocks:
                     try:
-                        portfolio_data = st.session_state.model.data_handler.fetch_data(
-                            stock, viz_start_date, viz_end_date)
+                        data = st.session_state.model.data_handler.fetch_data(
+                            [stock], viz_start_date, viz_end_date)
 
-                        if not portfolio_data:
+                        if not data or stock not in data:
                             st.error(f"No data available for {stock}")
                             continue
 
-                        portfolio_data = st.session_state.model.data_handler.prepare_data()
+                        # Get the DataFrame for the current stock
+                        df = data[stock].copy()  # Create a copy to avoid modifying original data
 
-                        if stock in portfolio_data:
-                            data = portfolio_data[stock]
+                        # Calculate technical indicators
+                        try:
+                            # SMA calculations
+                            if show_sma20:
+                                df['SMA20'] = ta.trend.sma_indicator(df['Close'], window=20)
+                            if show_sma50:
+                                df['SMA50'] = ta.trend.sma_indicator(df['Close'], window=50)
 
-                            # Create price chart
-                            price_fig = go.Figure(data=[go.Candlestick(
-                                x=data.index,
-                                open=data['Open'],
-                                high=data['High'],
-                                low=data['Low'],
-                                close=data['Close'],
-                                name=stock
-                            )])
-                            price_fig.update_layout(title=f'{stock} Price History')
-                            price_charts[stock] = price_fig
+                            # RSI calculation
+                            if show_rsi:
+                                df['RSI'] = ta.momentum.rsi(df['Close'], window=rsi_period)
+                        except Exception as e:
+                            st.warning(f"Error calculating indicators for {stock}: {str(e)}")
+                            continue
 
-                            # Create volume chart
-                            volume_fig = go.Figure()
-                            volume_fig.add_trace(go.Bar(
-                                x=data.index,
-                                y=data['Volume'],
-                                name=f'{stock} Volume'
+                        # Create price chart
+                        price_fig = go.Figure(data=[go.Candlestick(
+                            x=df.index,
+                            open=df['Open'],
+                            high=df['High'],
+                            low=df['Low'],
+                            close=df['Close'],
+                            name=stock
+                        )])
+                        price_fig.update_layout(title=f'{stock} Price History')
+                        price_charts[stock] = price_fig
+
+                        # Create volume chart
+                        volume_fig = go.Figure()
+                        volume_fig.add_trace(go.Bar(
+                            x=df.index,
+                            y=df['Volume'],
+                            name=f'{stock} Volume'
+                        ))
+                        volume_fig.update_layout(title=f'{stock} Trading Volume')
+                        volume_charts[stock] = volume_fig
+
+                        # Create RSI chart if enabled and calculated
+                        if show_rsi and 'RSI' in df.columns:
+                            rsi_fig = go.Figure()
+                            rsi_fig.add_trace(go.Scatter(
+                                x=df.index,
+                                y=df['RSI'],
+                                name=f'{stock} RSI'
                             ))
-                            volume_fig.update_layout(title=f'{stock} Trading Volume')
-                            volume_charts[stock] = volume_fig
+                            rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
+                            rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
+                            rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
+                            rsi_charts[stock] = rsi_fig
 
-                            # Create RSI chart if enabled
-                            if show_rsi and 'RSI' in data.columns:
-                                rsi_fig = go.Figure()
-                                rsi_fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=data['RSI'],
-                                    name=f'{stock} RSI'
-                                ))
-                                rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
-                                rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
-                                rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
-                                rsi_charts[stock] = rsi_fig
-
-                            # Create Moving Averages chart if enabled
-                            if show_sma20 or show_sma50:
-                                ma_fig = go.Figure()
+                        # Create Moving Averages chart if enabled and calculated
+                        if show_sma20 or show_sma50:
+                            ma_fig = go.Figure()
+                            ma_fig.add_trace(go.Scatter(
+                                x=df.index,
+                                y=df['Close'],
+                                name=f'{stock} Price'
+                            ))
+                            if show_sma20 and 'SMA20' in df.columns:
                                 ma_fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=data['Close'],
-                                    name=f'{stock} Price'
+                                    x=df.index,
+                                    y=df['SMA20'],
+                                    name=f'{stock} SMA 20'
                                 ))
-                                if show_sma20:
-                                    ma_fig.add_trace(go.Scatter(
-                                        x=data.index,
-                                        y=data['SMA20'],
-                                        name=f'{stock} SMA 20'
-                                    ))
-                                if show_sma50:
-                                    ma_fig.add_trace(go.Scatter(
-                                        x=data.index,
-                                        y=data['SMA50'],
-                                        name=f'{stock} SMA 50'
-                                    ))
-                                ma_fig.update_layout(title=f'{stock} Moving Averages')
-                                ma_charts[stock] = ma_fig
+                            if show_sma50 and 'SMA50' in df.columns:
+                                ma_fig.add_trace(go.Scatter(
+                                    x=df.index,
+                                    y=df['SMA50'],
+                                    name=f'{stock} SMA 50'
+                                ))
+                            ma_fig.update_layout(title=f'{stock} Moving Averages')
+                            ma_charts[stock] = ma_fig
 
                     except Exception as e:
                         st.error(f"Error analyzing {stock}: {str(e)}")
@@ -754,9 +767,6 @@ def main() -> None:
                             "No data available for the selected symbol and date range."
                         )
                     else:
-                        portfolio_data = st.session_state.model.data_handler.prepare_data(
-                        )
-
                         if stock_name in portfolio_data:
                             data = portfolio_data[stock_name]
 
@@ -861,7 +871,7 @@ def main() -> None:
                     stock_name=stock_name,
                     start_date=test_start_date,
                     end_date=test_end_date,
-                    env_params=env_params,                    ppo_params=test_ppo_params)
+                    env_params=env_params, ppo_params=test_ppo_params)
 
                 with st.expander("Test Results", expanded=True):
                     col1, col2, col3 = st.columns(3)
@@ -935,5 +945,5 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Error during testing: {str(e)}")
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()

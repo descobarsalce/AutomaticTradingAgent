@@ -236,17 +236,17 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             try:
                 ppo_params = {
                     'learning_rate':
-                        trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                    trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
                     'n_steps':
-                        trial.suggest_int('n_steps', 512, 2048),
+                    trial.suggest_int('n_steps', 512, 2048),
                     'batch_size':
-                        trial.suggest_int('batch_size', 64, 512),
+                    trial.suggest_int('batch_size', 64, 512),
                     'n_epochs':
-                        trial.suggest_int('n_epochs', 3, 10),
+                    trial.suggest_int('n_epochs', 3, 10),
                     'gamma':
-                        trial.suggest_uniform('gamma', 0.90, 0.999),
+                    trial.suggest_uniform('gamma', 0.90, 0.999),
                     'gae_lambda':
-                        trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                    trial.suggest_uniform('gae_lambda', 0.90, 0.99),
                 }
 
                 status_text.text(
@@ -322,9 +322,9 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                     study)
                 importance_df = pd.DataFrame({
                     'Parameter':
-                        list(importance_dict.keys()),
+                    list(importance_dict.keys()),
                     'Importance':
-                        list(importance_dict.values())
+                    list(importance_dict.values())
                 }).sort_values('Importance', ascending=True)
 
                 importance_fig = go.Figure()
@@ -382,13 +382,15 @@ def main() -> None:
     st.title("Trading Analysis and Agent Platform")
 
     # Create tabs for Technical Analysis and Model Training
-    tab_analysis, tab_training = st.tabs(["Technical Analysis", "Model Training"])
+    tab_analysis, tab_training = st.tabs(
+        ["Technical Analysis", "Model Training"])
 
     with tab_analysis:
         st.header("Technical Analysis Dashboard")
 
         # Visualization stock selection (separate from training)
-        viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)", value="AAPL, MSFT, GOOGL")
+        viz_stock_input = st.text_input(
+            "Stocks to Visualize (comma-separated)", value="AAPL, MSFT, GOOGL")
         viz_stocks = parse_stock_list(viz_stock_input)
 
         # Date selection for visualization
@@ -400,8 +402,7 @@ def main() -> None:
                 datetime.min.time())
         with viz_col2:
             viz_end_date = datetime.combine(
-                st.date_input("Analysis End Date",
-                              value=datetime.now()),
+                st.date_input("Analysis End Date", value=datetime.now()),
                 datetime.min.time())
 
         # Plot controls
@@ -410,22 +411,27 @@ def main() -> None:
 
         with plot_col1:
             show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
-            show_sma20 = st.checkbox("Show SMA 20", value=True, key="analysis_sma20")
+            show_sma20 = st.checkbox("Show SMA 20",
+                                     value=True,
+                                     key="analysis_sma20")
 
         with plot_col2:
-            show_sma50 = st.checkbox("Show SMA 50", value=True, key="analysis_sma50")
-            rsi_period = st.slider("RSI Period",
-                                    min_value=7,
-                                    max_value=21,
-                                    value=14,
-                                    key="analysis_rsi_period") if show_rsi else 14
+            show_sma50 = st.checkbox("Show SMA 50",
+                                     value=True,
+                                     key="analysis_sma50")
+            rsi_period = st.slider(
+                "RSI Period",
+                min_value=7,
+                max_value=21,
+                value=14,
+                key="analysis_rsi_period") if show_rsi else 14
 
         with plot_col3:
             st.write("Layout Settings")
-            num_columns = st.selectbox("Number of Columns", 
-                                     options=[1, 2, 3, 4], 
-                                     index=1,
-                                     key="num_columns")
+            num_columns = st.selectbox("Number of Columns",
+                                       options=[1, 2, 3, 4],
+                                       index=1,
+                                       key="num_columns")
 
             # Layout Preview
             st.write("Layout Preview")
@@ -435,8 +441,7 @@ def main() -> None:
                 preview_cols = st.columns(num_columns)
                 for i in range(num_columns):
                     with preview_cols[i]:
-                        st.markdown(
-                            f"""
+                        st.markdown(f"""
                             <div style="
                                 border: 2px dashed #666;
                                 border-radius: 5px;
@@ -452,11 +457,12 @@ def main() -> None:
                                 <span style="color: #666;">Chart {i+1}</span>
                             </div>
                             """,
-                            unsafe_allow_html=True
-                        )
+                                    unsafe_allow_html=True)
 
             # Add a note about the layout
-            st.caption(f"Charts will be arranged in {num_columns} column{'s' if num_columns > 1 else ''}")
+            st.caption(
+                f"Charts will be arranged in {num_columns} column{'s' if num_columns > 1 else ''}"
+            )
 
         if st.button("Generate Analysis"):
             analysis_container = st.container()
@@ -477,67 +483,72 @@ def main() -> None:
                             st.error(f"No data available for {stock}")
                             continue
 
-                        portfolio_data = st.session_state.model.data_handler.prepare_data()
+                        portfolio_data = st.session_state.model.data_handler.prepare_data(
+                        )
 
                         if stock in portfolio_data:
                             data = portfolio_data[stock]
 
                             # Create price chart
-                            price_fig = go.Figure(data=[go.Candlestick(
-                                x=data.index,
-                                open=data['Open'],
-                                high=data['High'],
-                                low=data['Low'],
-                                close=data['Close'],
-                                name=stock
-                            )])
-                            price_fig.update_layout(title=f'{stock} Price History')
+                            price_fig = go.Figure(data=[
+                                go.Candlestick(x=data.index,
+                                               open=data['Open'],
+                                               high=data['High'],
+                                               low=data['Low'],
+                                               close=data['Close'],
+                                               name=stock)
+                            ])
+                            price_fig.update_layout(
+                                title=f'{stock} Price History')
                             price_charts[stock] = price_fig
 
                             # Create volume chart
                             volume_fig = go.Figure()
-                            volume_fig.add_trace(go.Bar(
-                                x=data.index,
-                                y=data['Volume'],
-                                name=f'{stock} Volume'
-                            ))
-                            volume_fig.update_layout(title=f'{stock} Trading Volume')
+                            volume_fig.add_trace(
+                                go.Bar(x=data.index,
+                                       y=data['Volume'],
+                                       name=f'{stock} Volume'))
+                            volume_fig.update_layout(
+                                title=f'{stock} Trading Volume')
                             volume_charts[stock] = volume_fig
 
                             # Create RSI chart if enabled
                             if show_rsi and 'RSI' in data.columns:
                                 rsi_fig = go.Figure()
-                                rsi_fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=data['RSI'],
-                                    name=f'{stock} RSI'
-                                ))
-                                rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
-                                rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
-                                rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
+                                rsi_fig.add_trace(
+                                    go.Scatter(x=data.index,
+                                               y=data['RSI'],
+                                               name=f'{stock} RSI'))
+                                rsi_fig.add_hline(y=70,
+                                                  line_dash="dash",
+                                                  line_color="red")
+                                rsi_fig.add_hline(y=30,
+                                                  line_dash="dash",
+                                                  line_color="green")
+                                rsi_fig.update_layout(
+                                    title=f'{stock} RSI ({rsi_period} periods)'
+                                )
                                 rsi_charts[stock] = rsi_fig
 
                             # Create Moving Averages chart if enabled
                             if show_sma20 or show_sma50:
                                 ma_fig = go.Figure()
-                                ma_fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=data['Close'],
-                                    name=f'{stock} Price'
-                                ))
+                                ma_fig.add_trace(
+                                    go.Scatter(x=data.index,
+                                               y=data['Close'],
+                                               name=f'{stock} Price'))
                                 if show_sma20:
-                                    ma_fig.add_trace(go.Scatter(
-                                        x=data.index,
-                                        y=data['SMA20'],
-                                        name=f'{stock} SMA 20'
-                                    ))
+                                    ma_fig.add_trace(
+                                        go.Scatter(x=data.index,
+                                                   y=data['SMA_20'],
+                                                   name=f'{stock} SMA 20'))
                                 if show_sma50:
-                                    ma_fig.add_trace(go.Scatter(
-                                        x=data.index,
-                                        y=data['SMA50'],
-                                        name=f'{stock} SMA 50'
-                                    ))
-                                ma_fig.update_layout(title=f'{stock} Moving Averages')
+                                    ma_fig.add_trace(
+                                        go.Scatter(x=data.index,
+                                                   y=data['SMA_50'],
+                                                   name=f'{stock} SMA 50'))
+                                ma_fig.update_layout(
+                                    title=f'{stock} Moving Averages')
                                 ma_charts[stock] = ma_fig
 
                     except Exception as e:
@@ -554,7 +565,9 @@ def main() -> None:
                             for j in range(num_columns):
                                 if i + j < len(stocks):
                                     with cols[j]:
-                                        st.plotly_chart(charts[stocks[i + j]], use_container_width=True)
+                                        st.plotly_chart(
+                                            charts[stocks[i + j]],
+                                            use_container_width=True)
 
                 # Display each chart type using the dynamic grid
                 if price_charts:
@@ -617,7 +630,7 @@ def main() -> None:
 
             # Add checkbox to use Optuna parameters
             use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                             value=False)
+                                            value=False)
 
             if use_optuna_params and st.session_state.ppo_params is not None:
                 st.info("Using Optuna's optimized parameters")
@@ -627,14 +640,17 @@ def main() -> None:
                     st.text(
                         f"Learning Rate: {st.session_state.ppo_params['learning_rate']:.2e}"
                     )
-                    st.text(f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
                     st.text(
-                        f"Batch Size: {st.session_state.ppo_params['batch_size']}")
+                        f"PPO Steps: {st.session_state.ppo_params['n_steps']}")
+                    st.text(
+                        f"Batch Size: {st.session_state.ppo_params['batch_size']}"
+                    )
                     st.text(
                         f"Number of Epochs: {st.session_state.ppo_params['n_epochs']}"
                     )
                 with col4:
-                    st.text(f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
+                    st.text(
+                        f"Gamma: {st.session_state.ppo_params['gamma']:.4f}")
                     st.text(
                         f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}"
                     )
@@ -657,15 +673,18 @@ def main() -> None:
                 col3, col4 = st.columns(2)
                 with col3:
                     learning_rate = st.number_input("Learning Rate",
-                                                     value=3e-4,
-                                                     format="%.1e")
-                    ppo_steps = st.number_input("PPO Steps Per Update", value=512)
+                                                    value=3e-4,
+                                                    format="%.1e")
+                    ppo_steps = st.number_input("PPO Steps Per Update",
+                                                value=512)
                     batch_size = st.number_input("Batch Size", value=128)
                     n_epochs = st.number_input("Number of Epochs", value=5)
                 with col4:
-                    gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
+                    gamma = st.number_input("Gamma (Discount Factor)",
+                                            value=0.99)
                     clip_range = st.number_input("Clip Range", value=0.2)
-                    target_kl = st.number_input("Target KL Divergence", value=0.05)
+                    target_kl = st.number_input("Target KL Divergence",
+                                                value=0.05)
 
         with tab2:
             # Hyperparameter tuning section
@@ -704,9 +723,11 @@ def main() -> None:
                 metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
                 with metrics_col1:
                     st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                    st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
+                    st.metric("Maximum Drawdown",
+                              f"{metrics['max_drawdown']:.2%}")
                 with metrics_col2:
-                    st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                    st.metric("Sortino Ratio",
+                              f"{metrics['sortino_ratio']:.2f}")
                     st.metric("Volatility", f"{metrics['volatility']:.2%}")
                 with metrics_col3:
                     st.metric("Total Return", f"{metrics['total_return']:.2%}")
@@ -734,15 +755,20 @@ def main() -> None:
 
         with plot_col1:
             show_rsi = st.checkbox("Show RSI", value=True, key="training_rsi")
-            show_sma20 = st.checkbox("Show SMA 20", value=True, key="training_sma20")
+            show_sma20 = st.checkbox("Show SMA 20",
+                                     value=True,
+                                     key="training_sma20")
 
         with plot_col2:
-            show_sma50 = st.checkbox("Show SMA 50", value=True, key="training_sma50")
-            rsi_period = st.slider("RSI Period",
-                                    min_value=7,
-                                    max_value=21,
-                                    value=14,
-                                    key="training_rsi_period") if show_rsi else 14
+            show_sma50 = st.checkbox("Show SMA 50",
+                                     value=True,
+                                     key="training_sma50")
+            rsi_period = st.slider(
+                "RSI Period",
+                min_value=7,
+                max_value=21,
+                value=14,
+                key="training_rsi_period") if show_rsi else 14
 
         if st.button("Generate Charts"):
             with st.spinner("Fetching and processing data..."):
@@ -825,12 +851,13 @@ def main() -> None:
                                     rsi_change = latest_rsi - data['RSI'].iloc[
                                         -2] if len(data) > 1 else 0
 
-                                    metrics_col3.metric("Current RSI",
-                                                        f"{latest_rsi:.2f}",
-                                                        f"{rsi_change:.2f}")
+                                    metrics_col3.metric(
+                                        "Current RSI", f"{latest_rsi:.2f}",
+                                        f"{rsi_change:.2f}")
 
                             except Exception as e:
-                                st.error(f"Error calculating metrics: {str(e)}")
+                                st.error(
+                                    f"Error calculating metrics: {str(e)}")
 
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
@@ -861,35 +888,43 @@ def main() -> None:
                     stock_name=stock_name,
                     start_date=test_start_date,
                     end_date=test_end_date,
-                    env_params=env_params,                    ppo_params=test_ppo_params)
+                    env_params=env_params,
+                    ppo_params=test_ppo_params)
 
                 with st.expander("Test Results", expanded=True):
                     col1, col2, col3 = st.columns(3)
                     metrics = test_results['metrics']
 
                     with col1:
-                        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                        st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
+                        st.metric("Sharpe Ratio",
+                                  f"{metrics['sharpe_ratio']:.2f}")
+                        st.metric("Maximum Drawdown",
+                                  f"{metrics['max_drawdown']:.2%}")
                         st.metric(
                             "Total Return",
                             f"{(test_results['portfolio_history'][-1] - test_results['portfolio_history'][0]) / test_results['portfolio_history'][0]:.2%}"
                         )
 
                     with col2:
-                        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-                        st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
+                        st.metric("Sortino Ratio",
+                                  f"{metrics['sortino_ratio']:.2f}")
+                        st.metric("Information Ratio",
+                                  f"{metrics['information_ratio']:.2f}")
                         st.metric("Volatility", f"{metrics['volatility']:.2%}")
 
                     with col3:
-                        st.metric("Final Portfolio Value",
-                                  f"${test_results['portfolio_history'][-1]:,.2f}")
-                        st.metric("Initial Balance",
-                                  f"${test_results['portfolio_history'][0]:,.2f}")
+                        st.metric(
+                            "Final Portfolio Value",
+                            f"${test_results['portfolio_history'][-1]:,.2f}")
+                        st.metric(
+                            "Initial Balance",
+                            f"${test_results['portfolio_history'][0]:,.2f}")
 
                     # Plot portfolio value over time
                     st.subheader("Portfolio Value Over Time")
-                    st.line_chart(pd.DataFrame(test_results['portfolio_history'],
-                                              columns=['Portfolio Value']))
+                    st.line_chart(
+                        pd.DataFrame(test_results['portfolio_history'],
+                                     columns=['Portfolio Value']))
 
                     # Create columns for charts
                     chart_col1, chart_col2 = st.columns(2)
@@ -897,7 +932,8 @@ def main() -> None:
                     with chart_col1:
                         if len(test_results['returns']) > 0:
                             fig = go.Figure(data=[
-                                go.Histogram(x=test_results['returns'], nbinsx=50)
+                                go.Histogram(x=test_results['returns'],
+                                             nbinsx=50)
                             ])
                             fig.update_layout(title="Returns Distribution",
                                               xaxis_title="Return",
@@ -909,16 +945,17 @@ def main() -> None:
                         peak = np.maximum.accumulate(values)
                         drawdowns = (peak - values) / peak
                         st.subheader("Drawdown Over Time")
-                        st.area_chart(pd.DataFrame(drawdowns, columns=['Drawdown']))
+                        st.area_chart(
+                            pd.DataFrame(drawdowns, columns=['Drawdown']))
 
                     with chart_col2:
                         st.subheader("Agent Actions")
                         st.plotly_chart(test_results['action_plot'],
-                                       use_container_width=True)
+                                        use_container_width=True)
 
                         st.subheader("Price and Actions")
                         st.plotly_chart(test_results['combined_plot'],
-                                       use_container_width=True)
+                                        use_container_width=True)
 
                         st.subheader("Cumulative Returns")
                         cum_returns = pd.DataFrame(
@@ -928,12 +965,14 @@ def main() -> None:
 
                         st.subheader("30-Day Rolling Volatility")
                         rolling_vol = pd.DataFrame(
-                            test_results['returns'],
-                            columns=['Returns']).rolling(30).std() * np.sqrt(252)
+                            test_results['returns'], columns=[
+                                'Returns'
+                            ]).rolling(30).std() * np.sqrt(252)
                         st.line_chart(rolling_vol)
 
             except Exception as e:
                 st.error(f"Error during testing: {str(e)}")
+
 
 if __name__ == "__main__":
     main()

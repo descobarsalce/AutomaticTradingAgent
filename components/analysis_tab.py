@@ -7,8 +7,10 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import pandas as pd
+import os
 
 from utils.stock_utils import parse_stock_list
+
 
 def display_analysis_tab(model):
     """
@@ -19,8 +21,8 @@ def display_analysis_tab(model):
     st.header("Technical Analysis Dashboard")
 
     # Visualization stock selection (separate from training)
-    viz_stock_input = st.text_input(
-        "Stocks to Visualize (comma-separated)", value="AAPL, MSFT, GOOGL")
+    viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
+                                    value="AAPL, MSFT, GOOGL")
     viz_stocks = parse_stock_list(viz_stock_input)
 
     # Date selection for visualization
@@ -28,7 +30,7 @@ def display_analysis_tab(model):
     with viz_col1:
         viz_start_date = datetime.combine(
             st.date_input("Analysis Start Date",
-                           value=datetime.now() - timedelta(days=365)),
+                          value=datetime.now() - timedelta(days=365)),
             datetime.min.time())
     with viz_col2:
         viz_end_date = datetime.combine(
@@ -41,19 +43,26 @@ def display_analysis_tab(model):
 
     with plot_col1:
         show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
-        show_sma20 = st.checkbox("Show SMA 20", value=True, key="analysis_sma20")
+        show_sma20 = st.checkbox("Show SMA 20",
+                                 value=True,
+                                 key="analysis_sma20")
 
     with plot_col2:
-        show_sma50 = st.checkbox("Show SMA 50", value=True, key="analysis_sma50")
-        rsi_period = st.slider("RSI Period", min_value=7, max_value=21,
-                             value=14, key="analysis_rsi_period") if show_rsi else 14
+        show_sma50 = st.checkbox("Show SMA 50",
+                                 value=True,
+                                 key="analysis_sma50")
+        rsi_period = st.slider("RSI Period",
+                               min_value=7,
+                               max_value=21,
+                               value=14,
+                               key="analysis_rsi_period") if show_rsi else 14
 
     with plot_col3:
         st.write("Layout Settings")
         num_columns = st.selectbox("Number of Columns",
-                                  options=[1, 2, 3, 4],
-                                  index=1,
-                                  key="num_columns")
+                                   options=[1, 2, 3, 4],
+                                   index=1,
+                                   key="num_columns")
 
         # Layout Preview
         st.write("Layout Preview")
@@ -78,14 +87,17 @@ def display_analysis_tab(model):
                             <span style="color: #666;">Chart {i+1}</span>
                         </div>
                         """,
-                                 unsafe_allow_html=True)
+                                unsafe_allow_html=True)
 
     if st.button("Generate Analysis"):
         generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                        show_rsi, show_sma20, show_sma50, rsi_period, num_columns)
+                          show_rsi, show_sma20, show_sma50, rsi_period,
+                          num_columns)
+
 
 def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                     show_rsi, show_sma20, show_sma50, rsi_period, num_columns):
+                      show_rsi, show_sma20, show_sma50, rsi_period,
+                      num_columns):
     """
     Generates and displays technical analysis charts
     """
@@ -110,7 +122,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
 
             if stock in portfolio_data:
                 data = portfolio_data[stock]
-                
+
                 # Create price chart
                 price_fig = go.Figure(data=[
                     go.Candlestick(x=data.index,
@@ -126,7 +138,9 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
                 # Create volume chart
                 volume_fig = go.Figure()
                 volume_fig.add_trace(
-                    go.Bar(x=data.index, y=data['Volume'], name=f'{stock} Volume'))
+                    go.Bar(x=data.index,
+                           y=data['Volume'],
+                           name=f'{stock} Volume'))
                 volume_fig.update_layout(title=f'{stock} Trading Volume')
                 volume_charts[stock] = volume_fig
 
@@ -138,15 +152,20 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
                                    y=data['RSI'] * 100,
                                    name=f'{stock} RSI'))
                     rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
-                    rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
-                    rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
+                    rsi_fig.add_hline(y=30,
+                                      line_dash="dash",
+                                      line_color="green")
+                    rsi_fig.update_layout(
+                        title=f'{stock} RSI ({rsi_period} periods)')
                     rsi_charts[stock] = rsi_fig
 
                 # Create Moving Averages chart if enabled
                 if show_sma20 or show_sma50:
                     ma_fig = go.Figure()
                     ma_fig.add_trace(
-                        go.Scatter(x=data.index, y=data['Close'], name=f'{stock} Price'))
+                        go.Scatter(x=data.index,
+                                   y=data['Close'],
+                                   name=f'{stock} Price'))
                     if show_sma20 and 'SMA_20' in data.columns:
                         ma_fig.add_trace(
                             go.Scatter(x=data.index,
@@ -166,7 +185,9 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
         display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
 
-def display_charts_grid(charts: Dict[str, go.Figure], title: str, num_columns: int) -> None:
+
+def display_charts_grid(charts: Dict[str, go.Figure], title: str,
+                        num_columns: int) -> None:
     """
     Displays charts in a grid layout
     """
@@ -179,4 +200,4 @@ def display_charts_grid(charts: Dict[str, go.Figure], title: str, num_columns: i
                 if i + j < len(stocks):
                     with cols[j]:
                         st.plotly_chart(charts[stocks[i + j]],
-                                      use_container_width=True)
+                                        use_container_width=True)

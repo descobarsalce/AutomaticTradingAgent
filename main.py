@@ -66,6 +66,7 @@ import optuna
 from sqlalchemy import func, distinct
 from models.database import Session
 from models.models import StockData
+from utils.stock_utils import parse_stock_list
 
 # Configure logging
 import logging
@@ -356,27 +357,6 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
             logger.exception("Hyperparameter optimization error")
-
-
-def parse_stock_list(stock_string):
-    # Handle empty or None input
-    if not stock_string or not isinstance(stock_string, str):
-        return []
-
-    # Split by comma and clean each stock symbol
-    stocks = [
-        stock.strip().upper()  # Convert to uppercase and remove whitespace
-        for stock in stock_string.split(',')
-        if stock.strip()  # Skip empty entries
-    ]
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_stocks = [
-        stock for stock in stocks if not (stock in seen or seen.add(stock))
-    ]
-
-    return unique_stocks
 
 
 def display_database_explorer():

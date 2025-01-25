@@ -319,16 +319,17 @@ class FeatureEngineer:
             
         result = pd.DataFrame(index=prices.index)
         
-        for i in range(window, len(prices) + 1):
-            window_data = prices.iloc[i-window:i]
-            try:
-                fft_result = fft(window_data.values)
-                for j in range(top_n):
-                    result.loc[prices.index[i-1], f'FFT_{j+1}'] = np.abs(fft_result[j])
-            except Exception as e:
-                logger.error(f"FFT calculation error in window: {e}")
-                
-        return result.fillna(method='ffill')
+        try:
+            for i in range(window, len(prices) + 1):
+                window_data = prices.iloc[i-window:i]
+                try:
+                    fft_result = fft(window_data.values)
+                    for j in range(top_n):
+                        result.loc[prices.index[i-1], f'FFT_{j+1}'] = np.abs(fft_result[j])
+                except Exception as e:
+                    logger.error(f"FFT calculation error in window: {e}")
+                    
+            return result.fillna(method='ffill')
         except Exception as e:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)

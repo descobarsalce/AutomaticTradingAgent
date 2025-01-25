@@ -525,7 +525,7 @@ def main() -> None:
 
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
     tab_analysis, tab_training, tab_database = st.tabs(
-        ["Technical Analysis", "Model Training", "Database Explorer"])
+        ["Model Training", "Technical Analysis", "Database Explorer"])
 
     with tab_analysis:
         st.header("Technical Analysis Dashboard")

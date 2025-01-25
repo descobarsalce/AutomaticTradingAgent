@@ -226,22 +226,22 @@ def display_optimization_results(study: optuna.study.Study,
 def render_model_training() -> None:
     """Render the model training interface."""
     st.header("Trading Agent Configuration")
-    
+
     # Input parameters
     st.subheader("Training Options")
     stock_name = st.text_input("Training Stock Symbol", value="AAPL")
-    
+
     # Environment parameters
     st.header("Environment Parameters")
     col1, col2 = st.columns(2)
     with col1:
         initial_balance = st.number_input("Initial Balance", value=10000)
-    
+
     with col2:
         transaction_cost = st.number_input("Transaction Cost",
-                                         value=0.01,
-                                         step=0.001)
-    
+                                          value=0.01,
+                                          step=0.001)
+
     env_params = {
         'initial_balance': initial_balance,
         'transaction_cost': transaction_cost,
@@ -249,7 +249,7 @@ def render_model_training() -> None:
         'use_holding_bonus': False,
         'use_trading_penalty': False
     }
-    
+
     # Date selection for training
     st.subheader("Training Period")
     train_col1, train_col2 = st.columns(2)
@@ -269,19 +269,19 @@ def render_model_training() -> None:
             ),
             datetime.min.time()
         )
-    
+
     tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
-    
+
     with tab1:
         # Manual parameter selection
         st.header("Agent Parameters")
-        
+
         use_optuna_params = st.checkbox(
             "Use Optuna Optimized Parameters",
             value=False
         )
-        
-        if use_optuna_params and st.session_state.ppo_params is not None:
+
+        if use_optuna_params and hasattr(st.session_state, 'ppo_params') and st.session_state.ppo_params is not None:
             st.info("Using Optuna's optimized parameters")
             # Display Optuna parameters as read-only
             col3, col4 = st.columns(2)
@@ -305,7 +305,73 @@ def render_model_training() -> None:
                 st.text(
                     f"GAE Lambda: {st.session_state.ppo_params['gae_lambda']:.4f}"
                 )
-    
+        else:
+            # Manual parameter input
+            col3, col4 = st.columns(2)
+            with col3:
+                learning_rate = st.number_input(
+                    "Learning Rate",
+                    value=3e-4,
+                    format="%.0e",
+                    key="manual_lr"
+                )
+                n_steps = st.number_input(
+                    "PPO Steps",
+                    value=2048,
+                    step=64,
+                    key="manual_steps"
+                )
+                batch_size = st.number_input(
+                    "Batch Size",
+                    value=64,
+                    step=32,
+                    key="manual_batch"
+                )
+            with col4:
+                n_epochs = st.number_input(
+                    "Training Epochs",
+                    value=10,
+                    step=1,
+                    key="manual_epochs"
+                )
+                gamma = st.number_input(
+                    "Gamma",
+                    value=0.99,
+                    step=0.01,
+                    format="%.3f",
+                    key="manual_gamma"
+                )
+                gae_lambda = st.number_input(
+                    "GAE Lambda",
+                    value=0.95,
+                    step=0.01,
+                    format="%.3f",
+                    key="manual_gae"
+                )
+
+            if st.button("Start Training"):
+                manual_params = {
+                    'learning_rate': learning_rate,
+                    'n_steps': n_steps,
+                    'batch_size': batch_size,
+                    'n_epochs': n_epochs,
+                    'gamma': gamma,
+                    'gae_lambda': gae_lambda
+                }
+
+                try:
+                    metrics = st.session_state.model.train(
+                        stock_name=stock_name,
+                        start_date=train_start_date,
+                        end_date=train_end_date,
+                        env_params=env_params,
+                        ppo_params=manual_params
+                    )
+                    st.success("Training completed successfully!")
+                    st.write("Training Metrics:", metrics)
+                except Exception as e:
+                    st.error(f"Training failed: {str(e)}")
+
     with tab2:
         hyperparameter_tuning(
             stock_name, train_start_date, train_end_date, env_params

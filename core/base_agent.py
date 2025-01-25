@@ -3,15 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 import os
-# Suppress TF logging and CUDA warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU only
-os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices=false'
 import warnings
-
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
 from datetime import datetime, timedelta
 from gymnasium import Env
 from stable_baselines3 import PPO
@@ -19,12 +11,20 @@ from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 from typing import Dict, Any, Optional, List, Union, Tuple, cast
 from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
-
 from metrics.metrics_calculator import MetricsCalculator
 from environment import SimpleTradingEnv
 from data.data_handler import DataHandler
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
                           DEFAULT_STOP_LOSS, MIN_TRADE_SIZE)
+
+# Suppress TF logging and CUDA warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU only
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices=false'
+
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -76,7 +76,6 @@ class UnifiedTradingAgent:
         self.data_handler = DataHandler()
         self.portfolio_history: List[float] = []
         self.positions_history: List[Dict[str, float]] = []
-
         self.evaluation_metrics: Dict[str, Union[float, List[float], int]] = {
             'returns': [],
             'sharpe_ratio': 0.0,

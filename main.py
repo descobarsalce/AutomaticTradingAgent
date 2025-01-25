@@ -55,13 +55,11 @@ import os
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import ta
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Union, Tuple, Callable
+from typing import Dict, Any
 from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
-from core.visualization import TradingVisualizer
+
 import optuna
 from sqlalchemy import func, distinct
 from models.database import Session

@@ -424,7 +424,7 @@ def main() -> None:
             st.write("Layout Settings")
             num_columns = st.selectbox("Number of Columns", 
                                      options=[1, 2, 3, 4], 
-                                     value=2,
+                                     index=1,
                                      key="num_columns")
 
             # Layout Preview
@@ -934,7 +934,6 @@ def main() -> None:
 
             except Exception as e:
                 st.error(f"Error during testing: {str(e)}")
-
 
 if __name__ == "__main__":
     main()

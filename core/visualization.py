@@ -103,10 +103,17 @@ class TradingVisualizer:
                           row=2,
                           col=1)
 
-            # Add moving averages if enabled
+            # Calculate SMAs before plotting
             if self.show_sma20:
                 sma20_col = f'{symbol}_SMA_20'
                 chart_data[sma20_col] = ta.trend.sma_indicator(chart_data['Close'], window=20)
+            
+            if self.show_sma50:
+                sma50_col = f'{symbol}_SMA_50'
+                chart_data[sma50_col] = ta.trend.sma_indicator(chart_data['Close'], window=50)
+
+            # Add moving averages to the plot
+            if self.show_sma20:
                 fig.add_trace(go.Scatter(x=chart_data.index,
                                          y=chart_data[sma20_col],
                                          name='SMA 20',
@@ -115,8 +122,6 @@ class TradingVisualizer:
                               col=1)
 
             if self.show_sma50:
-                sma50_col = f'{symbol}_SMA_50'
-                chart_data[sma50_col] = ta.trend.sma_indicator(chart_data['Close'], window=50)
                 fig.add_trace(go.Scatter(x=chart_data.index,
                                          y=chart_data[sma50_col],
                                          name='SMA 50',

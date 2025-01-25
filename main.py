@@ -240,17 +240,17 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             try:
                 ppo_params = {
                     'learning_rate':
-                    trial.suggest_loguniform('learning_rate', 1e-5, 5e-4),
+                    trial.suggest_loguniform('learning_rate', lr_min, lr_max),
                     'n_steps':
-                    trial.suggest_int('n_steps', 512, 2048),
+                    trial.suggest_int('n_steps', steps_min, steps_max),
                     'batch_size':
-                    trial.suggest_int('batch_size', 64, 512),
+                    trial.suggest_int('batch_size', batch_min, batch_max),
                     'n_epochs':
-                    trial.suggest_int('n_epochs', 3, 10),
+                    trial.suggest_int('n_epochs', epochs_min, epochs_max),
                     'gamma':
-                    trial.suggest_uniform('gamma', 0.90, 0.999),
+                    trial.suggest_uniform('gamma', gamma_min, gamma_max),
                     'gae_lambda':
-                    trial.suggest_uniform('gae_lambda', 0.90, 0.99),
+                    trial.suggest_uniform('gae_lambda', gae_min, gae_max),
                 }
 
                 status_text.text(

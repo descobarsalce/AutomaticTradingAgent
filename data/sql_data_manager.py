@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import and_
 import pandas as pd
-from .database import Session, StockData
+from models.database import Session, StockData
 
 class SQLDataManager:
     def __init__(self):

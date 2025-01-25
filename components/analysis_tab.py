@@ -185,6 +185,51 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
         display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
 
+        # Advanced Analytics Section
+        if model and hasattr(model, 'portfolio_history') and model.portfolio_history:
+            st.header("Portfolio Analytics")
+            
+            # Portfolio Performance
+            portfolio_df = pd.DataFrame(model.portfolio_history, columns=['Portfolio Value'])
+            st.subheader("Portfolio Value Over Time")
+            st.line_chart(portfolio_df)
+            
+            # Returns Analysis
+            if hasattr(model, 'evaluation_metrics') and model.evaluation_metrics.get('returns'):
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    fig = go.Figure(data=[
+                        go.Histogram(x=model.evaluation_metrics['returns'],
+                                    nbinsx=50)
+                    ])
+                    fig.update_layout(title="Returns Distribution",
+                                    xaxis_title="Return",
+                                    yaxis_title="Frequency")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # Drawdown
+                    values = np.array(model.portfolio_history)
+                    peak = np.maximum.accumulate(values)
+                    drawdowns = (peak - values) / peak
+                    st.subheader("Drawdown Over Time")
+                    st.area_chart(pd.DataFrame(drawdowns, columns=['Drawdown']))
+
+                with chart_col2:
+                    # Cumulative Returns
+                    returns = np.diff(values) / values[:-1]
+                    cum_returns = pd.DataFrame(
+                        np.cumprod(1 + returns) - 1,
+                        columns=['Returns'])
+                    st.subheader("Cumulative Returns")
+                    st.line_chart(cum_returns)
+
+                    # Rolling Volatility
+                    rolling_vol = pd.DataFrame(
+                        returns, columns=['Returns']).rolling(30).std() * np.sqrt(252)
+                    st.subheader("30-Day Rolling Volatility")
+                    st.line_chart(rolling_vol)
+
 
 def display_charts_grid(charts: Dict[str, go.Figure], title: str,
                         num_columns: int) -> None:

@@ -475,85 +475,83 @@ def main() -> None:
 
                 # First collect all data and create charts
                 for stock in viz_stocks:
-                    try:
-                        portfolio_data = st.session_state.model.data_handler.fetch_data(
-                            stock, viz_start_date, viz_end_date)
+                    # try:
+                    portfolio_data = st.session_state.model.data_handler.fetch_data(
+                        stock, viz_start_date, viz_end_date)
 
-                        if not portfolio_data:
-                            st.error(f"No data available for {stock}")
-                            continue
+                    if not portfolio_data:
+                        st.error(f"No data available for {stock}")
+                        continue
 
-                        portfolio_data = st.session_state.model.data_handler.prepare_data(
-                        )
+                    portfolio_data = st.session_state.model.data_handler.prepare_data(
+                    )
 
-                        if stock in portfolio_data:
-                            data = portfolio_data[stock]
+                    if stock in portfolio_data:
+                        data = portfolio_data[stock]
 
-                            # Create price chart
-                            price_fig = go.Figure(data=[
-                                go.Candlestick(x=data.index,
-                                               open=data['Open'],
-                                               high=data['High'],
-                                               low=data['Low'],
-                                               close=data['Close'],
-                                               name=stock)
-                            ])
-                            price_fig.update_layout(
-                                title=f'{stock} Price History')
-                            price_charts[stock] = price_fig
+                        # Create price chart
+                        price_fig = go.Figure(data=[
+                            go.Candlestick(x=data.index,
+                                           open=data['Open'],
+                                           high=data['High'],
+                                           low=data['Low'],
+                                           close=data['Close'],
+                                           name=stock)
+                        ])
+                        price_fig.update_layout(title=f'{stock} Price History')
+                        price_charts[stock] = price_fig
 
-                            # Create volume chart
-                            volume_fig = go.Figure()
-                            volume_fig.add_trace(
-                                go.Bar(x=data.index,
-                                       y=data['Volume'],
-                                       name=f'{stock} Volume'))
-                            volume_fig.update_layout(
-                                title=f'{stock} Trading Volume')
-                            volume_charts[stock] = volume_fig
+                        # Create volume chart
+                        volume_fig = go.Figure()
+                        volume_fig.add_trace(
+                            go.Bar(x=data.index,
+                                   y=data['Volume'],
+                                   name=f'{stock} Volume'))
+                        volume_fig.update_layout(
+                            title=f'{stock} Trading Volume')
+                        volume_charts[stock] = volume_fig
 
-                            # Create RSI chart if enabled
-                            if show_rsi and 'RSI' in data.columns:
-                                rsi_fig = go.Figure()
-                                rsi_fig.add_trace(
-                                    go.Scatter(x=data.index,
-                                               y=data['RSI'],
-                                               name=f'{stock} RSI'))
-                                rsi_fig.add_hline(y=70,
-                                                  line_dash="dash",
-                                                  line_color="red")
-                                rsi_fig.add_hline(y=30,
-                                                  line_dash="dash",
-                                                  line_color="green")
-                                rsi_fig.update_layout(
-                                    title=f'{stock} RSI ({rsi_period} periods)'
-                                )
-                                rsi_charts[stock] = rsi_fig
+                        # Create RSI chart if enabled
+                        if show_rsi and 'RSI' in data.columns:
+                            rsi_fig = go.Figure()
+                            rsi_fig.add_trace(
+                                go.Scatter(x=data.index,
+                                           y=data['RSI'],
+                                           name=f'{stock} RSI'))
+                            rsi_fig.add_hline(y=70,
+                                              line_dash="dash",
+                                              line_color="red")
+                            rsi_fig.add_hline(y=30,
+                                              line_dash="dash",
+                                              line_color="green")
+                            rsi_fig.update_layout(
+                                title=f'{stock} RSI ({rsi_period} periods)')
+                            rsi_charts[stock] = rsi_fig
 
-                            # Create Moving Averages chart if enabled
-                            if show_sma20 or show_sma50:
-                                ma_fig = go.Figure()
+                        # Create Moving Averages chart if enabled
+                        if show_sma20 or show_sma50:
+                            ma_fig = go.Figure()
+                            ma_fig.add_trace(
+                                go.Scatter(x=data.index,
+                                           y=data['Close'],
+                                           name=f'{stock} Price'))
+                            if show_sma20:
                                 ma_fig.add_trace(
                                     go.Scatter(x=data.index,
-                                               y=data['Close'],
-                                               name=f'{stock} Price'))
-                                if show_sma20:
-                                    ma_fig.add_trace(
-                                        go.Scatter(x=data.index,
-                                                   y=data['SMA_20'],
-                                                   name=f'{stock} SMA 20'))
-                                if show_sma50:
-                                    ma_fig.add_trace(
-                                        go.Scatter(x=data.index,
-                                                   y=data['SMA_50'],
-                                                   name=f'{stock} SMA 50'))
-                                ma_fig.update_layout(
-                                    title=f'{stock} Moving Averages')
-                                ma_charts[stock] = ma_fig
+                                               y=data['SMA_20'],
+                                               name=f'{stock} SMA 20'))
+                            if show_sma50:
+                                ma_fig.add_trace(
+                                    go.Scatter(x=data.index,
+                                               y=data['SMA_50'],
+                                               name=f'{stock} SMA 50'))
+                            ma_fig.update_layout(
+                                title=f'{stock} Moving Averages')
+                            ma_charts[stock] = ma_fig
 
-                    except Exception as e:
-                        st.error(f"Error analyzing {stock}: {str(e)}")
-                        continue
+                    # except Exception as e:
+                    #     st.error(f"Error analyzing {stock} --- : {str(e)}")
+                    #     continue
 
                 # Now display charts grouped by type with dynamic columns
                 def display_charts_grid(charts, title):

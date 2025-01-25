@@ -406,7 +406,7 @@ def main() -> None:
 
         # Plot controls
         st.subheader("Visualization Options")
-        plot_col1, plot_col2 = st.columns(2)
+        plot_col1, plot_col2, plot_col3 = st.columns(3)
 
         with plot_col1:
             show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
@@ -419,6 +419,12 @@ def main() -> None:
                                     max_value=21,
                                     value=14,
                                     key="analysis_rsi_period") if show_rsi else 14
+
+        with plot_col3:
+            num_columns = st.selectbox("Number of Columns", 
+                                     options=[1, 2, 3, 4], 
+                                     value=2,
+                                     key="num_columns")
 
         if st.button("Generate Analysis"):
             analysis_container = st.container()
@@ -506,58 +512,30 @@ def main() -> None:
                         st.error(f"Error analyzing {stock}: {str(e)}")
                         continue
 
-                # Now display charts grouped by type
+                # Now display charts grouped by type with dynamic columns
+                def display_charts_grid(charts, title):
+                    if charts:
+                        st.subheader(title)
+                        stocks = list(charts.keys())
+                        for i in range(0, len(charts), num_columns):
+                            cols = st.columns(num_columns)
+                            for j in range(num_columns):
+                                if i + j < len(stocks):
+                                    with cols[j]:
+                                        st.plotly_chart(charts[stocks[i + j]], use_container_width=True)
+
+                # Display each chart type using the dynamic grid
                 if price_charts:
-                    st.subheader("Price Analysis")
-                    for i in range(0, len(price_charts), 2):
-                        col1, col2 = st.columns(2)
-                        stocks = list(price_charts.keys())
-
-                        with col1:
-                            st.plotly_chart(price_charts[stocks[i]], use_container_width=True)
-
-                        if i + 1 < len(stocks):
-                            with col2:
-                                st.plotly_chart(price_charts[stocks[i + 1]], use_container_width=True)
+                    display_charts_grid(price_charts, "Price Analysis")
 
                 if volume_charts:
-                    st.subheader("Volume Analysis")
-                    for i in range(0, len(volume_charts), 2):
-                        col1, col2 = st.columns(2)
-                        stocks = list(volume_charts.keys())
-
-                        with col1:
-                            st.plotly_chart(volume_charts[stocks[i]], use_container_width=True)
-
-                        if i + 1 < len(stocks):
-                            with col2:
-                                st.plotly_chart(volume_charts[stocks[i + 1]], use_container_width=True)
+                    display_charts_grid(volume_charts, "Volume Analysis")
 
                 if rsi_charts:
-                    st.subheader("RSI Analysis")
-                    for i in range(0, len(rsi_charts), 2):
-                        col1, col2 = st.columns(2)
-                        stocks = list(rsi_charts.keys())
-
-                        with col1:
-                            st.plotly_chart(rsi_charts[stocks[i]], use_container_width=True)
-
-                        if i + 1 < len(stocks):
-                            with col2:
-                                st.plotly_chart(rsi_charts[stocks[i + 1]], use_container_width=True)
+                    display_charts_grid(rsi_charts, "RSI Analysis")
 
                 if ma_charts:
-                    st.subheader("Moving Averages Analysis")
-                    for i in range(0, len(ma_charts), 2):
-                        col1, col2 = st.columns(2)
-                        stocks = list(ma_charts.keys())
-
-                        with col1:
-                            st.plotly_chart(ma_charts[stocks[i]], use_container_width=True)
-
-                        if i + 1 < len(stocks):
-                            with col2:
-                                st.plotly_chart(ma_charts[stocks[i + 1]], use_container_width=True)
+                    display_charts_grid(ma_charts, "Moving Averages Analysis")
 
     with tab_training:
         st.header("Trading Agent Configuration")

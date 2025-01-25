@@ -93,7 +93,7 @@ class UnifiedTradingAgent:
         self.ppo_params = self.DEFAULT_PPO_PARAMS.copy()
 
     @type_check
-    def prepare_processed_data(self, stock_names: str, start_date: datetime,
+    def prepare_processed_data(self, stock_name: str, start_date: datetime,
                                end_date: datetime) -> pd.DataFrame:
         """Fetch and prepare data."""
         portfolio_data = self.data_handler.fetch_data([stock_name], start_date,
@@ -254,11 +254,16 @@ class UnifiedTradingAgent:
         returns = MetricsCalculator.calculate_returns(portfolio_history)
 
         return {
-            'portfolio_history': portfolio_history,
-            'returns': returns,
-            'info_history': info_history,
-            'action_plot': TradingVisualizer().plot_discrete_actions(info_history),
-            'combined_plot': TradingVisualizer().plot_actions_with_price(info_history, data),
+            'portfolio_history':
+            portfolio_history,
+            'returns':
+            returns,
+            'info_history':
+            info_history,
+            'action_plot':
+            TradingVisualizer().plot_discrete_actions(info_history),
+            'combined_plot':
+            TradingVisualizer().plot_actions_with_price(info_history, data),
             'metrics': {
                 'sharpe_ratio':
                 MetricsCalculator.calculate_sharpe_ratio(returns),

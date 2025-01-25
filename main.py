@@ -405,15 +405,60 @@ def display_database_explorer():
         db_size = os.path.getsize('trading_data.db') / (1024 * 1024)  # Convert to MB
         col3.metric("Database Size", f"{db_size:.2f} MB")
 
-    # Last update timestamps
-    st.subheader("Last Update Timestamps")
-    last_updates = session.query(
-        StockData.symbol,
-        func.max(StockData.last_updated).label('last_update')
-    ).group_by(StockData.symbol).all()
+    # Stock Data Summary
+    st.header("Stock Data Summary")
 
-    update_df = pd.DataFrame(last_updates, columns=['Symbol', 'Last Update'])
-    st.dataframe(update_df)
+    # Query for stock summary information
+    stock_summary = []
+    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+
+    for symbol in symbols:
+        # Get statistics for each stock
+        symbol_data = session.query(
+            StockData.symbol,
+            func.min(StockData.date).label('start_date'),
+            func.max(StockData.date).label('end_date'),
+            func.count(StockData.id).label('data_points'),
+            func.max(StockData.last_updated).label('last_update')
+        ).filter(StockData.symbol == symbol).group_by(StockData.symbol).first()
+
+        if symbol_data:
+            # Calculate coverage percentage
+            total_days = (symbol_data.end_date - symbol_data.start_date).days + 1
+            coverage = (symbol_data.data_points / total_days) * 100
+
+            stock_summary.append({
+                'Symbol': symbol,
+                'Start Date': symbol_data.start_date.strftime('%Y-%m-%d'),
+                'End Date': symbol_data.end_date.strftime('%Y-%m-%d'),
+                'Data Points': symbol_data.data_points,
+                'Coverage (%)': f"{coverage:.1f}%",
+                'Last Update': symbol_data.last_update.strftime('%Y-%m-%d %H:%M:%S')
+            })
+
+    if stock_summary:
+        # Convert to DataFrame and display
+        summary_df = pd.DataFrame(stock_summary)
+        st.dataframe(
+            summary_df,
+            column_config={
+                'Symbol': st.column_config.TextColumn('Symbol', width='small'),
+                'Coverage (%)': st.column_config.TextColumn('Coverage (%)', width='small'),
+                'Data Points': st.column_config.NumberColumn('Data Points', format="%d")
+            }
+        )
+
+        # Add download button for the summary
+        csv = summary_df.to_csv(index=False)
+        st.download_button(
+            "Download Summary CSV",
+            csv,
+            "stock_data_summary.csv",
+            "text/csv",
+            key='download-csv'
+        )
+    else:
+        st.info("No stock data available in the database.")
 
     # Query Interface
     st.header("Query Interface")
@@ -477,7 +522,6 @@ def display_database_explorer():
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No data available for the selected criteria.")
-
 
 
 def main() -> None:

@@ -535,12 +535,12 @@ def main() -> None:
                                 go.Scatter(x=data.index,
                                            y=data['Close'],
                                            name=f'{stock} Price'))
-                            if show_sma20:
+                            if show_sma20 and 'SMA_20' in data.columns:
                                 ma_fig.add_trace(
                                     go.Scatter(x=data.index,
                                                y=data['SMA_20'],
                                                name=f'{stock} SMA 20'))
-                            if show_sma50:
+                            if show_sma50 and 'SMA_50' in data.columns:
                                 ma_fig.add_trace(
                                     go.Scatter(x=data.index,
                                                y=data['SMA_50'],

@@ -50,19 +50,31 @@ class TradingVisualizer:
             # Create a copy of data to avoid modifying original
             chart_data = data.copy()
 
-            # Calculate RSI if enabled
-            if self.show_rsi:
-                chart_data['RSI'] = ta.momentum.RSIIndicator(
-                    chart_data['Close'], window=self.rsi_period).rsi()
-
-            # Calculate SMAs if enabled
-            if self.show_sma20:
-                chart_data['SMA_20'] = ta.trend.sma_indicator(
-                    chart_data['Close'], window=20)
-
-            if self.show_sma50:
-                chart_data['SMA_50'] = ta.trend.sma_indicator(
-                    chart_data['Close'], window=50)
+            # Calculate all technical indicators at once
+            # RSI
+            chart_data['RSI'] = ta.momentum.RSIIndicator(
+                chart_data['Close'], window=self.rsi_period).rsi()
+            
+            # SMAs
+            chart_data['SMA_20'] = ta.trend.sma_indicator(chart_data['Close'], window=20)
+            chart_data['SMA_50'] = ta.trend.sma_indicator(chart_data['Close'], window=50)
+            
+            # MACD
+            macd = ta.trend.MACD(chart_data['Close'])
+            chart_data['MACD'] = macd.macd()
+            chart_data['MACD_Signal'] = macd.macd_signal()
+            
+            # Bollinger Bands
+            bollinger = ta.volatility.BollingerBands(chart_data['Close'])
+            chart_data['BB_High'] = bollinger.bollinger_hband()
+            chart_data['BB_Low'] = bollinger.bollinger_lband()
+            chart_data['BB_Mid'] = bollinger.bollinger_mavg()
+            
+            # Stochastic Oscillator
+            stoch = ta.momentum.StochasticOscillator(
+                chart_data['High'], chart_data['Low'], chart_data['Close'])
+            chart_data['Stoch_K'] = stoch.stoch()
+            chart_data['Stoch_D'] = stoch.stoch_signal()
 
             # Determine number of rows based on enabled indicators
             num_rows = 2  # Price and Volume are always shown

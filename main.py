@@ -522,7 +522,7 @@ def main() -> None:
     st.title("Trading Analysis and Agent Platform")
 
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
-    tab_analysis, tab_training, tab_database = st.tabs(
+    tab_training, tab_analysis, tab_database = st.tabs(
         ["Model Training", "Technical Analysis", "Database Explorer"])
 
     with tab_analysis:

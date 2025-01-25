@@ -446,12 +446,54 @@ def main() -> None:
                             visualizer.show_sma50 = show_sma50
                             visualizer.rsi_period = rsi_period
 
-                            # Technical Analysis Charts
-                            main_chart = visualizer.create_single_chart(stock, data)
-                            if main_chart:
-                                st.plotly_chart(main_chart, use_container_width=True)
+                            # Create a container for all charts
+                            chart_container = st.container()
 
-                            # Metrics for the stock
+                            with chart_container:
+                                # Main price chart
+                                col1, col2 = st.columns(2)
+
+                                with col1:
+                                    # Technical Analysis Charts - Price and Volume
+                                    st.subheader("Price Analysis")
+                                    main_chart = visualizer.create_single_chart(stock, data)
+                                    if main_chart:
+                                        st.plotly_chart(main_chart, use_container_width=True)
+
+                                with col2:
+                                    # Volume Analysis
+                                    st.subheader("Volume Analysis")
+                                    volume_fig = go.Figure()
+                                    volume_fig.add_trace(go.Bar(x=data.index, y=data['Volume'], name='Volume'))
+                                    volume_fig.update_layout(title='Trading Volume Over Time')
+                                    st.plotly_chart(volume_fig, use_container_width=True)
+
+                                # Technical Indicators
+                                col3, col4 = st.columns(2)
+
+                                with col3:
+                                    if show_rsi and 'RSI' in data.columns:
+                                        st.subheader("RSI Analysis")
+                                        rsi_fig = go.Figure()
+                                        rsi_fig.add_trace(go.Scatter(x=data.index, y=data['RSI'], name='RSI'))
+                                        rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
+                                        rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
+                                        rsi_fig.update_layout(title=f'RSI ({rsi_period} periods)')
+                                        st.plotly_chart(rsi_fig, use_container_width=True)
+
+                                with col4:
+                                    if show_sma20 or show_sma50:
+                                        st.subheader("Moving Averages")
+                                        ma_fig = go.Figure()
+                                        ma_fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Price'))
+                                        if show_sma20:
+                                            ma_fig.add_trace(go.Scatter(x=data.index, y=data['SMA20'], name='SMA 20'))
+                                        if show_sma50:
+                                            ma_fig.add_trace(go.Scatter(x=data.index, y=data['SMA50'], name='SMA 50'))
+                                        ma_fig.update_layout(title='Price with Moving Averages')
+                                        st.plotly_chart(ma_fig, use_container_width=True)
+
+                            # Metrics row
                             metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
 
                             try:
@@ -775,8 +817,7 @@ def main() -> None:
                     stock_name=stock_name,
                     start_date=test_start_date,
                     end_date=test_end_date,
-                    env_params=env_params,
-                    ppo_params=test_ppo_params)
+                    env_params=env_params,                    ppo_params=test_ppo_params)
 
                 with st.expander("Test Results", expanded=True):
                     col1, col2, col3 = st.columns(3)

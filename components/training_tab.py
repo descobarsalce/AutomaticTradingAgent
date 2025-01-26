@@ -72,9 +72,63 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
             help="Metric to optimize during hyperparameter search")
 
     if st.button("Start Hyperparameter Tuning"):
-        hyperparameter_tuning(stock_name, train_start_date, train_end_date,
-                              env_params, trials_number, pruning_enabled,
-                              optimization_metric)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        # Create study with pruning
+        study = optuna.create_study(
+            direction='maximize',
+            pruner=optuna.pruners.MedianPruner() if pruning_enabled else None)
+
+        def objective(trial: optuna.Trial) -> float:
+            try:
+                ppo_params = {
+                    'learning_rate':
+                    trial.suggest_loguniform('learning_rate', lr_min, lr_max),
+                    'n_steps':
+                    trial.suggest_int('n_steps', steps_min, steps_max),
+                    'batch_size':
+                    trial.suggest_int('batch_size', batch_min, batch_max),
+                    'n_epochs':
+                    trial.suggest_int('n_epochs', epochs_min, epochs_max),
+                    'gamma':
+                    trial.suggest_uniform('gamma', gamma_min, gamma_max),
+                    'gae_lambda':
+                    trial.suggest_uniform('gae_lambda', gae_min, gae_max),
+                }
+
+                status_text.text(
+                    f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}"
+                )
+
+                # Train with current parameters
+                metrics = st.session_state.model.train(
+                    stock_name=stock_name,
+                    start_date=train_start_date,
+                    end_date=train_end_date,
+                    env_params=env_params,
+                    ppo_params=ppo_params)
+
+                # Use selected optimization metric
+                trial_value = metrics.get(optimization_metric, float('-inf'))
+                progress = (trial.number + 1) / trials_number
+                progress_bar.progress(progress)
+
+                return trial_value
+
+            except Exception as e:
+                st.error(f"Error in trial {trial.number}: {str(e)}")
+                return float('-inf')
+
+        try:
+            study.optimize(objective, n_trials=trials_number)
+            st.success("Hyperparameter tuning completed!")
+
+            # Save best parameters
+            st.session_state.ppo_params = study.best_params
+            
+        except Exception as e:
+            st.error(f"Optimization failed: {str(e)}")
 
 
 def display_training_tab():

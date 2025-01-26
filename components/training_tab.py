@@ -265,13 +265,16 @@ def run_training(stock_name: str, train_start_date: datetime,
         progress_bar=progress_bar,
         status_placeholder=status_placeholder)
 
-    metrics = st.session_state.model.stock_name = stock_name  # Store stock name
-    st.session_state.model.train(stock_name=stock_name,
-                                           start_date=train_start_date,
-                                           end_date=train_end_date,
-                                           env_params=env_params,
-                                           ppo_params=ppo_params,
-                                           callback=progress_callback)
+    # Store stock name
+    st.session_state.model.stock_name = stock_name
+    
+    # Train model and get metrics
+    metrics = st.session_state.model.train(stock_name=stock_name,
+                                         start_date=train_start_date,
+                                         end_date=train_end_date,
+                                         env_params=env_params,
+                                         ppo_params=ppo_params,
+                                         callback=progress_callback)
 
     if metrics:
         display_training_metrics(metrics)

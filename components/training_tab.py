@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 from typing import Dict, Any, Optional
 from utils.callbacks import ProgressBarCallback
 from core.visualization import TradingVisualizer
+import os
 
 
 def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
@@ -126,7 +127,7 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
 
             # Save best parameters
             st.session_state.ppo_params = study.best_params
-            
+
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
 

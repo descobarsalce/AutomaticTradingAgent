@@ -90,6 +90,7 @@ class UnifiedTradingAgent:
         self.tensorboard_log = tensorboard_log
         self.seed = seed
         self.ppo_params = self.DEFAULT_PPO_PARAMS.copy()
+        self.stock_name = None
 
     @type_check
     def prepare_processed_data(self, stock_name: str, start_date: datetime,

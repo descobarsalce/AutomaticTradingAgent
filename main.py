@@ -1,16 +1,14 @@
-
 import streamlit as st
 from core.base_agent import UnifiedTradingAgent
 import logging
+from utils.logging_utils import StreamlitLogHandler
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-from utils.logging_utils import StreamlitLogHandler, init_session_state
-
 
 def main() -> None:
-    init_session_state()
+    StreamlitLogHandler.init_session_state()
 
     st.title("Trading Analysis and Agent Platform")
 

@@ -372,7 +372,3 @@ class UnifiedTradingAgent:
         if not self.env:
             raise ValueError("Environment not initialized")
         self.model = PPO.load(path, env=self.env)
-
-
-# For backward compatibility
-PPOAgentModel = UnifiedTradingAgent

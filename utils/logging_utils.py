@@ -1,4 +1,3 @@
-
 """
 Logging utilities for the trading platform
 """
@@ -6,6 +5,7 @@ import streamlit as st
 import logging
 from typing import List, Dict, Union, Any
 from core.base_agent import UnifiedTradingAgent
+
 
 class StreamlitLogHandler(logging.Handler):
     """
@@ -61,39 +61,40 @@ class StreamlitLogHandler(logging.Handler):
             if 'log_messages' in st.session_state:
                 st.session_state.log_messages.append(log_entry)
                 if len(st.session_state.log_messages) > self.MAX_LOGS:
-                    st.session_state.log_messages = st.session_state.log_messages[-self.MAX_LOGS:]
+                    st.session_state.log_messages = st.session_state.log_messages[
+                        -self.MAX_LOGS:]
             print(log_entry)  # Backup output
         except Exception as e:
             print(f"Logging error: {e}")
 
-
-def init_session_state() -> None:
-    """
-    Initialize Streamlit session state variables for persistent storage across reruns.
-
-    Initializes:
-        - log_messages: List[str] - Chronological log messages
-        - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
-        - model: UnifiedTradingAgent - Trading agent model instance
-
-    Implementation:
-        The function checks for each required key in st.session_state and
-        initializes it if missing. This ensures persistence across Streamlit reruns
-        while avoiding reinitializing existing state.
-
-    Example:
-        ```python
-        # Initialize state at app startup
-        init_session_state()
-
-        # Access state variables
-        model = st.session_state.model
-        logs = st.session_state.log_messages
-        ```
-    """
-    if 'log_messages' not in st.session_state:
-        st.session_state.log_messages = []
-    if 'ppo_params' not in st.session_state:
-        st.session_state.ppo_params = None
-    if 'model' not in st.session_state:
-        st.session_state.model = UnifiedTradingAgent()
+    @staticmethod
+    def init_session_state() -> None:
+        """
+        Initialize Streamlit session state variables for persistent storage across reruns.
+    
+        Initializes:
+            - log_messages: List[str] - Chronological log messages
+            - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
+            - model: UnifiedTradingAgent - Trading agent model instance
+    
+        Implementation:
+            The function checks for each required key in st.session_state and
+            initializes it if missing. This ensures persistence across Streamlit reruns
+            while avoiding reinitializing existing state.
+    
+        Example:
+            ```python
+            # Initialize state at app startup
+            init_session_state()
+    
+            # Access state variables
+            model = st.session_state.model
+            logs = st.session_state.log_messages
+            ```
+        """
+        if 'log_messages' not in st.session_state:
+            st.session_state.log_messages = []
+        if 'ppo_params' not in st.session_state:
+            st.session_state.ppo_params = None
+        if 'model' not in st.session_state:
+            st.session_state.model = UnifiedTradingAgent()

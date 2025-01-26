@@ -1,77 +1,10 @@
-"""
-Trading Agent Web Interface
-A Streamlit-based dashboard for configuring and managing reinforcement learning trading agents.
-
-System Architecture:
-- Web Interface Layer (Streamlit): Provides UI for configuration and visualization
-- Agent Layer (UnifiedTradingAgent): Implements trading strategy and training logic
-- Environment Layer (SimpleTradingEnv): Simulates market interactions
-- Data Layer: Handles market data acquisition and preprocessing
-
-Key Components:
-1. Configuration Interface:
-   - Agent hyperparameter tuning
-   - Environment settings adjustment
-   - Training period selection
-
-2. Training Pipeline:
-   - Data preparation
-   - Model training with progress tracking
-   - Performance metrics calculation
-
-3. Testing Interface:
-   - Model evaluation on unseen data
-   - Performance visualization
-   - Trading behavior analysis
-
-4. Monitoring System:
-   - Real-time training progress
-   - Portfolio value tracking
-   - Transaction logging
-
-Usage Example:
-```python
-# Initialize the application
-streamlit run main.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=true
-
-# Configure agent parameters in UI:
-# - Set stock symbol (e.g., 'AAPL')
-# - Adjust initial balance
-# - Tune learning parameters
-# - Select date ranges
-
-# Train the agent:
-# Click "Start Training" to begin the training process
-# Monitor progress in the sidebar logs
-
-# Test the agent:
-# Click "Test Model" to evaluate on new data
-# View performance metrics and visualizations
-```
-"""
 
 import streamlit as st
-import os
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
-
-import optuna
-from sqlalchemy import func, distinct
-from models.database import Session
-from models.models import StockData
-from utils.stock_utils import parse_stock_list
-
-# Configure logging
 import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
 
 def init_session_state() -> None:
     """
@@ -166,9 +99,6 @@ class StreamlitLogHandler(logging.Handler):
             print(f"Logging error: {e}")
 
 
-
-
-
 def main() -> None:
     init_session_state()
 
@@ -188,27 +118,6 @@ def main() -> None:
 
     with tab_database:
         from components.database_tab import display_database_explorer
-        display_database_explorer()
-
-
-def main() -> None:
-    init_session_state()
-
-    st.title("Trading Analysis and Agent Platform")
-
-    # Create tabs for Technical Analysis, Model Training, and Database Explorer
-    tab_training, tab_analysis, tab_database = st.tabs(
-        ["Model Training", "Technical Analysis", "Database Explorer"])
-
-    with tab_analysis:
-        from components.analysis_tab import display_analysis_tab
-        display_analysis_tab(st.session_state.model)
-
-    with tab_training:
-        from components.training_tab import display_training_tab
-        display_training_tab()
-
-    with tab_database:
         display_database_explorer()
 
 

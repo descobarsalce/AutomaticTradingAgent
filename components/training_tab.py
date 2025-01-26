@@ -19,8 +19,8 @@ def display_training_tab():
 
     # Input parameters
     st.subheader("Training Options")
-    st.session_state.stock_name = st.text_input("Training Stock Symbol",
-                                                value="AAPL")
+    stock_name = st.text_input("Training Stock Symbol", value="AAPL")
+    st.session_state.model.stock_name = stock_name
 
     # Environment parameters
     st.header("Environment Parameters")

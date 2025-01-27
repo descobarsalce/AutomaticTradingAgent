@@ -1,6 +1,6 @@
 import optuna
 import streamlit as st
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
@@ -8,9 +8,205 @@ import plotly.graph_objects as go
 import logging
 import os
 import traceback
+from functools import lru_cache
+import time
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+# Cache for stock data to prevent repeated fetches
+CACHE_TTL = 3600  # 1 hour cache
+
+@lru_cache(maxsize=100)
+def fetch_cached_data(stock: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
+    """Cache wrapper for data fetching"""
+    try:
+        return st.session_state.model.data_handler.fetch_data(
+            stock, start_date, end_date)
+    except Exception as e:
+        logger.error(f"Error fetching data for {stock}: {e}")
+        return None
+
+def initialize_session_state():
+    """Initialize session state variables if they don't exist"""
+    if 'model' not in st.session_state:
+        st.session_state.model = None
+    if 'analysis_error' not in st.session_state:
+        st.session_state.analysis_error = None
+    if 'data_cache' not in st.session_state:
+        st.session_state.data_cache = {}
+    if 'last_fetch_time' not in st.session_state:
+        st.session_state.last_fetch_time = {}
+
+def safe_data_access(func):
+    """Decorator for safe data access with error handling and timeouts"""
+    def wrapper(*args, **kwargs):
+        try:
+            with st.spinner("Processing..."):
+                result = func(*args, **kwargs)
+            return result
+        except Exception as e:
+            logger.error(f"Error in {func.__name__}: {str(e)}")
+            logger.error(traceback.format_exc())
+            st.error(f"An error occurred: {str(e)}")
+            return None
+    return wrapper
+
+@safe_data_access
+def display_analysis_tab(model):
+    """Renders the technical analysis dashboard tab"""
+    try:
+        st.set_page_config(layout="wide")  # Optimize layout for charts
+        initialize_session_state()
+
+        if model is None:
+            st.warning("Please initialize the model first.")
+            return
+
+        st.session_state.model = model
+        st.header("Technical Analysis Dashboard")
+
+        # Stock selection with error handling
+        viz_stock_input = st.text_input(
+            "Stocks to Visualize (comma-separated)",
+            value="AAPL, MSFT, GOOGL"
+        )
+
+        if not viz_stock_input:
+            st.warning("Please enter at least one stock symbol")
+            return
+
+        try:
+            viz_stocks = [s.strip() for s in viz_stock_input.split(',')]
+        except Exception as e:
+            st.error(f"Error parsing stock symbols: {str(e)}")
+            return
+
+        # Date selection with validation
+        try:
+            col1, col2 = st.columns(2)
+            with col1:
+                viz_start_date = st.date_input(
+                    "Start Date",
+                    value=datetime.now() - timedelta(days=365)
+                )
+            with col2:
+                viz_end_date = st.date_input(
+                    "End Date",
+                    value=datetime.now()
+                )
+
+            if viz_start_date >= viz_end_date:
+                st.error("Start date must be before end date")
+                return
+
+        except Exception as e:
+            st.error(f"Error with date selection: {str(e)}")
+            return
+
+        # Analysis options
+        try:
+            with st.expander("Analysis Options", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    show_rsi = st.checkbox("Show RSI", value=True)
+                    rsi_period = st.slider("RSI Period", 7, 21, 14) if show_rsi else 14
+                with col2:
+                    show_ma = st.checkbox("Show Moving Averages", value=True)
+                    ma_period = st.slider("MA Period", 10, 50, 20) if show_ma else 20
+        except Exception as e:
+            st.error(f"Error setting analysis options: {str(e)}")
+            return
+
+        if st.button("Generate Analysis"):
+            try:
+                with st.spinner("Fetching and analyzing data..."):
+                    progress_bar = st.progress(0)
+                    for idx, stock in enumerate(viz_stocks):
+                        # Update progress
+                        progress = (idx + 1) / len(viz_stocks)
+                        progress_bar.progress(progress)
+
+                        # Check cache first
+                        cache_key = f"{stock}_{viz_start_date}_{viz_end_date}"
+                        if cache_key in st.session_state.data_cache:
+                            cached_time = st.session_state.last_fetch_time.get(cache_key, 0)
+                            if time.time() - cached_time < CACHE_TTL:
+                                data = st.session_state.data_cache[cache_key]
+                            else:
+                                data = fetch_cached_data(stock, viz_start_date, viz_end_date)
+                                if data is not None:
+                                    st.session_state.data_cache[cache_key] = data
+                                    st.session_state.last_fetch_time[cache_key] = time.time()
+                        else:
+                            data = fetch_cached_data(stock, viz_start_date, viz_end_date)
+                            if data is not None:
+                                st.session_state.data_cache[cache_key] = data
+                                st.session_state.last_fetch_time[cache_key] = time.time()
+
+                        if data is None:
+                            st.warning(f"No data available for {stock}")
+                            continue
+
+                        # Create visualizations
+                        try:
+                            fig = go.Figure()
+                            fig.add_trace(go.Candlestick(
+                                x=data.index,
+                                open=data['Open'],
+                                high=data['High'],
+                                low=data['Low'],
+                                close=data['Close'],
+                                name=stock
+                            ))
+
+                            if show_ma:
+                                ma = data['Close'].rolling(window=ma_period).mean()
+                                fig.add_trace(go.Scatter(
+                                    x=data.index,
+                                    y=ma,
+                                    name=f'MA{ma_period}',
+                                    line=dict(color='orange')
+                                ))
+
+                            fig.update_layout(
+                                title=f'{stock} Analysis',
+                                yaxis_title='Price',
+                                template='plotly_dark',
+                                height=600
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
+
+                            if show_rsi:
+                                rsi_fig = go.Figure()
+                                if 'RSI' in data.columns:
+                                    rsi_fig.add_trace(go.Scatter(
+                                        x=data.index,
+                                        y=data['RSI'],
+                                        name='RSI'
+                                    ))
+                                    rsi_fig.update_layout(
+                                        title=f'{stock} RSI',
+                                        yaxis_title='RSI',
+                                        height=300
+                                    )
+                                    st.plotly_chart(rsi_fig, use_container_width=True)
+
+                        except Exception as e:
+                            st.error(f"Error creating charts for {stock}: {str(e)}")
+                            logger.error(traceback.format_exc())
+                            continue
+
+                    progress_bar.empty()
+
+            except Exception as e:
+                st.error(f"Error generating analysis: {str(e)}")
+                logger.error(traceback.format_exc())
+
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logger.error(traceback.format_exc())
 
 def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                          train_end_date: datetime, env_params: Dict[str, Any]) -> None:
@@ -211,131 +407,10 @@ import pandas as pd
 import os
 from utils.stock_utils import parse_stock_list
 
-def initialize_session_state():
-    """Initialize session state variables if they don't exist"""
-    if 'model' not in st.session_state:
-        st.session_state.model = None
-    if 'analysis_error' not in st.session_state:
-        st.session_state.analysis_error = None
-
-def safe_data_access(func):
-    """Decorator for safe data access with error handling"""
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Error in {func.__name__}: {str(e)}")
-            logger.error(traceback.format_exc())
-            st.error(f"An error occurred: {str(e)}")
-            return None
-    return wrapper
-
-@safe_data_access
-def display_analysis_tab(model):
-    """
-    Renders the technical analysis dashboard tab
-    Args:
-        model: The trading model instance
-    """
-    try:
-        initialize_session_state()
-
-        if model is None:
-            st.warning("Please initialize the model first.")
-            return
-
-        st.session_state.model = model
-
-        st.header("Technical Analysis Dashboard")
-
-        # Add loading indicator
-        with st.spinner("Loading analysis components..."):
-            # Stock selection with error handling
-            viz_stock_input = st.text_input(
-                "Stocks to Visualize (comma-separated)",
-                value="AAPL, MSFT, GOOGL"
-            )
-
-            if not viz_stock_input:
-                st.warning("Please enter at least one stock symbol")
-                return
-
-            try:
-                viz_stocks = parse_stock_list(viz_stock_input)
-            except Exception as e:
-                st.error(f"Error parsing stock symbols: {str(e)}")
-                return
-
-            # Date selection
-            try:
-                viz_col1, viz_col2 = st.columns(2)
-                with viz_col1:
-                    viz_start_date = datetime.combine(
-                        st.date_input("Analysis Start Date",
-                                    value=datetime.now() - timedelta(days=365)),
-                        datetime.min.time())
-                with viz_col2:
-                    viz_end_date = datetime.combine(
-                        st.date_input("Analysis End Date", 
-                                    value=datetime.now()),
-                        datetime.min.time())
-            except Exception as e:
-                st.error(f"Error setting dates: {str(e)}")
-                return
-
-            # Plot controls
-            st.subheader("Visualization Options")
-            try:
-                plot_col1, plot_col2, plot_col3 = st.columns(3)
-
-                with plot_col1:
-                    show_rsi = st.checkbox("Show RSI", value=True)
-                    show_sma20 = st.checkbox("Show SMA 20", value=True)
-
-                with plot_col2:
-                    show_sma50 = st.checkbox("Show SMA 50", value=True)
-                    rsi_period = st.slider("RSI Period",
-                                        min_value=7,
-                                        max_value=21,
-                                        value=14) if show_rsi else 14
-
-                with plot_col3:
-                    num_columns = st.selectbox("Number of Columns",
-                                            options=[1, 2, 3, 4],
-                                            index=1)
-            except Exception as e:
-                st.error(f"Error setting visualization options: {str(e)}")
-                return
-
-            if st.button("Generate Analysis"):
-                with st.spinner("Generating analysis..."):
-                    try:
-                        if model.data_handler is None:
-                            st.error("Data handler not initialized")
-                            return
-
-                        generate_analysis(
-                            viz_stocks, viz_start_date, viz_end_date,
-                            model, show_rsi, show_sma20, show_sma50,
-                            rsi_period, num_columns
-                        )
-                    except Exception as e:
-                        logger.error(f"Analysis generation error: {str(e)}")
-                        logger.error(traceback.format_exc())
-                        st.error(f"Failed to generate analysis: {str(e)}")
-
-    except Exception as e:
-        logger.error(f"Display analysis tab error: {str(e)}")
-        logger.error(traceback.format_exc())
-        st.error("An error occurred while displaying the analysis tab. Please check the logs for details.")
-
 @safe_data_access
 def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                    show_rsi, show_sma20, show_sma50, rsi_period,
-                    num_columns):
-    """
-    Generates and displays technical analysis charts
-    """
+                    show_rsi, show_ma, ma_period, rsi_period):
+    """Generates and displays technical analysis charts"""
     st.subheader("Analysis Results")
 
     analysis_container = st.container()
@@ -343,63 +418,76 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         progress_bar = st.progress(0)
         status_text = st.empty()
 
-        # Create dictionaries to store different types of charts
-        price_charts = {}
-        volume_charts = {}
-        rsi_charts = {}
-        ma_charts = {}
-
         total_stocks = len(viz_stocks)
 
-        # First collect all data and create charts
         for idx, stock in enumerate(viz_stocks):
             status_text.text(f"Processing {stock} ({idx + 1}/{total_stocks})")
             progress_bar.progress((idx + 1) / total_stocks)
 
+            cache_key = f"{stock}_{viz_start_date}_{viz_end_date}"
+            if cache_key in st.session_state.data_cache:
+                data = st.session_state.data_cache[cache_key]
+            else:
+                data = fetch_cached_data(stock, viz_start_date, viz_end_date)
+                if data is not None:
+                    st.session_state.data_cache[cache_key] = data
+                    st.session_state.last_fetch_time[cache_key] = time.time()
+
+            if data is None:
+                st.warning(f"No data available for {stock}")
+                continue
+
             try:
-                portfolio_data = model.data_handler.fetch_data(
-                    stock, viz_start_date, viz_end_date)
+                fig = go.Figure()
+                fig.add_trace(go.Candlestick(
+                    x=data.index,
+                    open=data['Open'],
+                    high=data['High'],
+                    low=data['Low'],
+                    close=data['Close'],
+                    name=stock
+                ))
 
-                if not portfolio_data:
-                    st.warning(f"No data available for {stock}")
-                    continue
+                if show_ma:
+                    ma = data['Close'].rolling(window=ma_period).mean()
+                    fig.add_trace(go.Scatter(
+                        x=data.index,
+                        y=ma,
+                        name=f'MA{ma_period}',
+                        line=dict(color='orange')
+                    ))
 
-                data = model.data_handler.prepare_data()
+                fig.update_layout(
+                    title=f'{stock} Analysis',
+                    yaxis_title='Price',
+                    template='plotly_dark',
+                    height=600
+                )
 
-                if stock not in data:
-                    st.warning(f"No prepared data available for {stock}")
-                    continue
+                st.plotly_chart(fig, use_container_width=True)
 
-                stock_data = data[stock]
-
-                # Create charts with error handling
-                try:
-                    price_charts[stock] = create_price_chart(stock_data, stock)
-                    volume_charts[stock] = create_volume_chart(stock_data, stock)
-                    if show_rsi:
-                        rsi_charts[stock] = create_rsi_chart(stock_data, stock, rsi_period)
-                    if show_sma20 or show_sma50:
-                        ma_charts[stock] = create_ma_chart(stock_data, stock, show_sma20, show_sma50)
-                except Exception as e:
-                    logger.error(f"Error creating charts for {stock}: {str(e)}")
-                    st.warning(f"Could not create some charts for {stock}")
+                if show_rsi:
+                    rsi_fig = go.Figure()
+                    if 'RSI' in data.columns:
+                        rsi_fig.add_trace(go.Scatter(
+                            x=data.index,
+                            y=data['RSI'],
+                            name='RSI'
+                        ))
+                        rsi_fig.update_layout(
+                            title=f'{stock} RSI',
+                            yaxis_title='RSI',
+                            height=300
+                        )
+                        st.plotly_chart(rsi_fig, use_container_width=True)
 
             except Exception as e:
-                logger.error(f"Error processing {stock}: {str(e)}")
-                st.warning(f"Error processing {stock}: {str(e)}")
+                st.error(f"Error creating charts for {stock}: {str(e)}")
+                logger.error(traceback.format_exc())
+                continue
 
-        # Clear progress indicators
         progress_bar.empty()
         status_text.empty()
-
-        # Display charts using the dynamic grid system
-        if any([price_charts, volume_charts, rsi_charts, ma_charts]):
-            display_charts_grid(price_charts, "Price Analysis", num_columns)
-            display_charts_grid(volume_charts, "Volume Analysis", num_columns)
-            display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
-            display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
-        else:
-            st.error("No charts could be generated. Please check the data and try again.")
 
 def create_price_chart(data, stock):
     return go.Figure(data=[
@@ -446,9 +534,7 @@ def create_ma_chart(data, stock, show_sma20, show_sma50):
 
 def display_charts_grid(charts: Dict[str, go.Figure], title: str,
                        num_columns: int) -> None:
-    """
-    Displays charts in a grid layout
-    """
+    """Displays charts in a grid layout"""
     if not charts:
         return
 

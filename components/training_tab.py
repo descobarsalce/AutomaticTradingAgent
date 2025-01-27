@@ -19,8 +19,15 @@ def display_training_tab():
 
     # Input parameters
     st.subheader("Training Options")
+    if 'stock_name' not in st.session_state:
+        st.session_state.stock_name = "AAPL"
+    
     st.session_state.stock_name = st.text_input("Training Stock Symbol",
-                                                value="AAPL")
+                                               value=st.session_state.stock_name)
+    
+    # Initialize or update model's stock name if model exists
+    if 'model' in st.session_state and st.session_state.model is not None:
+        st.session_state.model.stock_name = st.session_state.stock_name
 
     # Environment parameters
     st.header("Environment Parameters")

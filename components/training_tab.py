@@ -19,8 +19,8 @@ def display_training_tab():
 
     # Input parameters
     st.subheader("Training Options")
-    stock_name = st.text_input("Training Stock Symbol", value="AAPL")
-    st.session_state.model.stock_name = stock_name
+    st.session_state.stock_name = st.text_input("Training Stock Symbol",
+                                                value="AAPL")
 
     # Environment parameters
     st.header("Environment Parameters")
@@ -312,7 +312,7 @@ def display_testing_interface() -> None:
         st.error("No trained model found. Please train a model first.")
     else:
         test_results = st.session_state.model.test(
-            stock_name=st.session_state.model.stock_name,
+            stock_name=st.session_state.stock_name,
             start_date=st.session_state.test_start_date,
             end_date=st.session_state.test_end_date,
             env_params=st.session_state.env_params,
@@ -369,8 +369,7 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
     with st.spinner("Fetching and processing data..."):
         try:
             portfolio_data = st.session_state.model.data_handler.fetch_data(
-                st.session_state.model.stock_name,
-                st.session_state.test_start_date,
+                st.session_state.stock_name, st.session_state.test_start_date,
                 st.session_state.test_end_date)
 
             if not portfolio_data:
@@ -381,8 +380,8 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
                 portfolio_data = st.session_state.model.data_handler.prepare_data(
                 )
 
-                if st.session_state.model.stock_name in portfolio_data:
-                    data = portfolio_data[st.session_state.model.stock_name]
+                if st.session_state.stock_name in portfolio_data:
+                    data = portfolio_data[st.session_state.stock_name]
 
                     visualizer = TradingVisualizer()
                     visualizer.show_rsi = show_rsi
@@ -392,7 +391,7 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
 
                     st.subheader("Technical Analysis")
                     main_chart = visualizer.create_single_chart(
-                        st.session_state.model.stock_name, data)
+                        st.session_state.stock_name, data)
                     if main_chart:
                         st.plotly_chart(main_chart, use_container_width=True)
 

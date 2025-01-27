@@ -1,212 +1,16 @@
+
 import optuna
 import streamlit as st
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import logging
 import os
-import traceback
-from functools import lru_cache
-import time
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-# Cache for stock data to prevent repeated fetches
-CACHE_TTL = 3600  # 1 hour cache
-
-@lru_cache(maxsize=100)
-def fetch_cached_data(stock: str, start_date: str, end_date: str) -> Optional[pd.DataFrame]:
-    """Cache wrapper for data fetching"""
-    try:
-        return st.session_state.model.data_handler.fetch_data(
-            stock, start_date, end_date)
-    except Exception as e:
-        logger.error(f"Error fetching data for {stock}: {e}")
-        return None
-
-def initialize_session_state():
-    """Initialize session state variables if they don't exist"""
-    if 'model' not in st.session_state:
-        st.session_state.model = None
-    if 'analysis_error' not in st.session_state:
-        st.session_state.analysis_error = None
-    if 'data_cache' not in st.session_state:
-        st.session_state.data_cache = {}
-    if 'last_fetch_time' not in st.session_state:
-        st.session_state.last_fetch_time = {}
-
-def safe_data_access(func):
-    """Decorator for safe data access with error handling and timeouts"""
-    def wrapper(*args, **kwargs):
-        try:
-            with st.spinner("Processing..."):
-                result = func(*args, **kwargs)
-            return result
-        except Exception as e:
-            logger.error(f"Error in {func.__name__}: {str(e)}")
-            logger.error(traceback.format_exc())
-            st.error(f"An error occurred: {str(e)}")
-            return None
-    return wrapper
-
-@safe_data_access
-def display_analysis_tab(model):
-    """Renders the technical analysis dashboard tab"""
-    try:
-        st.set_page_config(layout="wide")  # Optimize layout for charts
-        initialize_session_state()
-
-        if model is None:
-            st.warning("Please initialize the model first.")
-            return
-
-        st.session_state.model = model
-        st.header("Technical Analysis Dashboard")
-
-        # Stock selection with error handling
-        viz_stock_input = st.text_input(
-            "Stocks to Visualize (comma-separated)",
-            value="AAPL, MSFT, GOOGL"
-        )
-
-        if not viz_stock_input:
-            st.warning("Please enter at least one stock symbol")
-            return
-
-        try:
-            viz_stocks = [s.strip() for s in viz_stock_input.split(',')]
-        except Exception as e:
-            st.error(f"Error parsing stock symbols: {str(e)}")
-            return
-
-        # Date selection with validation
-        try:
-            col1, col2 = st.columns(2)
-            with col1:
-                viz_start_date = st.date_input(
-                    "Start Date",
-                    value=datetime.now() - timedelta(days=365)
-                )
-            with col2:
-                viz_end_date = st.date_input(
-                    "End Date",
-                    value=datetime.now()
-                )
-
-            if viz_start_date >= viz_end_date:
-                st.error("Start date must be before end date")
-                return
-
-        except Exception as e:
-            st.error(f"Error with date selection: {str(e)}")
-            return
-
-        # Analysis options
-        try:
-            with st.expander("Analysis Options", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    show_rsi = st.checkbox("Show RSI", value=True)
-                    rsi_period = st.slider("RSI Period", 7, 21, 14) if show_rsi else 14
-                with col2:
-                    show_ma = st.checkbox("Show Moving Averages", value=True)
-                    ma_period = st.slider("MA Period", 10, 50, 20) if show_ma else 20
-        except Exception as e:
-            st.error(f"Error setting analysis options: {str(e)}")
-            return
-
-        if st.button("Generate Analysis"):
-            try:
-                with st.spinner("Fetching and analyzing data..."):
-                    progress_bar = st.progress(0)
-                    for idx, stock in enumerate(viz_stocks):
-                        # Update progress
-                        progress = (idx + 1) / len(viz_stocks)
-                        progress_bar.progress(progress)
-
-                        # Check cache first
-                        cache_key = f"{stock}_{viz_start_date}_{viz_end_date}"
-                        if cache_key in st.session_state.data_cache:
-                            cached_time = st.session_state.last_fetch_time.get(cache_key, 0)
-                            if time.time() - cached_time < CACHE_TTL:
-                                data = st.session_state.data_cache[cache_key]
-                            else:
-                                data = fetch_cached_data(stock, viz_start_date, viz_end_date)
-                                if data is not None:
-                                    st.session_state.data_cache[cache_key] = data
-                                    st.session_state.last_fetch_time[cache_key] = time.time()
-                        else:
-                            data = fetch_cached_data(stock, viz_start_date, viz_end_date)
-                            if data is not None:
-                                st.session_state.data_cache[cache_key] = data
-                                st.session_state.last_fetch_time[cache_key] = time.time()
-
-                        if data is None:
-                            st.warning(f"No data available for {stock}")
-                            continue
-
-                        # Create visualizations
-                        try:
-                            fig = go.Figure()
-                            fig.add_trace(go.Candlestick(
-                                x=data.index,
-                                open=data['Open'],
-                                high=data['High'],
-                                low=data['Low'],
-                                close=data['Close'],
-                                name=stock
-                            ))
-
-                            if show_ma:
-                                ma = data['Close'].rolling(window=ma_period).mean()
-                                fig.add_trace(go.Scatter(
-                                    x=data.index,
-                                    y=ma,
-                                    name=f'MA{ma_period}',
-                                    line=dict(color='orange')
-                                ))
-
-                            fig.update_layout(
-                                title=f'{stock} Analysis',
-                                yaxis_title='Price',
-                                template='plotly_dark',
-                                height=600
-                            )
-
-                            st.plotly_chart(fig, use_container_width=True)
-
-                            if show_rsi:
-                                rsi_fig = go.Figure()
-                                if 'RSI' in data.columns:
-                                    rsi_fig.add_trace(go.Scatter(
-                                        x=data.index,
-                                        y=data['RSI'],
-                                        name='RSI'
-                                    ))
-                                    rsi_fig.update_layout(
-                                        title=f'{stock} RSI',
-                                        yaxis_title='RSI',
-                                        height=300
-                                    )
-                                    st.plotly_chart(rsi_fig, use_container_width=True)
-
-                        except Exception as e:
-                            st.error(f"Error creating charts for {stock}: {str(e)}")
-                            logger.error(traceback.format_exc())
-                            continue
-
-                    progress_bar.empty()
-
-            except Exception as e:
-                st.error(f"Error generating analysis: {str(e)}")
-                logger.error(traceback.format_exc())
-
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        logger.error(traceback.format_exc())
 
 def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                          train_end_date: datetime, env_params: Dict[str, Any]) -> None:
@@ -405,147 +209,241 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import pandas as pd
 import os
+
 from utils.stock_utils import parse_stock_list
 
-@safe_data_access
-def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                    show_rsi, show_ma, ma_period, rsi_period):
-    """Generates and displays technical analysis charts"""
-    st.subheader("Analysis Results")
 
+def display_analysis_tab(model):
+    """
+    Renders the technical analysis dashboard tab
+    Args:
+        model: The trading model instance
+    """
+    st.header("Technical Analysis Dashboard")
+
+    # Visualization stock selection (separate from training)
+    viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
+                                    value="AAPL, MSFT, GOOGL")
+    viz_stocks = parse_stock_list(viz_stock_input)
+
+    # Date selection for visualization
+    viz_col1, viz_col2 = st.columns(2)
+    with viz_col1:
+        viz_start_date = datetime.combine(
+            st.date_input("Analysis Start Date",
+                          value=datetime.now() - timedelta(days=365)),
+            datetime.min.time())
+    with viz_col2:
+        viz_end_date = datetime.combine(
+            st.date_input("Analysis End Date", value=datetime.now()),
+            datetime.min.time())
+
+    # Plot controls
+    st.subheader("Visualization Options")
+    plot_col1, plot_col2, plot_col3 = st.columns(3)
+
+    with plot_col1:
+        show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
+        show_sma20 = st.checkbox("Show SMA 20",
+                                 value=True,
+                                 key="analysis_sma20")
+
+    with plot_col2:
+        show_sma50 = st.checkbox("Show SMA 50",
+                                 value=True,
+                                 key="analysis_sma50")
+        rsi_period = st.slider("RSI Period",
+                               min_value=7,
+                               max_value=21,
+                               value=14,
+                               key="analysis_rsi_period") if show_rsi else 14
+
+    with plot_col3:
+        st.write("Layout Settings")
+        num_columns = st.selectbox("Number of Columns",
+                                   options=[1, 2, 3, 4],
+                                   index=1,
+                                   key="num_columns")
+
+        # Layout Preview
+        st.write("Layout Preview")
+        preview_container = st.container()
+        with preview_container:
+            preview_cols = st.columns(num_columns)
+            for i in range(num_columns):
+                with preview_cols[i]:
+                    st.markdown(f"""
+                        <div style="
+                            border: 2px dashed #666;
+                            border-radius: 5px;
+                            padding: 10px;
+                            margin: 5px;
+                            text-align: center;
+                            background-color: rgba(100, 100, 100, 0.1);
+                            min-height: 80px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        ">
+                            <span style="color: #666;">Chart {i+1}</span>
+                        </div>
+                        """,
+                                unsafe_allow_html=True)
+
+    if st.button("Generate Analysis"):
+        generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
+                          show_rsi, show_sma20, show_sma50, rsi_period,
+                          num_columns)
+
+
+def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
+                      show_rsi, show_sma20, show_sma50, rsi_period,
+                      num_columns):
+    """
+    Generates and displays technical analysis charts
+    """
     analysis_container = st.container()
     with analysis_container:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        # Create dictionaries to store different types of charts
+        price_charts = {}
+        volume_charts = {}
+        rsi_charts = {}
+        ma_charts = {}
 
-        total_stocks = len(viz_stocks)
+        # First collect all data and create charts
+        for stock in viz_stocks:
+            portfolio_data = model.data_handler.fetch_data(
+                stock, viz_start_date, viz_end_date)
 
-        for idx, stock in enumerate(viz_stocks):
-            status_text.text(f"Processing {stock} ({idx + 1}/{total_stocks})")
-            progress_bar.progress((idx + 1) / total_stocks)
-
-            cache_key = f"{stock}_{viz_start_date}_{viz_end_date}"
-            if cache_key in st.session_state.data_cache:
-                data = st.session_state.data_cache[cache_key]
-            else:
-                data = fetch_cached_data(stock, viz_start_date, viz_end_date)
-                if data is not None:
-                    st.session_state.data_cache[cache_key] = data
-                    st.session_state.last_fetch_time[cache_key] = time.time()
-
-            if data is None:
-                st.warning(f"No data available for {stock}")
+            if not portfolio_data:
+                st.error(f"No data available for {stock}")
                 continue
 
-            try:
-                fig = go.Figure()
-                fig.add_trace(go.Candlestick(
-                    x=data.index,
-                    open=data['Open'],
-                    high=data['High'],
-                    low=data['Low'],
-                    close=data['Close'],
-                    name=stock
-                ))
+            portfolio_data = model.data_handler.prepare_data()
 
-                if show_ma:
-                    ma = data['Close'].rolling(window=ma_period).mean()
-                    fig.add_trace(go.Scatter(
-                        x=data.index,
-                        y=ma,
-                        name=f'MA{ma_period}',
-                        line=dict(color='orange')
-                    ))
+            if stock in portfolio_data:
+                data = portfolio_data[stock]
 
-                fig.update_layout(
-                    title=f'{stock} Analysis',
-                    yaxis_title='Price',
-                    template='plotly_dark',
-                    height=600
-                )
+                # Create price chart
+                price_fig = go.Figure(data=[
+                    go.Candlestick(x=data.index,
+                                   open=data['Open'],
+                                   high=data['High'],
+                                   low=data['Low'],
+                                   close=data['Close'],
+                                   name=stock)
+                ])
+                price_fig.update_layout(title=f'{stock} Price History')
+                price_charts[stock] = price_fig
 
-                st.plotly_chart(fig, use_container_width=True)
+                # Create volume chart
+                volume_fig = go.Figure()
+                volume_fig.add_trace(
+                    go.Bar(x=data.index,
+                           y=data['Volume'],
+                           name=f'{stock} Volume'))
+                volume_fig.update_layout(title=f'{stock} Trading Volume')
+                volume_charts[stock] = volume_fig
 
-                if show_rsi:
+                # Create RSI chart if enabled
+                if show_rsi and 'RSI' in data.columns:
                     rsi_fig = go.Figure()
-                    if 'RSI' in data.columns:
-                        rsi_fig.add_trace(go.Scatter(
-                            x=data.index,
-                            y=data['RSI'],
-                            name='RSI'
-                        ))
-                        rsi_fig.update_layout(
-                            title=f'{stock} RSI',
-                            yaxis_title='RSI',
-                            height=300
-                        )
-                        st.plotly_chart(rsi_fig, use_container_width=True)
+                    rsi_fig.add_trace(
+                        go.Scatter(x=data.index,
+                                   y=data['RSI'] * 100,
+                                   name=f'{stock} RSI'))
+                    rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
+                    rsi_fig.add_hline(y=30,
+                                      line_dash="dash",
+                                      line_color="green")
+                    rsi_fig.update_layout(
+                        title=f'{stock} RSI ({rsi_period} periods)')
+                    rsi_charts[stock] = rsi_fig
 
-            except Exception as e:
-                st.error(f"Error creating charts for {stock}: {str(e)}")
-                logger.error(traceback.format_exc())
-                continue
+                # Create Moving Averages chart if enabled
+                if show_sma20 or show_sma50:
+                    ma_fig = go.Figure()
+                    ma_fig.add_trace(
+                        go.Scatter(x=data.index,
+                                   y=data['Close'],
+                                   name=f'{stock} Price'))
+                    if show_sma20 and 'SMA_20' in data.columns:
+                        ma_fig.add_trace(
+                            go.Scatter(x=data.index,
+                                       y=data['SMA_20'],
+                                       name=f'{stock} SMA 20'))
+                    if show_sma50 and 'SMA_50' in data.columns:
+                        ma_fig.add_trace(
+                            go.Scatter(x=data.index,
+                                       y=data['SMA_50'],
+                                       name=f'{stock} SMA 50'))
+                    ma_fig.update_layout(title=f'{stock} Moving Averages')
+                    ma_charts[stock] = ma_fig
 
-        progress_bar.empty()
-        status_text.empty()
+        # Display charts using the dynamic grid system
+        display_charts_grid(price_charts, "Price Analysis", num_columns)
+        display_charts_grid(volume_charts, "Volume Analysis", num_columns)
+        display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
+        display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
 
-def create_price_chart(data, stock):
-    return go.Figure(data=[
-        go.Candlestick(
-            x=data.index,
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name=stock
-        )
-    ]).update_layout(title=f'{stock} Price History')
+        # Advanced Analytics Section
+        if model and hasattr(model, 'portfolio_history') and model.portfolio_history:
+            st.header("Portfolio Analytics")
+            
+            # Portfolio Performance
+            portfolio_df = pd.DataFrame(model.portfolio_history, columns=['Portfolio Value'])
+            st.subheader("Portfolio Value Over Time")
+            st.line_chart(portfolio_df)
+            
+            # Returns Analysis
+            if hasattr(model, 'evaluation_metrics') and model.evaluation_metrics.get('returns'):
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    fig = go.Figure(data=[
+                        go.Histogram(x=model.evaluation_metrics['returns'],
+                                    nbinsx=50)
+                    ])
+                    fig.update_layout(title="Returns Distribution",
+                                    xaxis_title="Return",
+                                    yaxis_title="Frequency")
+                    st.plotly_chart(fig, use_container_width=True)
 
-def create_volume_chart(data, stock):
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(x=data.index, y=data['Volume'], name=f'{stock} Volume'))
-    fig.update_layout(title=f'{stock} Trading Volume')
-    return fig
+                    # Drawdown
+                    values = np.array(model.portfolio_history)
+                    peak = np.maximum.accumulate(values)
+                    drawdowns = (peak - values) / peak
+                    st.subheader("Drawdown Over Time")
+                    st.area_chart(pd.DataFrame(drawdowns, columns=['Drawdown']))
 
-def create_rsi_chart(data, stock, period):
-    if 'RSI' not in data.columns:
-        return None
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(x=data.index, y=data['RSI'] * 100, name=f'{stock} RSI'))
-    fig.add_hline(y=70, line_dash="dash", line_color="red")
-    fig.add_hline(y=30, line_dash="dash", line_color="green")
-    fig.update_layout(title=f'{stock} RSI ({period} periods)')
-    return fig
+                with chart_col2:
+                    # Cumulative Returns
+                    returns = np.diff(values) / values[:-1]
+                    cum_returns = pd.DataFrame(
+                        np.cumprod(1 + returns) - 1,
+                        columns=['Returns'])
+                    st.subheader("Cumulative Returns")
+                    st.line_chart(cum_returns)
 
-def create_ma_chart(data, stock, show_sma20, show_sma50):
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(x=data.index, y=data['Close'], name=f'{stock} Price'))
-    if show_sma20 and 'SMA_20' in data.columns:
-        fig.add_trace(
-            go.Scatter(x=data.index, y=data['SMA_20'], name=f'{stock} SMA 20'))
-    if show_sma50 and 'SMA_50' in data.columns:
-        fig.add_trace(
-            go.Scatter(x=data.index, y=data['SMA_50'], name=f'{stock} SMA 50'))
-    fig.update_layout(title=f'{stock} Moving Averages')
-    return fig
+                    # Rolling Volatility
+                    rolling_vol = pd.DataFrame(
+                        returns, columns=['Returns']).rolling(30).std() * np.sqrt(252)
+                    st.subheader("30-Day Rolling Volatility")
+                    st.line_chart(rolling_vol)
+
 
 def display_charts_grid(charts: Dict[str, go.Figure], title: str,
-                       num_columns: int) -> None:
-    """Displays charts in a grid layout"""
-    if not charts:
-        return
-
-    st.subheader(title)
-    stocks = list(charts.keys())
-
-    for i in range(0, len(charts), num_columns):
-        cols = st.columns(num_columns)
-        for j in range(num_columns):
-            if i + j < len(stocks):
-                with cols[j]:
-                    chart = charts[stocks[i + j]]
-                    if chart is not None:
-                        st.plotly_chart(chart, use_container_width=True)
+                        num_columns: int) -> None:
+    """
+    Displays charts in a grid layout
+    """
+    if charts:
+        st.subheader(title)
+        stocks = list(charts.keys())
+        for i in range(0, len(charts), num_columns):
+            cols = st.columns(num_columns)
+            for j in range(num_columns):
+                if i + j < len(stocks):
+                    with cols[j]:
+                        st.plotly_chart(charts[stocks[i + j]],
+                                        use_container_width=True)

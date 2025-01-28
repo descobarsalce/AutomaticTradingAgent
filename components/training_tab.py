@@ -451,18 +451,6 @@ def display_testing_interface() -> None:
                 # Display performance charts
                 if 'combined_plot' in test_results:
                     st.plotly_chart(test_results['combined_plot'])
-                
-                # Add technical analysis charts
-                st.subheader("Technical Analysis Charts")
-                show_rsi = st.checkbox("Show RSI", value=True)
-                show_sma20 = st.checkbox("Show SMA20", value=True)
-                show_sma50 = st.checkbox("Show SMA50", value=True)
-                rsi_period = st.number_input("RSI Period", value=14, min_value=1, max_value=50)
-                
-                generate_test_charts(show_rsi, show_sma20, show_sma50, rsi_period, 
-                                   st.session_state.test_start_date, 
-                                   st.session_state.test_end_date)
-                
                 st.markdown('</div>', unsafe_allow_html=True)
 
 def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,

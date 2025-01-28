@@ -1,38 +1,26 @@
-import optuna
-import streamlit as st
-from typing import Dict, Any, List
-from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import logging
-import os
-
+"""
+Technical Analysis Dashboard Component
+Handles the visualization and analysis of stock data
+"""
 import streamlit as st
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 import pandas as pd
-import os
 
 from utils.stock_utils import parse_stock_list
 
-from utils.logging_utils import StreamlitLogHandler
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-
-def display_analysis_tab():
+def display_analysis_tab(model):
     """
     Renders the technical analysis dashboard tab
     Args:
+        model: The trading model instance
     """
     st.header("Technical Analysis Dashboard")
 
     # Visualization stock selection (separate from training)
-    viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
-                                    value="AAPL, MSFT, GOOGL")
+    viz_stock_input = st.text_input(
+        "Stocks to Visualize (comma-separated)", value="AAPL, MSFT, GOOGL")
     viz_stocks = parse_stock_list(viz_stock_input)
 
     # Date selection for visualization
@@ -40,7 +28,7 @@ def display_analysis_tab():
     with viz_col1:
         viz_start_date = datetime.combine(
             st.date_input("Analysis Start Date",
-                          value=datetime.now() - timedelta(days=365)),
+                           value=datetime.now() - timedelta(days=365)),
             datetime.min.time())
     with viz_col2:
         viz_end_date = datetime.combine(
@@ -53,26 +41,19 @@ def display_analysis_tab():
 
     with plot_col1:
         show_rsi = st.checkbox("Show RSI", value=True, key="analysis_rsi")
-        show_sma20 = st.checkbox("Show SMA 20",
-                                 value=True,
-                                 key="analysis_sma20")
+        show_sma20 = st.checkbox("Show SMA 20", value=True, key="analysis_sma20")
 
     with plot_col2:
-        show_sma50 = st.checkbox("Show SMA 50",
-                                 value=True,
-                                 key="analysis_sma50")
-        rsi_period = st.slider("RSI Period",
-                               min_value=7,
-                               max_value=21,
-                               value=14,
-                               key="analysis_rsi_period") if show_rsi else 14
+        show_sma50 = st.checkbox("Show SMA 50", value=True, key="analysis_sma50")
+        rsi_period = st.slider("RSI Period", min_value=7, max_value=21,
+                             value=14, key="analysis_rsi_period") if show_rsi else 14
 
     with plot_col3:
         st.write("Layout Settings")
         num_columns = st.selectbox("Number of Columns",
-                                   options=[1, 2, 3, 4],
-                                   index=1,
-                                   key="num_columns")
+                                  options=[1, 2, 3, 4],
+                                  index=1,
+                                  key="num_columns")
 
         # Layout Preview
         st.write("Layout Preview")
@@ -97,17 +78,14 @@ def display_analysis_tab():
                             <span style="color: #666;">Chart {i+1}</span>
                         </div>
                         """,
-                                unsafe_allow_html=True)
+                                 unsafe_allow_html=True)
 
     if st.button("Generate Analysis"):
         generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                          show_rsi, show_sma20, show_sma50, rsi_period,
-                          num_columns)
-
+                        show_rsi, show_sma20, show_sma50, rsi_period, num_columns)
 
 def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
-                      show_rsi, show_sma20, show_sma50, rsi_period,
-                      num_columns):
+                     show_rsi, show_sma20, show_sma50, rsi_period, num_columns):
     """
     Generates and displays technical analysis charts
     """
@@ -148,9 +126,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
                 # Create volume chart
                 volume_fig = go.Figure()
                 volume_fig.add_trace(
-                    go.Bar(x=data.index,
-                           y=data['Volume'],
-                           name=f'{stock} Volume'))
+                    go.Bar(x=data.index, y=data['Volume'], name=f'{stock} Volume'))
                 volume_fig.update_layout(title=f'{stock} Trading Volume')
                 volume_charts[stock] = volume_fig
 
@@ -162,20 +138,15 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
                                    y=data['RSI'] * 100,
                                    name=f'{stock} RSI'))
                     rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
-                    rsi_fig.add_hline(y=30,
-                                      line_dash="dash",
-                                      line_color="green")
-                    rsi_fig.update_layout(
-                        title=f'{stock} RSI ({rsi_period} periods)')
+                    rsi_fig.add_hline(y=30, line_dash="dash", line_color="green")
+                    rsi_fig.update_layout(title=f'{stock} RSI ({rsi_period} periods)')
                     rsi_charts[stock] = rsi_fig
 
                 # Create Moving Averages chart if enabled
                 if show_sma20 or show_sma50:
                     ma_fig = go.Figure()
                     ma_fig.add_trace(
-                        go.Scatter(x=data.index,
-                                   y=data['Close'],
-                                   name=f'{stock} Price'))
+                        go.Scatter(x=data.index, y=data['Close'], name=f'{stock} Price'))
                     if show_sma20 and 'SMA_20' in data.columns:
                         ma_fig.add_trace(
                             go.Scatter(x=data.index,
@@ -195,58 +166,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
         display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
 
-        # Advanced Analytics Section
-        if model and hasattr(model,
-                             'portfolio_history') and model.portfolio_history:
-            st.header("Portfolio Analytics")
-
-            # Portfolio Performance
-            portfolio_df = pd.DataFrame(model.portfolio_history,
-                                        columns=['Portfolio Value'])
-            st.subheader("Portfolio Value Over Time")
-            st.line_chart(portfolio_df)
-
-            # Returns Analysis
-            if hasattr(model, 'evaluation_metrics'
-                       ) and model.evaluation_metrics.get('returns'):
-                chart_col1, chart_col2 = st.columns(2)
-
-                with chart_col1:
-                    fig = go.Figure(data=[
-                        go.Histogram(x=model.evaluation_metrics['returns'],
-                                     nbinsx=50)
-                    ])
-                    fig.update_layout(title="Returns Distribution",
-                                      xaxis_title="Return",
-                                      yaxis_title="Frequency")
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    # Drawdown
-                    values = np.array(model.portfolio_history)
-                    peak = np.maximum.accumulate(values)
-                    drawdowns = (peak - values) / peak
-                    st.subheader("Drawdown Over Time")
-                    st.area_chart(pd.DataFrame(drawdowns,
-                                               columns=['Drawdown']))
-
-                with chart_col2:
-                    # Cumulative Returns
-                    returns = np.diff(values) / values[:-1]
-                    cum_returns = pd.DataFrame(np.cumprod(1 + returns) - 1,
-                                               columns=['Returns'])
-                    st.subheader("Cumulative Returns")
-                    st.line_chart(cum_returns)
-
-                    # Rolling Volatility
-                    rolling_vol = pd.DataFrame(returns, columns=[
-                        'Returns'
-                    ]).rolling(30).std() * np.sqrt(252)
-                    st.subheader("30-Day Rolling Volatility")
-                    st.line_chart(rolling_vol)
-
-
-def display_charts_grid(charts: Dict[str, go.Figure], title: str,
-                        num_columns: int) -> None:
+def display_charts_grid(charts: Dict[str, go.Figure], title: str, num_columns: int) -> None:
     """
     Displays charts in a grid layout
     """
@@ -259,4 +179,4 @@ def display_charts_grid(charts: Dict[str, go.Figure], title: str,
                 if i + j < len(stocks):
                     with cols[j]:
                         st.plotly_chart(charts[stocks[i + j]],
-                                        use_container_width=True)
+                                      use_container_width=True)

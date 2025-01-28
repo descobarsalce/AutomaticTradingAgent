@@ -207,14 +207,16 @@ def hyperparameter_tuning() -> None:
 
     st.header("Hyperparameter Tuning Options")
 
-    with st.expander("Tuning Configuration", expanded=True):
+    col_tuning1, col_tuning2 = st.columns(2)
+    with col_tuning1:
         trials_number = st.number_input("Number of Trials",
-                                      min_value=1,
-                                      value=20,
-                                      step=1)
+                                    min_value=1,
+                                    value=20,
+                                    step=1)
+    with col_tuning2:
         pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
 
-        st.subheader("Parameter Search Ranges")
+    st.subheader("Parameter Search Ranges")
 
         col1, col2 = st.columns(2)
         with col1:

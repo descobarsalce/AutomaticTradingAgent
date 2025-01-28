@@ -13,6 +13,7 @@ from core.visualization import TradingVisualizer
 from core.base_agent import UnifiedTradingAgent
 import os
 import numpy as np
+from utils.stock_utils import parse_stock_list
 
 def display_training_tab():
     """
@@ -22,9 +23,9 @@ def display_training_tab():
 
     # Input parameters
     st.subheader("Training Options")
-    stock_name = st.text_input("Training Stock Symbol", value="AAPL")
-    st.session_state.stock_name = stock_name
-
+    stock_names = st.text_input("Training Stock Symbol", value="AAPL")
+    st.session_state.stock_names = parse_stock_list(stock_names)
+    
     # Environment parameters
     st.header("Environment Parameters")
     col1, col2 = st.columns(2)
@@ -144,7 +145,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
         progress_bar=progress_bar,
         status_placeholder=status_placeholder)
 
-    metrics = st.session_state.model.train(stock_name=st.session_state.stock_name,
+    metrics = st.session_state.model.train(stock_names=st.session_state.stock_names,
                                          start_date= st.session_state.train_start_date,
                                          end_date=st.session_state.train_end_date,
                                          env_params=st.session_state.env_params,
@@ -187,7 +188,7 @@ def hyperparameter_tuning() -> None:
     Interface for hyperparameter optimization using Optuna
     """
 
-    stock_name = st.session_state.stock_name
+    stock_names = st.session_state.stock_names
     train_start_date = st.session_state.train_start_date
     train_end_date = st.session_state.train_end_date
     env_params = st.session_state.env_params
@@ -279,7 +280,7 @@ def hyperparameter_tuning() -> None:
 
                 # Train with current parameters
                 metrics = trial_model.train(
-                    stock_name=stock_name,
+                    stock_names=stock_names,
                     start_date=train_start_date,
                     end_date=train_end_date,
                     env_params=env_params,
@@ -417,7 +418,7 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                 if use_optuna_params:
                     ppo_params = st.session_state.ppo_params
                 test_results = st.session_state.model.test(
-                    stock_name=st.session_state.stock_name,
+                    stock_names=st.session_state.stock_names,
                     start_date=st.session_state.test_start_date,
                     end_date=st.session_state.test_end_date,
                     env_params=st.session_state.env_params,
@@ -467,15 +468,15 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
     with st.spinner("Fetching and processing data..."):
         try:
             portfolio_data = st.session_state.model.data_handler.fetch_data(
-                st.session_state.model.stock_name, test_start_date, test_end_date)
+                st.session_state.model.stock_names, test_start_date, test_end_date)
 
             if not portfolio_data:
                 st.error("No data available for the selected symbol and date range.")
             else:
                 portfolio_data = st.session_state.model.data_handler.prepare_data()
 
-                if st.session_state.model.stock_name in portfolio_data:
-                    data = portfolio_data[st.session_state.model.stock_name]
+                if st.session_state.model.stock_names in portfolio_data:
+                    data = portfolio_data[st.session_state.model.stock_names]
 
                     visualizer = TradingVisualizer()
                     visualizer.show_rsi = show_rsi
@@ -485,7 +486,7 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
 
                     st.subheader("Technical Analysis")
                     main_chart = visualizer.create_single_chart(
-                        st.session_state.model.stock_name, data)
+                        st.session_state.model.stock_names, data)
                     if main_chart:
                         st.plotly_chart(main_chart, use_container_width=True)
 

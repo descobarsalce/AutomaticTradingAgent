@@ -22,9 +22,11 @@ class SQLDataManager:
             if not cached_records:
                 return None
                 
-            # Check if data is fresh (less than 1 day old)
-            newest_record = max(record.last_updated for record in cached_records)
-            if datetime.utcnow() - newest_record > timedelta(days=1):
+            # Only consider data stale if the most recent record is more than 1 day old
+            # and the requested end date is close to current date
+            newest_date = max(record.date for record in cached_records)
+            if (datetime.utcnow().date() - newest_date.date() > timedelta(days=1) and
+                end_date.date() >= datetime.utcnow().date() - timedelta(days=5)):
                 return None
                 
             # Convert to DataFrame

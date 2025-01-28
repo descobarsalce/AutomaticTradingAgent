@@ -25,9 +25,11 @@ class DataHandler:
                         col in cached_data.columns
                         for col in required_columns):
                     self.portfolio_data[symbol] = cached_data
-                else:
-                    ticker = yf.Ticker(symbol)
-                    data = ticker.history(start=start_date, end=end_date)
+                    continue
+                    
+                # Only fetch from yfinance if cache miss or stale data
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(start=start_date, end=end_date)
                     if data.empty:
                         raise ValueError(f"No data retrieved for {symbol}")
                     if not all(col in data.columns

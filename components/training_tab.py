@@ -377,23 +377,36 @@ def hyperparameter_tuning() -> None:
 
 def display_testing_interface() -> None:
     """
-    Displays the testing interface and visualization options
+    Displays the testing interface and visualization options in a scrollable container
     """
-    st.header("Testing Interface")
-    test_col1, test_col2 = st.columns(2)
-    with test_col1:
-        test_start_date = datetime.combine(
-            st.date_input("Test Start Date",
-                         value=datetime.now() - timedelta(days=365)),
-            datetime.min.time())
-    with test_col2:
-        test_end_date = datetime.combine(
-            st.date_input("Test End Date", value=datetime.now()),
-            datetime.min.time())
-    st.session_state.test_start_date = test_start_date
-    st.session_state.test_end_date = test_end_date
+    with st.container():
+        st.header("Testing Interface")
+        test_col1, test_col2 = st.columns(2)
+        with test_col1:
+            test_start_date = datetime.combine(
+                st.date_input("Test Start Date",
+                             value=datetime.now() - timedelta(days=365)),
+                datetime.min.time())
+        with test_col2:
+            test_end_date = datetime.combine(
+                st.date_input("Test End Date", value=datetime.now()),
+                datetime.min.time())
+        st.session_state.test_start_date = test_start_date
+        st.session_state.test_end_date = test_end_date
 
-    if st.button("Test Model"):
+        st.markdown("""
+            <style>
+                .test-results {
+                    max-height: 600px;
+                    overflow-y: auto;
+                    padding: 1rem;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        if st.button("Test Model"):
         if not os.path.exists("trained_model.zip"):
             st.error("No trained model found. Please train a model first.")
         else:
@@ -406,8 +419,10 @@ def display_testing_interface() -> None:
 
             # Display test metrics
             if test_results and 'metrics' in test_results:
-
-                st.subheader("Test Metrics")
+                test_results_container = st.container()
+                with test_results_container:
+                    st.markdown('<div class="test-results">', unsafe_allow_html=True)
+                    st.subheader("Test Metrics")
 
                 # Display parameters used for testing, automatically sorting into columns:
                 st.subheader("Parameters Used for Testing")
@@ -436,6 +451,7 @@ def display_testing_interface() -> None:
                 # Display performance charts
                 if 'combined_plot' in test_results:
                     st.plotly_chart(test_results['combined_plot'])
+                st.markdown('</div>', unsafe_allow_html=True)
 
 def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
                         rsi_period: int) -> None:

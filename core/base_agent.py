@@ -233,13 +233,11 @@ class UnifiedTradingAgent:
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
-             env_params: Dict[str, Any],
-             ppo_params: Dict[str, Any]) -> Dict[str, Any]:
+             env_params: Dict[str, Any]) -> Dict[str, Any]:
         """Test trained model."""
         data = self.prepare_processed_data(stock_names, start_date, end_date)
         self.initialize_env(data, env_params)
         self.load("trained_model.zip")
-        self.configure_ppo(ppo_params)
 
         obs, _ = self.env.reset()
         done = False

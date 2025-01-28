@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List, Union, Tuple, cast
 from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
-from environment import SimpleTradingEnv
+from environment import TradingEnv
 from data.data_handler import DataHandler
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
                           DEFAULT_STOP_LOSS, MIN_TRADE_SIZE)
@@ -71,7 +71,7 @@ class UnifiedTradingAgent:
                  tensorboard_log: str = "./tensorboard_logs/",
                  seed: Optional[int] = None) -> None:
         """Initialize the unified trading agent."""
-        self.env: Optional[SimpleTradingEnv] = None
+        self.env: Optional[xTradingEnv] = None
         self.model: Optional[PPO] = None
         self.data_handler = DataHandler()
         self.portfolio_history: List[float] = []
@@ -92,13 +92,15 @@ class UnifiedTradingAgent:
         self.ppo_params = self.DEFAULT_PPO_PARAMS.copy()
 
     @type_check
-    def prepare_processed_data(self, stock_name: str, start_date: datetime,
+    def prepare_processed_data(self, stock_names: List, start_date: datetime,
                                end_date: datetime) -> pd.DataFrame:
         """Fetch and prepare data."""
-        portfolio_data = self.data_handler.fetch_data([stock_name], start_date,
+        portfolio_data = self.data_handler.fetch_data(stock_names, start_date,
                                                       end_date)
         if not portfolio_data:
             raise ValueError("No data found in database")
+
+        # Now we extract the features for the model:
         prepared_data = self.data_handler.prepare_data()
         return next(iter(prepared_data.values()))
 
@@ -107,7 +109,7 @@ class UnifiedTradingAgent:
                        env_params: Dict[str, Any]) -> None:
         """Initialize trading environment."""
         env_params['min_transaction_size'] = MIN_TRADE_SIZE
-        self.env = SimpleTradingEnv(
+        self.env = TradingEnv(
             data=data,
             initial_balance=env_params['initial_balance'],
             transaction_cost=env_params['transaction_cost'],
@@ -161,14 +163,14 @@ class UnifiedTradingAgent:
 
     @type_check
     def train(self,
-              stock_name: str,
+              stock_names: List,
               start_date: datetime,
               end_date: datetime,
               env_params: Dict[str, Any],
               ppo_params: Dict[str, Any],
               callback: Optional[BaseCallback] = None) -> Dict[str, float]:
         """Train the agent."""
-        data = self.prepare_processed_data(stock_name, start_date, end_date)
+        data = self.prepare_processed_data(stock_names, start_date, end_date)
         self.initialize_env(data, env_params)
         self.configure_ppo(ppo_params)
 
@@ -224,20 +226,20 @@ class UnifiedTradingAgent:
         action_val = int(
             action.item() if isinstance(action, np.ndarray) else action)
 
-        if not 0 <= action_val <= 2:
-            raise ValueError(f"Invalid action value: {action_val}")
+        # if not 0 <= action_val <= 2:
+        #     raise ValueError(f"Invalid action value: {action_val}")
 
         return np.array([action_val])
 
     @type_check
-    def test(self, stock_name: str, start_date: datetime, end_date: datetime,
+    def test(self, stock_names: List, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any],
              ppo_params: Dict[str, Any]) -> Dict[str, Any]:
         """Test trained model."""
-        data = self.prepare_processed_data(stock_name, start_date, end_date)
+        data = self.prepare_processed_data(stock_names, start_date, end_date)
         self.initialize_env(data, env_params)
-        self.configure_ppo(ppo_params)
         self.load("trained_model.zip")
+        self.configure_ppo(ppo_params)
 
         obs, _ = self.env.reset()
         done = False
@@ -372,7 +374,3 @@ class UnifiedTradingAgent:
         if not self.env:
             raise ValueError("Environment not initialized")
         self.model = PPO.load(path, env=self.env)
-
-
-# For backward compatibility
-PPOAgentModel = UnifiedTradingAgent

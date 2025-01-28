@@ -37,6 +37,7 @@ class FeatureEngineer:
 
     # Remove duplicate validation methods as they're now in utils.common
 
+    # NOTE THAT THIS NORMALIZATION IS WRONG BECAUSE IT USES DATA FROM AFTER THE TRAIN/TEST PERIOD. IT CANNOT BE FORWARD LOOKING, SO I NEED TO CONFIRM.
     @staticmethod
     def normalize_data(data: pd.Series) -> pd.Series:
         """Normalizes a series to [0,1]. If min==max, returns all zeros."""

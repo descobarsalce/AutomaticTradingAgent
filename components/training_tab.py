@@ -13,6 +13,7 @@ from core.visualization import TradingVisualizer
 from core.base_agent import UnifiedTradingAgent
 import os
 import numpy as np
+
 def display_training_tab():
     """
     Renders the training interface tab
@@ -70,19 +71,21 @@ def display_training_tab():
             ppo_params = get_parameters(use_optuna_params)
         else:
             ppo_params = st.session_state.ppo_params
+
+        if st.button("Start Training"):
+            if not use_optuna_params:
+                run_training(ppo_params)
+            else:
+                if st.session_state.ppo_params is None:
+                    st.warning("Please run hyperparameter tuning before training model.")
+                else:
+                    run_training(st.session_state.ppo_params)
+        display_testing_interface(ppo_params, use_optuna_params)
+                
     with tab2:
         hyperparameter_tuning()
 
-    if st.button("Start Training"):
-        if not use_optuna_params:
-            run_training(ppo_params)
-        else:
-            if st.session_state.ppo_params is None:
-                st.warning("Please run hyperparameter tuning before training model.")
-            else:
-                run_training(st.session_state.ppo_params)
-
-    display_testing_interface()
+    
 
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
@@ -92,16 +95,17 @@ def get_parameters(use_optuna_params) -> Dict[str, Any]:
         Dictionary of PPO parameters
     """
 
-    if use_optuna_params and st.session_state.ppo_params is not None:
-        # If the code has already found optimal parameters (stored in the state session)
-        st.info("Using Optuna's optimized parameters")
-        params = st.session_state.ppo_params
-        return {}, use_optuna_params
-
-    elif use_optuna_params and st.session_state.ppo_params is None:
-        st.warning(
-            "No Optuna parameters available. Please run hyperparameter tuning first."
-        )
+    if use_optuna_params:
+        if st.session_state.ppo_params is not None:
+            # If the code has already found optimal parameters (stored in the state session)
+            st.info("Using Optuna's optimized parameters")
+            params = st.session_state.ppo_params
+            return {}, use_optuna_params
+    elif use_optuna_params:
+        if st.session_state.ppo_params is None:
+            st.warning(
+                "No Optuna parameters available. Please run hyperparameter tuning first."
+            )
     else:
         col3, col4 = st.columns(2)
         with col3:
@@ -375,7 +379,7 @@ def hyperparameter_tuning() -> None:
             logger.exception("Hyperparameter optimization error")
 
 
-def display_testing_interface() -> None:
+def display_testing_interface(ppo_params, use_optuna_params=False):
     """
     Displays the testing interface and visualization options in a scrollable container
     """
@@ -410,12 +414,14 @@ def display_testing_interface() -> None:
             if not os.path.exists("trained_model.zip"):
                 st.error("No trained model found. Please train a model first.")
             else:
+                if use_optuna_params:
+                    ppo_params = st.session_state.ppo_params
                 test_results = st.session_state.model.test(
                     stock_name=st.session_state.stock_name,
                     start_date=st.session_state.test_start_date,
                     end_date=st.session_state.test_end_date,
                     env_params=st.session_state.env_params,
-                    ppo_params=st.session_state.ppo_params)
+                    ppo_params=ppo_params)
     
             # Display test metrics
             if test_results and 'metrics' in test_results:
@@ -429,7 +435,7 @@ def display_testing_interface() -> None:
                     col1, col2, col3 = st.columns(3)
                     index_col = 0
                     all_cols = [col1, col2, col3]
-                    for param, value in st.session_state.ppo_params.items():
+                    for param, value in ppo_params.items():
                         with all_cols[index_col%3]:
                             st.metric(param, value)
                             index_col += 1

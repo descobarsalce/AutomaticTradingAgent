@@ -1,3 +1,2 @@
 
-from .models import StockData
-from .database import Session
+from .database import Session, StockData

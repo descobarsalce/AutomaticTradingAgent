@@ -8,12 +8,12 @@ from gymnasium import spaces
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class SimpleTradingEnv(gym.Env):
+class TradingEnv(gym.Env):
     """
     Consolidated trading environment that combines features from all implementations:
     - Multi-asset support from MarketEnvironment
     - Advanced reward shaping from TradingEnvironment
-    - Comprehensive logging and tracking from SimpleTradingEnv
+    - Comprehensive logging and tracking from TradingEnv
     """
     def __init__(self,
                  data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
@@ -40,7 +40,7 @@ class SimpleTradingEnv(gym.Env):
         self.symbols = list(self.data.keys())
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset
-        self.action_space = spaces.MultiDiscrete([3] * len(self.symbols)) if len(self.symbols) > 1 else spaces.Discrete(3)
+        self.action_space = create_action_space(num_actions=3)
 
         # Observation space includes OHLCV + positions + balance for each asset
         obs_dim = (len(self.symbols) * 6) + 1  # OHLCV + position for each asset + balance
@@ -65,6 +65,26 @@ class SimpleTradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.transaction_cost = transaction_cost
 
+
+    def create_action_space(self, num_actions: int = 3) -> gym.Space:
+        """
+        Create a Gym action space for a trading environment.
+
+        Args:
+            num_symbols (int): Number of symbols (assets) being traded.
+            num_actions (int): Number of discrete actions per asset. 
+                               For example, 3 could represent [Hold, Buy, Sell].
+
+        Returns:
+            gym.Space: A Gym action space. 
+                       If multiple symbols, uses MultiDiscrete, otherwise Discrete.
+        """
+        num_symbols = len(self.symbols)
+        if num_symbols > 1:
+            return spaces.MultiDiscrete([num_actions] * num_symbols)
+        return spaces.Discrete(num_actions)
+
+    
     def _get_observation(self) -> np.ndarray:
         """Get current observation of market and account state."""
         obs = []

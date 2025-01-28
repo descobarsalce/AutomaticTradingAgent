@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from data.data_feature_engineer import FeatureEngineer
 from data.sql_data_manager import SQLDataManager
 
-
 class DataHandler:
 
     def __init__(self):

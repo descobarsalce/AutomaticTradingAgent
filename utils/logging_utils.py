@@ -28,15 +28,3 @@ class StreamlitLogHandler(logging.Handler):
             print(log_entry)  # Backup output
         except Exception as e:
             print(f"Logging error: {e}")
-
-def init_session_state() -> None:
-    """
-    Initialize Streamlit session state variables for persistent storage across reruns.
-    """
-    if 'log_messages' not in st.session_state:
-        st.session_state.log_messages = []
-    if 'ppo_params' not in st.session_state:
-        st.session_state.ppo_params = None
-    if 'model' not in st.session_state:
-        from core.base_agent import UnifiedTradingAgent
-        st.session_state.model = UnifiedTradingAgent()

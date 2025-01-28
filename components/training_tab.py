@@ -13,82 +13,65 @@ from core.visualization import TradingVisualizer
 from core.base_agent import UnifiedTradingAgent
 import os
 import numpy as np
-
-
 def display_training_tab():
     """
-    Renders the training interface tab with separate scrollable sections
+    Renders the training interface tab
     """
     st.header("Trading Agent Configuration")
-    
-    # Create three separate containers
-    training_container = st.expander("Training Configuration", expanded=True)
-    hyperparameter_container = st.expander("Hyperparameter Tuning", expanded=True)
-    testing_container = st.expander("Model Testing", expanded=True)
 
-    with training_container:
-        st.subheader("Training Options")
-        stock_name = st.text_input("Training Stock Symbol", value="AAPL")
-        st.session_state.stock_name = stock_name
-        
-        # Environment parameters
-        st.subheader("Environment Parameters")
-        col1, col2 = st.columns(2)
-        with col1:
-            initial_balance = st.number_input("Initial Balance", value=10000)
+    # Input parameters
+    st.subheader("Training Options")
+    stock_name = st.text_input("Training Stock Symbol", value="AAPL")
+    st.session_state.stock_name = stock_name
 
-        with col2:
-            transaction_cost = st.number_input("Transaction Cost",
-                                             value=0.01,
-                                             step=0.001)
+    # Environment parameters
+    st.header("Environment Parameters")
+    col1, col2 = st.columns(2)
+    with col1:
+        initial_balance = st.number_input("Initial Balance", value=10000)
 
-        st.session_state.env_params = {
-            'initial_balance': initial_balance,
-            'transaction_cost': transaction_cost,
-            'use_position_profit': False,
-            'use_holding_bonus': False,
-            'use_trading_penalty': False
-        }
+    with col2:
+        transaction_cost = st.number_input("Transaction Cost",
+                                         value=0.01,
+                                         step=0.001)
+
+    st.session_state.env_params = {
+        'initial_balance': initial_balance,
+        'transaction_cost': transaction_cost,
+        'use_position_profit': False,
+        'use_holding_bonus': False,
+        'use_trading_penalty': False
+    }
 
     # Training period selection
-        st.subheader("Training Period")
-        train_col1, train_col2 = st.columns(2)
-        with train_col1:
-            train_start_date = datetime.combine(
-                                             st.date_input("Training Start Date",
-                                             value=datetime.now() - timedelta(days=365 * 5)),
-                                             datetime.min.time())
-        with train_col2:
-            train_end_date = datetime.combine(
-                                             st.date_input("Training End Date",
-                                             value=datetime.now() - timedelta(days=365 + 1)),
-                                             datetime.min.time())
+    st.subheader("Training Period")
+    train_col1, train_col2 = st.columns(2)
+    with train_col1:
+        train_start_date = datetime.combine(
+                                         st.date_input("Training Start Date",
+                                         value=datetime.now() - timedelta(days=365 * 5)),
+                                         datetime.min.time())
+    with train_col2:
+        train_end_date = datetime.combine(
+                                         st.date_input("Training End Date",
+                                         value=datetime.now() - timedelta(days=365 + 1)),
+                                         datetime.min.time())
 
-        st.session_state.train_start_date = train_start_date
-        st.session_state.train_end_date = train_end_date
-        
-        st.subheader("Agent Parameters")
+    st.session_state.train_start_date = train_start_date
+    st.session_state.train_end_date = train_end_date
+
+    tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
+
+    with tab1:
+        st.header("Agent Parameters")
         use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
                                       value=False)
         if not use_optuna_params:
             ppo_params = get_parameters(use_optuna_params)
         else:
             ppo_params = st.session_state.ppo_params
-
-        if st.button("Start Training"):
-            if not use_optuna_params:
-                run_training(ppo_params)
-            else:
-                if st.session_state.ppo_params is None:
-                    st.warning("Please run hyperparameter tuning before training model.")
-                else:
-                    run_training(st.session_state.ppo_params)
-
-    with hyperparameter_container:
+    with tab2:
         hyperparameter_tuning()
-
-    with testing_container:
-        display_testing_interface()
 
     if st.button("Start Training"):
         if not use_optuna_params:
@@ -114,7 +97,7 @@ def get_parameters(use_optuna_params) -> Dict[str, Any]:
         st.info("Using Optuna's optimized parameters")
         params = st.session_state.ppo_params
         return {}, use_optuna_params
-        
+
     elif use_optuna_params and st.session_state.ppo_params is None:
         st.warning(
             "No Optuna parameters available. Please run hyperparameter tuning first."
@@ -174,7 +157,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
             with all_cols[index_col%3]:
                 st.metric(param, value)
                 index_col += 1
-                
+
         display_training_metrics(metrics)
 
     st.success("Training completed and model saved!")
@@ -289,7 +272,7 @@ def hyperparameter_tuning() -> None:
                 )
 
                 trial_model = UnifiedTradingAgent()
-                
+
                 # Train with current parameters
                 metrics = trial_model.train(
                     stock_name=stock_name,
@@ -390,7 +373,7 @@ def hyperparameter_tuning() -> None:
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
             logger.exception("Hyperparameter optimization error")
-            
+
 
 def display_testing_interface() -> None:
     """
@@ -409,7 +392,7 @@ def display_testing_interface() -> None:
             datetime.min.time())
     st.session_state.test_start_date = test_start_date
     st.session_state.test_end_date = test_end_date
-    
+
     if st.button("Test Model"):
         if not os.path.exists("trained_model.zip"):
             st.error("No trained model found. Please train a model first.")
@@ -486,5 +469,3 @@ def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
 
         except Exception as e:
             st.error(f"Error generating charts: {str(e)}")
-
-

@@ -407,16 +407,16 @@ def display_testing_interface() -> None:
         """, unsafe_allow_html=True)
 
         if st.button("Test Model"):
-        if not os.path.exists("trained_model.zip"):
-            st.error("No trained model found. Please train a model first.")
-        else:
-            test_results = st.session_state.model.test(
-                stock_name=st.session_state.stock_name,
-                start_date=st.session_state.test_start_date,
-                end_date=st.session_state.test_end_date,
-                env_params=st.session_state.env_params,
-                ppo_params=st.session_state.ppo_params)
-
+            if not os.path.exists("trained_model.zip"):
+                st.error("No trained model found. Please train a model first.")
+            else:
+                test_results = st.session_state.model.test(
+                    stock_name=st.session_state.stock_name,
+                    start_date=st.session_state.test_start_date,
+                    end_date=st.session_state.test_end_date,
+                    env_params=st.session_state.env_params,
+                    ppo_params=st.session_state.ppo_params)
+    
             # Display test metrics
             if test_results and 'metrics' in test_results:
                 test_results_container = st.container()

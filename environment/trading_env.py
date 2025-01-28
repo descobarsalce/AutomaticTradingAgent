@@ -20,9 +20,9 @@ class TradingEnv(gym.Env):
                  initial_balance: float = 10000,
                  transaction_cost: float = 0.0,
                  position_size: float = 0.2,
-                 use_position_profit: bool = True,
-                 use_holding_bonus: bool = True,
-                 use_trading_penalty: bool = True,
+                 use_position_profit: bool = False,
+                 use_holding_bonus: bool = False,
+                 use_trading_penalty: bool = False,
                  training_mode: bool = False,
                  log_frequency: int = 30):
         super().__init__()

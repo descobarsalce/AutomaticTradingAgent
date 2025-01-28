@@ -40,7 +40,7 @@ class TradingEnv(gym.Env):
         self.symbols = list(self.data.keys())
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset
-        self.action_space = create_action_space(num_actions=3)
+        self.action_space = self.create_action_space(self.symbols, num_actions=3)
 
         # Observation space includes OHLCV + positions + balance for each asset
         obs_dim = (len(self.symbols) * 6) + 1  # OHLCV + position for each asset + balance
@@ -65,8 +65,8 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.transaction_cost = transaction_cost
 
-
-    def create_action_space(self, num_actions: int = 3) -> gym.Space:
+    @staticmethod    
+    def create_action_space(symbols, num_actions: int = 3) -> gym.Space:
         """
         Create a Gym action space for a trading environment.
 
@@ -79,7 +79,7 @@ class TradingEnv(gym.Env):
             gym.Space: A Gym action space. 
                        If multiple symbols, uses MultiDiscrete, otherwise Discrete.
         """
-        num_symbols = len(self.symbols)
+        num_symbols = len(symbols)
         if num_symbols > 1:
             return spaces.MultiDiscrete([num_actions] * num_symbols)
         return spaces.Discrete(num_actions)

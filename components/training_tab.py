@@ -70,24 +70,21 @@ def display_training_tab():
                                       value=False)
         if not use_optuna_params:
             ppo_params = get_parameters(use_optuna_params)
+            if st.button("Start Training"):
+                run_training(ppo_params)    
         else:
-            ppo_params = st.session_state.ppo_params
-
-        if st.button("Start Training"):
-            if not use_optuna_params:
-                run_training(ppo_params)
-            else:
+            if st.button("Start Training"):
                 if st.session_state.ppo_params is None:
                     st.warning("Please run hyperparameter tuning before training model.")
                 else:
+                    # Note that this will only work in the optimizaiton has already been run so that it has 
                     run_training(st.session_state.ppo_params)
-        display_testing_interface(ppo_params, use_optuna_params)
                 
     with tab2:
         hyperparameter_tuning()
-
-    
-
+        
+    if st.session_state.ppo_params is not None:
+        display_testing_interface(st.session_state.ppo_params, use_optuna_params)
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
     """
@@ -131,7 +128,6 @@ def get_parameters(use_optuna_params) -> Dict[str, Any]:
             'target_kl': target_kl
         }
 
-
 def run_training(ppo_params: Dict[str, Any]) -> None:
     """
     Executes the training process and displays results
@@ -165,6 +161,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
 
         display_training_metrics(metrics)
 
+    st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")
 
 def display_training_metrics(metrics: Dict[str, float]) -> None:
@@ -181,7 +178,6 @@ def display_training_metrics(metrics: Dict[str, float]) -> None:
     with metrics_col3:
         st.metric("Total Return", f"{metrics['total_return']:.2%}")
         st.metric("Final Portfolio Value", f"${metrics['final_value']:,.2f}")
-
 
 def hyperparameter_tuning() -> None:
     """
@@ -326,7 +322,9 @@ def hyperparameter_tuning() -> None:
                         st.metric(f"Best {param}", f"{int(value)}")
                 st.metric(f"Best {optimization_metric}",
                           f"{study.best_value:.6f}")
-
+                # Save best parameters
+                st.session_state.ppo_params = study.best_params
+                
             with tab2:
                 st.subheader("Trial History")
                 history_fig = go.Figure()
@@ -372,14 +370,10 @@ def hyperparameter_tuning() -> None:
                                trials_df.to_csv(index=False),
                                "hyperparameter_tuning_results.csv", "text/csv")
 
-            # Save best parameters
-            st.session_state.ppo_params = study.best_params
-
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
             logger.exception("Hyperparameter optimization error")
-
-
+    
 def display_testing_interface(ppo_params, use_optuna_params=False):
     """
     Displays the testing interface and visualization options in a scrollable container
@@ -417,12 +411,12 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
             else:
                 if use_optuna_params:
                     ppo_params = st.session_state.ppo_params
+                    
                 test_results = st.session_state.model.test(
                     stock_names=st.session_state.stock_names,
                     start_date=st.session_state.test_start_date,
                     end_date=st.session_state.test_end_date,
-                    env_params=st.session_state.env_params,
-                    ppo_params=ppo_params)
+                    env_params=st.session_state.env_params)
     
             # Display test metrics
             if test_results and 'metrics' in test_results:
@@ -460,35 +454,35 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                         st.plotly_chart(test_results['combined_plot'])
                     st.markdown('</div>', unsafe_allow_html=True)
 
-def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
-                        rsi_period: int) -> None:
-    """
-    Generates and displays test charts
-    """
-    with st.spinner("Fetching and processing data..."):
-        try:
-            portfolio_data = st.session_state.model.data_handler.fetch_data(
-                st.session_state.model.stock_names, test_start_date, test_end_date)
+# def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
+#                         rsi_period: int) -> None:
+#     """
+#     Generates and displays test charts
+#     """
+#     with st.spinner("Fetching and processing data..."):
+#         try:
+#             portfolio_data = st.session_state.model.data_handler.fetch_data(
+#                 st.session_state.model.stock_names, test_start_date, test_end_date)
 
-            if not portfolio_data:
-                st.error("No data available for the selected symbol and date range.")
-            else:
-                portfolio_data = st.session_state.model.data_handler.prepare_data()
+#             if not portfolio_data:
+#                 st.error("No data available for the selected symbol and date range.")
+#             else:
+#                 portfolio_data = st.session_state.model.data_handler.prepare_data()
 
-                if st.session_state.model.stock_names in portfolio_data:
-                    data = portfolio_data[st.session_state.model.stock_names]
+#                 if st.session_state.model.stock_names in portfolio_data:
+#                     data = portfolio_data[st.session_state.model.stock_names]
 
-                    visualizer = TradingVisualizer()
-                    visualizer.show_rsi = show_rsi
-                    visualizer.show_sma20 = show_sma20
-                    visualizer.show_sma50 = show_sma50
-                    visualizer.rsi_period = rsi_period
+#                     visualizer = TradingVisualizer()
+#                     visualizer.show_rsi = show_rsi
+#                     visualizer.show_sma20 = show_sma20
+#                     visualizer.show_sma50 = show_sma50
+#                     visualizer.rsi_period = rsi_period
 
-                    st.subheader("Technical Analysis")
-                    main_chart = visualizer.create_single_chart(
-                        st.session_state.model.stock_names, data)
-                    if main_chart:
-                        st.plotly_chart(main_chart, use_container_width=True)
+#                     st.subheader("Technical Analysis")
+#                     main_chart = visualizer.create_single_chart(
+#                         st.session_state.model.stock_names, data)
+#                     if main_chart:
+#                         st.plotly_chart(main_chart, use_container_width=True)
 
-        except Exception as e:
-            st.error(f"Error generating charts: {str(e)}")
+#         except Exception as e:
+#             st.error(f"Error generating charts: {str(e)}")

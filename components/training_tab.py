@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 from typing import Dict, Any, Optional
 from utils.callbacks import ProgressBarCallback
 from core.visualization import TradingVisualizer
+from core.base_agent import UnifiedTradingAgent
 import os
 import numpy as np
 
@@ -64,54 +65,45 @@ def display_training_tab():
     tab1, tab2 = st.tabs(["Manual Parameters", "Hyperparameter Tuning"])
 
     with tab1:
-        ppo_params = request_manual_parameters()
-
+        st.header("Agent Parameters")
+        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
+                                      value=False)
+        if not use_optuna_params:
+            ppo_params = get_parameters(use_optuna_params)
+        else:
+            ppo_params = st.session_state.ppo_params
     with tab2:
         hyperparameter_tuning()
 
     if st.button("Start Training"):
-        run_training(ppo_params)
+        if not use_optuna_params:
+            run_training(ppo_params)
+        else:
+            if st.session_state.ppo_params is None:
+                st.warning("Please run hyperparameter tuning before training model.")
+            else:
+                run_training(st.session_state.ppo_params)
 
     display_testing_interface()
 
 
-
-def request_manual_parameters() -> Dict[str, Any]:
+def get_parameters(use_optuna_params) -> Dict[str, Any]:
     """
     Displays and handles manual parameter input interface
     Returns:
         Dictionary of PPO parameters
     """
-    st.header("Agent Parameters")
 
-    use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                  value=False)
-
-    if use_optuna_params:
+    if use_optuna_params and st.session_state.ppo_params is not None:
         # If the code has already found optimal parameters (stored in the state session)
-        if st.session_state.ppo_params is not None:
-            st.info("Using Optuna's optimized parameters")
-            params = st.session_state.ppo_params
-    
-            col3, col4 = st.columns(2)
-            with col3:
-                st.text(f"Learning Rate: {params['learning_rate']:.2e}")
-                st.text(f"PPO Steps: {params['n_steps']}")
-                st.text(f"Batch Size: {params['batch_size']}")
-                st.text(f"Number of Epochs: {params['n_epochs']}")
-                
-            with col4:
-                st.text(f"Gamma: {params['gamma']:.4f}")
-                st.text(f"GAE Lambda: {params['gae_lambda']:.4f}")
-                st.text(f"Clip range: {params['clip_range']:.4f}")
-            return {
-                **params,
-                'target_kl': 0.05  # Default value for non-tuned parameter
-            }
-        else:
-            st.warning(
-                "No Optuna parameters available. Please run hyperparameter tuning first."
-            )
+        st.info("Using Optuna's optimized parameters")
+        params = st.session_state.ppo_params
+        return {}, use_optuna_params
+        
+    elif use_optuna_params and st.session_state.ppo_params is None:
+        st.warning(
+            "No Optuna parameters available. Please run hyperparameter tuning first."
+        )
     else:
         col3, col4 = st.columns(2)
         with col3:
@@ -142,8 +134,6 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     Executes the training process and displays results
     """
 
-    st.session_state.ppo_params = ppo_params
-    
     progress_bar = st.progress(0)
     status_placeholder = st.empty()
 
@@ -154,12 +144,22 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
 
     metrics = st.session_state.model.train(stock_name=st.session_state.stock_name,
                                          start_date= st.session_state.train_start_date,
-                                         end_date=st.session_state.trian_end_date,
+                                         end_date=st.session_state.train_end_date,
                                          env_params=st.session_state.env_params,
                                          ppo_params=ppo_params,
                                          callback=progress_callback)
 
     if metrics:
+        # Display parameters used for testing, automatically sorting into columns:
+        st.subheader("Parameters Used for Training")
+        col1, col2, col3 = st.columns(3)
+        index_col = 0
+        all_cols = [col1, col2, col3]
+        for param, value in ppo_params.items():
+            with all_cols[index_col%3]:
+                st.metric(param, value)
+                index_col += 1
+                
         display_training_metrics(metrics)
 
     st.success("Training completed and model saved!")
@@ -273,8 +273,10 @@ def hyperparameter_tuning() -> None:
                     f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}"
                 )
 
+                trial_model = UnifiedTradingAgent()
+                
                 # Train with current parameters
-                metrics = st.session_state.model.train(
+                metrics = trial_model.train(
                     stock_name=stock_name,
                     start_date=train_start_date,
                     end_date=train_end_date,
@@ -390,20 +392,36 @@ def display_testing_interface() -> None:
         test_end_date = datetime.combine(
             st.date_input("Test End Date", value=datetime.now()),
             datetime.min.time())
-
+    st.session_state.test_start_date = test_start_date
+    st.session_state.test_end_date = test_end_date
+    
     if st.button("Test Model"):
         if not os.path.exists("trained_model.zip"):
             st.error("No trained model found. Please train a model first.")
         else:
             test_results = st.session_state.model.test(
-                stock_name=st.session_state.model.stock_name,
-                start_date=test_start_date,
-                end_date=test_end_date,
+                stock_name=st.session_state.stock_name,
+                start_date=st.session_state.test_start_date,
+                end_date=st.session_state.test_end_date,
                 env_params=st.session_state.env_params,
-                ppo_params=ppo_params)
+                ppo_params=st.session_state.ppo_params)
 
             # Display test metrics
             if test_results and 'metrics' in test_results:
+
+                st.subheader("Test Metrics")
+
+                # Display parameters used for testing, automatically sorting into columns:
+                st.subheader("Parameters Used for Testing")
+                col1, col2, col3 = st.columns(3)
+                index_col = 0
+                all_cols = [col1, col2, col3]
+                for param, value in st.session_state.ppo_params.items():
+                    with all_cols[index_col%3]:
+                        st.metric(param, value)
+                        index_col += 1
+
+                # Now display the metrics:
                 metrics = test_results['metrics']
 
                 col1, col2, col3 = st.columns(3)
@@ -421,8 +439,7 @@ def display_testing_interface() -> None:
                 if 'combined_plot' in test_results:
                     st.plotly_chart(test_results['combined_plot'])
 
-def generate_test_charts(test_start_date: datetime, test_end_date: datetime,
-                        show_rsi: bool, show_sma20: bool, show_sma50: bool,
+def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
                         rsi_period: int) -> None:
     """
     Generates and displays test charts

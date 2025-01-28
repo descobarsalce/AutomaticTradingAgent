@@ -1,3 +1,4 @@
+
 """
 Training Interface Component
 Handles the model training and hyperparameter tuning interface
@@ -146,7 +147,7 @@ def display_manual_parameters() -> Dict[str, Any]:
     if use_optuna_params and st.session_state.ppo_params is not None:
         st.info("Using Optuna's optimized parameters")
         params = st.session_state.ppo_params
-
+        
         col3, col4 = st.columns(2)
         with col3:
             st.text(f"Learning Rate: {params['learning_rate']:.2e}")
@@ -236,7 +237,7 @@ def display_testing_interface() -> None:
     """
     Displays the testing interface and visualization options
     """
-    st.subheader("Test Period")
+    st.header("Testing Interface")
     test_col1, test_col2 = st.columns(2)
     with test_col1:
         test_start_date = datetime.combine(
@@ -247,6 +248,36 @@ def display_testing_interface() -> None:
         test_end_date = datetime.combine(
             st.date_input("Test End Date", value=datetime.now()),
             datetime.min.time())
+
+    if st.button("Test Model"):
+        if not os.path.exists("trained_model.zip"):
+            st.error("No trained model found. Please train a model first.")
+        else:
+            test_results = st.session_state.model.test(
+                stock_name=st.session_state.model.stock_name,
+                start_date=test_start_date,
+                end_date=test_end_date,
+                env_params=env_params,
+                ppo_params=ppo_params)
+            
+            # Display test metrics
+            if test_results and 'metrics' in test_results:
+                metrics = test_results['metrics']
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
+                    st.metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
+                with col2:
+                    st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                    st.metric("Volatility", f"{metrics['volatility']:.2%}")
+                with col3:
+                    if 'information_ratio' in metrics:
+                        st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
+
+                # Display performance charts
+                if 'combined_plot' in test_results:
+                    st.plotly_chart(test_results['combined_plot'])
 
     st.header("Visualization Options")
     plot_col1, plot_col2 = st.columns(2)
@@ -277,26 +308,26 @@ def generate_test_charts(test_start_date: datetime, test_end_date: datetime,
         try:
             portfolio_data = st.session_state.model.data_handler.fetch_data(
                 st.session_state.model.stock_name, test_start_date, test_end_date)
-
+            
             if not portfolio_data:
                 st.error("No data available for the selected symbol and date range.")
             else:
                 portfolio_data = st.session_state.model.data_handler.prepare_data()
-
+                
                 if st.session_state.model.stock_name in portfolio_data:
                     data = portfolio_data[st.session_state.model.stock_name]
-
+                    
                     visualizer = TradingVisualizer()
                     visualizer.show_rsi = show_rsi
                     visualizer.show_sma20 = show_sma20
                     visualizer.show_sma50 = show_sma50
                     visualizer.rsi_period = rsi_period
-
+                    
                     st.subheader("Technical Analysis")
                     main_chart = visualizer.create_single_chart(
                         st.session_state.model.stock_name, data)
                     if main_chart:
                         st.plotly_chart(main_chart, use_container_width=True)
-
+                        
         except Exception as e:
             st.error(f"Error generating charts: {str(e)}")

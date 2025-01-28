@@ -76,6 +76,12 @@ logger.setLevel(logging.DEBUG)
 
 
 def init_session_state() -> None:
+    st.set_page_config(
+        page_title="Trading Analysis Platform",
+        page_icon="📈",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
     """
     Initialize Streamlit session state variables for persistent storage across reruns.
 

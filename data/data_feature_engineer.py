@@ -1,9 +1,19 @@
+"""
+Feature engineering pipeline with consolidated technical indicators.
+Removed duplicate validation functions and uses centralized validation from utils.common
+"""
+
 import pandas as pd
 import numpy as np
 import logging
 import concurrent.futures
 from typing import Dict, Optional, List
 from scipy.fftpack import fft
+from utils.common import (
+    validate_numeric,
+    validate_dataframe,
+    validate_portfolio_weights
+)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -12,17 +22,11 @@ logging.basicConfig(level=logging.INFO)
 class FeatureEngineer:
     """
     A single-class feature engineering pipeline that includes:
-
-    1. Validation and normalization
-    2. Technical indicators: RSI, Bollinger, MACD, Stochastic, MFI, OBV, ADL, Volatility
-    3. Fourier Transform features
-    4. Correlations among symbols
-    5. Lagged and rolling features
-    6. Data preparation orchestration in 'prepare_data'
-
-    Usage:
-        engineer = FeatureEngineer(n_jobs=4)  # optional parallel for correlations
-        prepared = engineer.prepare_data(portfolio_data_dict)
+    1. Technical indicators calculation using centralized functions
+    2. Fourier Transform features
+    3. Correlations among symbols
+    4. Lagged and rolling features
+    5. Data preparation orchestration
     """
 
     def __init__(self, n_jobs: int = 1):
@@ -31,72 +35,17 @@ class FeatureEngineer:
         """
         self.n_jobs = n_jobs
 
-    # =========================================================================
-    # 1. Validation & Basic Utilities
-    # =========================================================================
-
-    @staticmethod
-    def validate_numeric(value: float,
-                         min_value: Optional[float] = None,
-                         max_value: Optional[float] = None) -> bool:
-        """
-        Checks that a value is numeric and optionally within bounds.
-        Returns True if valid. Otherwise False.
-        """
-        if not isinstance(value, (int, float)):
-            return False
-        if min_value is not None and value < min_value:
-            return False
-        if max_value is not None and value > max_value:
-            return False
-        return True
-
-    @staticmethod
-    def validate_dataframe(df: pd.DataFrame,
-                           required_columns: List[str]) -> bool:
-        """
-        Checks that the DataFrame is non-empty, and has required columns.
-        """
-        if not isinstance(df, pd.DataFrame):
-            return False
-        if df.empty:
-            return False
-        for col in required_columns:
-            if col not in df.columns:
-                return False
-        return True
-
-    @staticmethod
-    def validate_portfolio_weights(weights: Dict[str, float]) -> bool:
-        """
-        Checks that weights is a dict with each weight in [0,1] and sum=1.
-        """
-        if not isinstance(weights, dict):
-            return False
-
-        total = 0.0
-        for w in weights.values():
-            if not isinstance(w, (int, float)) or w < 0 or w > 1:
-                return False
-            total += w
-
-        return abs(total - 1.0) < 1e-6
+    # Remove duplicate validation methods as they're now in utils.common
 
     @staticmethod
     def normalize_data(data: pd.Series) -> pd.Series:
-        """
-        Normalizes a series to [0,1]. If min==max, returns all zeros.
-        """
+        """Normalizes a series to [0,1]. If min==max, returns all zeros."""
         min_val = data.min()
         max_val = data.max()
         if max_val > min_val:
             return (data - min_val) / (max_val - min_val)
         else:
             return pd.Series(0, index=data.index)
-
-    # =========================================================================
-    # 2. Technical Indicators
-    # =========================================================================
 
     @staticmethod
     def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
@@ -262,10 +211,6 @@ class FeatureEngineer:
 
         return pd.Series(adl, index=data.index, name='ADL')
 
-    # =========================================================================
-    # 3. Additional Feature Helpers
-    # =========================================================================
-
     @staticmethod
     def add_lagged_features(data: pd.DataFrame,
                             columns: List[str],
@@ -316,27 +261,23 @@ class FeatureEngineer:
                 f"Data length {len(prices)} < window size {window}. Returning empty."
             )
             return pd.DataFrame(index=prices.index)
-            
+
         result = pd.DataFrame(index=prices.index)
-        
+
         try:
             for i in range(window, len(prices) + 1):
-                window_data = prices.iloc[i-window:i]
+                window_data = prices.iloc[i - window:i]
                 try:
                     fft_result = fft(window_data.values)
                     for j in range(top_n):
-                        result.loc[prices.index[i-1], f'FFT_{j+1}'] = np.abs(fft_result[j])
+                        result.loc[prices.index[i - 1], f'FFT_{j + 1}'] = np.abs(fft_result[j])
                 except Exception as e:
                     logger.error(f"FFT calculation error in window: {e}")
-                    
+
             return result.fillna(method='ffill')
         except Exception as e:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)
-
-    # =========================================================================
-    # 4. Parallel Correlation Calculation
-    # =========================================================================
 
     def _calculate_symbol_correlation(self,
                                       ref: pd.Series,
@@ -386,10 +327,6 @@ class FeatureEngineer:
 
         return correlations
 
-    # =========================================================================
-    # 5. Main Orchestrator
-    # =========================================================================
-
     def prepare_data(
             self,
             portfolio_data: Dict[str,
@@ -419,7 +356,7 @@ class FeatureEngineer:
         for symbol, df in portfolio_data.items():
             try:
                 # Basic check: must have a 'Close' column
-                if not self.validate_dataframe(df, ['Close']):
+                if not validate_dataframe(df, ['Close']):
                     logger.error(
                         f"[{symbol}] Invalid DataFrame format. Missing 'Close' or empty."
                     )

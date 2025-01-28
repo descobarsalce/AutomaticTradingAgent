@@ -1,19 +1,24 @@
+"""
+Metrics calculator using shared technical indicators base class.
+"""
+
 import numpy as np
 import pandas as pd
 import logging
 from typing import Optional, List, Dict, Union, Tuple
+from metrics.base_indicators import BaseTechnicalIndicators
 
-# Configure logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
-
-class MetricsCalculator:
-    """Centralized metrics calculation class"""
+class MetricsCalculator(BaseTechnicalIndicators):
+    """
+    Centralized metrics calculation class.
+    Inherits from BaseTechnicalIndicators for shared technical analysis.
+    """
 
     @staticmethod
     def calculate_returns(portfolio_history: List[float],
-                          round_precision: Optional[int] = None) -> np.ndarray:
+                        round_precision: Optional[int] = None) -> np.ndarray:
         """Calculate returns from portfolio history."""
         try:
             portfolio_array = np.array(portfolio_history)

@@ -421,37 +421,37 @@ def display_testing_interface() -> None:
             if test_results and 'metrics' in test_results:
                 test_results_container = st.container()
                 with test_results_container:
-                    st.markdown('<div class="test-results">', unsafe_allow_html=True)
+                    # st.markdown('<div class="test-results">', unsafe_allow_html=True)
                     st.subheader("Test Metrics")
-
-                # Display parameters used for testing, automatically sorting into columns:
-                st.subheader("Parameters Used for Testing")
-                col1, col2, col3 = st.columns(3)
-                index_col = 0
-                all_cols = [col1, col2, col3]
-                for param, value in st.session_state.ppo_params.items():
-                    with all_cols[index_col%3]:
-                        st.metric(param, value)
-                        index_col += 1
-
-                # Now display the metrics:
-                metrics = test_results['metrics']
-
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-                    st.metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
-                with col2:
-                    st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-                    st.metric("Volatility", f"{metrics['volatility']:.2%}")
-                with col3:
-                    if 'information_ratio' in metrics:
-                        st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
-
-                # Display performance charts
-                if 'combined_plot' in test_results:
-                    st.plotly_chart(test_results['combined_plot'])
-                st.markdown('</div>', unsafe_allow_html=True)
+    
+                    # Display parameters used for testing, automatically sorting into columns:
+                    st.subheader("Parameters Used for Testing")
+                    col1, col2, col3 = st.columns(3)
+                    index_col = 0
+                    all_cols = [col1, col2, col3]
+                    for param, value in st.session_state.ppo_params.items():
+                        with all_cols[index_col%3]:
+                            st.metric(param, value)
+                            index_col += 1
+    
+                    # Now display the metrics:
+                    metrics = test_results['metrics']
+    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
+                        st.metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
+                    with col2:
+                        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
+                        st.metric("Volatility", f"{metrics['volatility']:.2%}")
+                    with col3:
+                        if 'information_ratio' in metrics:
+                            st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
+    
+                    # Display performance charts
+                    if 'combined_plot' in test_results:
+                        st.plotly_chart(test_results['combined_plot'])
+                    st.markdown('</div>', unsafe_allow_html=True)
 
 def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
                         rsi_period: int) -> None:

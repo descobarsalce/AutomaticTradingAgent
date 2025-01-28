@@ -30,14 +30,14 @@ class DataHandler:
                 # Only fetch from yfinance if cache miss or stale data
                 ticker = yf.Ticker(symbol)
                 data = ticker.history(start=start_date, end=end_date)
-                    if data.empty:
-                        raise ValueError(f"No data retrieved for {symbol}")
-                    if not all(col in data.columns
-                               for col in required_columns):
-                        raise ValueError(
-                            f"Missing required columns for {symbol}")
-                    self.sql_manager.cache_data(symbol, data)
-                    self.portfolio_data[symbol] = data
+                if data.empty:
+                    raise ValueError(f"No data retrieved for {symbol}")
+                if not all(col in data.columns
+                           for col in required_columns):
+                    raise ValueError(
+                        f"Missing required columns for {symbol}")
+                self.sql_manager.cache_data(symbol, data)
+                self.portfolio_data[symbol] = data
             except Exception as e:
                 raise ValueError(f"Error fetching data for {symbol}: {str(e)}")
 

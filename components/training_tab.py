@@ -43,6 +43,7 @@ def display_training_tab():
         'use_holding_bonus': False,
         'use_trading_penalty': False
     }
+    st.session_state.env_params = env_params
 
     # Training period selection
     st.subheader("Training Period")
@@ -65,10 +66,10 @@ def display_training_tab():
 
     with tab2:
         hyperparameter_tuning(stock_name, train_start_date, train_end_date,
-                            env_params)
+                            st.session_state.env_params)
 
     if st.button("Start Training"):
-        run_training(stock_name, train_start_date, train_end_date, env_params,
+        run_training(stock_name, train_start_date, train_end_date, st.session_state.env_params,
                     ppo_params)
 
     display_testing_interface()
@@ -149,7 +150,7 @@ def run_training(stock_name: str, train_start_date: datetime,
     metrics = st.session_state.model.train(stock_name=stock_name,
                                          start_date=train_start_date,
                                          end_date=train_end_date,
-                                         env_params=env_params,
+                                         env_params=st.session_state.env_params,
                                          ppo_params=ppo_params,
                                          callback=progress_callback)
 
@@ -197,7 +198,7 @@ def display_testing_interface() -> None:
                 stock_name=st.session_state.model.stock_name,
                 start_date=test_start_date,
                 end_date=test_end_date,
-                env_params=env_params,
+                env_params=st.session_state.env_params,
                 ppo_params=ppo_params)
             
             # Display test metrics
@@ -344,7 +345,7 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                     stock_name=stock_name,
                     start_date=train_start_date,
                     end_date=train_end_date,
-                    env_params=env_params,
+                    env_params=st.session_state.env_params,
                     ppo_params=ppo_params)
 
                 # Use Sharpe ratio as optimization metric
@@ -501,6 +502,6 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
 
     if st.button("Start Hyperparameter Tuning"):
         run_hyperparameter_tuning(stock_name, train_start_date, train_end_date,
-                                env_params, trials_number, pruning_enabled,
+                                  st.session_state.env_params, trials_number, pruning_enabled,
                                 optimization_metric)
         

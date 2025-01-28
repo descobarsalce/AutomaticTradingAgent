@@ -76,6 +76,11 @@ logger.setLevel(logging.DEBUG)
 
 
 def init_session_state() -> None:
+    if not st._is_running_with_streamlit:
+        import os
+        os.environ['STREAMLIT_SERVER_PORT'] = '5000'
+        os.environ['STREAMLIT_SERVER_ADDRESS'] = '0.0.0.0'
+    
     st.set_page_config(
         page_title="Trading Analysis Platform",
         page_icon="📈",

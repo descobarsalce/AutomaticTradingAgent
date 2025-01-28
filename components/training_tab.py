@@ -1,4 +1,3 @@
-
 """
 Training Interface Component
 Handles the model training and hyperparameter tuning interface
@@ -88,7 +87,7 @@ def display_manual_parameters() -> Dict[str, Any]:
     if use_optuna_params and st.session_state.ppo_params is not None:
         st.info("Using Optuna's optimized parameters")
         params = st.session_state.ppo_params
-        
+
         col3, col4 = st.columns(2)
         with col3:
             st.text(f"Learning Rate: {params['learning_rate']:.2e}")
@@ -200,11 +199,11 @@ def display_testing_interface() -> None:
                 end_date=test_end_date,
                 env_params=st.session_state.env_params,
                 ppo_params=ppo_params)
-            
+
             # Display test metrics
             if test_results and 'metrics' in test_results:
                 metrics = test_results['metrics']
-                
+
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
@@ -230,33 +229,36 @@ def generate_test_charts(test_start_date: datetime, test_end_date: datetime,
         try:
             portfolio_data = st.session_state.model.data_handler.fetch_data(
                 st.session_state.model.stock_name, test_start_date, test_end_date)
-            
+
             if not portfolio_data:
                 st.error("No data available for the selected symbol and date range.")
             else:
                 portfolio_data = st.session_state.model.data_handler.prepare_data()
-                
+
                 if st.session_state.model.stock_name in portfolio_data:
                     data = portfolio_data[st.session_state.model.stock_name]
-                    
+
                     visualizer = TradingVisualizer()
                     visualizer.show_rsi = show_rsi
                     visualizer.show_sma20 = show_sma20
                     visualizer.show_sma50 = show_sma50
                     visualizer.rsi_period = rsi_period
-                    
+
                     st.subheader("Technical Analysis")
                     main_chart = visualizer.create_single_chart(
                         st.session_state.model.stock_name, data)
                     if main_chart:
                         st.plotly_chart(main_chart, use_container_width=True)
-                        
+
         except Exception as e:
             st.error(f"Error generating charts: {str(e)}")
 
 
 def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                          train_end_date: datetime, env_params: Dict[str, Any]) -> None:
+    """
+    Interface for hyperparameter optimization using Optuna
+    """
     st.header("Hyperparameter Tuning Options")
 
     with st.expander("Tuning Configuration", expanded=True):
@@ -345,11 +347,11 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                     stock_name=stock_name,
                     start_date=train_start_date,
                     end_date=train_end_date,
-                    env_params=st.session_state.env_params,
+                    env_params=env_params,
                     ppo_params=ppo_params)
 
-                # Use Sharpe ratio as optimization metric
-                trial_value = metrics.get('sharpe_ratio', float('-inf'))
+                # Use selected optimization metric
+                trial_value = metrics.get(optimization_metric, float('-inf'))
                 progress = (trial.number + 1) / trials_number
                 progress_bar.progress(progress)
 
@@ -440,68 +442,3 @@ def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")
             logger.exception("Hyperparameter optimization error")
-
-
-def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
-                         train_end_date: datetime, env_params: Dict[str, Any]) -> None:
-    """
-    Interface for hyperparameter optimization using Optuna
-    """
-    st.header("Hyperparameter Tuning Options")
-
-    with st.expander("Tuning Configuration", expanded=True):
-        trials_number = st.number_input("Number of Trials",
-                                      min_value=1,
-                                      value=20,
-                                      step=1)
-        pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
-
-        st.subheader("Parameter Search Ranges")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            lr_min = st.number_input("Learning Rate Min",
-                                   value=1e-5,
-                                   format="%.1e")
-            lr_max = st.number_input("Learning Rate Max",
-                                   value=5e-4,
-                                   format="%.1e")
-            steps_min = st.number_input("Steps Min", value=512, step=64)
-            steps_max = st.number_input("Steps Max", value=2048, step=64)
-            batch_min = st.number_input("Batch Size Min", value=64, step=32)
-            batch_max = st.number_input("Batch Size Max", value=512, step=32)
-
-        with col2:
-            epochs_min = st.number_input("Training Epochs Min",
-                                       value=3,
-                                       step=1)
-            epochs_max = st.number_input("Training Epochs Max",
-                                       value=10,
-                                       step=1)
-            gamma_min = st.number_input("Gamma Min",
-                                      value=0.90,
-                                      step=0.01,
-                                      format="%.3f")
-            gamma_max = st.number_input("Gamma Max",
-                                      value=0.999,
-                                      step=0.001,
-                                      format="%.3f")
-            gae_min = st.number_input("GAE Lambda Min",
-                                    value=0.90,
-                                    step=0.01,
-                                    format="%.2f")
-            gae_max = st.number_input("GAE Lambda Max",
-                                    value=0.99,
-                                    step=0.01,
-                                    format="%.2f")
-
-        optimization_metric = st.selectbox(
-            "Optimization Metric",
-            ["sharpe_ratio", "sortino_ratio", "total_return"],
-            help="Metric to optimize during hyperparameter search")
-
-    if st.button("Start Hyperparameter Tuning"):
-        run_hyperparameter_tuning(stock_name, train_start_date, train_end_date,
-                                  st.session_state.env_params, trials_number, pruning_enabled,
-                                optimization_metric)
-        

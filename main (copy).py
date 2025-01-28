@@ -66,10 +66,6 @@ from models.database import Session
 from models.models import StockData
 from utils.stock_utils import parse_stock_list
 
-from components.analysis_tab import display_analysis_tab
-from components.training_tab import display_training_tab
-from components.database_tab import display_database_explorer
-
 # Configure logging
 import logging
 
@@ -183,12 +179,15 @@ def main() -> None:
         ["Model Training", "Technical Analysis", "Database Explorer"])
 
     with tab_analysis:
+        from components.analysis_tab import display_analysis_tab
         display_analysis_tab(st.session_state.model)
 
     with tab_training:
+        from components.training_tab import display_training_tab
         display_training_tab()
 
     with tab_database:
+        from components.database_tab import display_database_explorer
         display_database_explorer()
 
 

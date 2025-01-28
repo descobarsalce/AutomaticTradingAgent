@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 from typing import Dict, Any, Optional
 from utils.callbacks import ProgressBarCallback
 from core.visualization import TradingVisualizer
+import os
 
 def hyperparameter_tuning(stock_name: str, train_start_date: datetime,
                          train_end_date: datetime, env_params: Dict[str, Any]) -> None:

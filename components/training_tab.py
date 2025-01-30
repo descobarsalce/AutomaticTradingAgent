@@ -26,7 +26,8 @@ def display_training_tab():
 
     # Input parameters
     st.subheader("Training Options")
-    stock_names = st.text_input("Training Stock Symbol", value="AAPL")
+    stock_names = st.text_input("Training Stock Symbol",
+                                value="AAPL,MSFT,TSLA,GOOG,NVDA")
     st.session_state.stock_names = parse_stock_list(stock_names)
 
     # Environment parameters
@@ -436,10 +437,13 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                 test_results_container = st.container()
                 with test_results_container:
                     st.subheader("Test Results Analysis")
-                    
+
                     # Create tabs for different visualization aspects
-                    metrics_tab, trades_tab, analysis_tab = st.tabs(["Performance Metrics", "Trade Analysis", "Technical Analysis"])
-                    
+                    metrics_tab, trades_tab, analysis_tab = st.tabs([
+                        "Performance Metrics", "Trade Analysis",
+                        "Technical Analysis"
+                    ])
+
                     with metrics_tab:
                         st.subheader("Performance Metrics")
 
@@ -476,34 +480,39 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                         st.plotly_chart(test_results['combined_plot'])
                     with trades_tab:
                         st.subheader("Trading Activity")
-                        
+
                         # Display discrete actions plot
                         if 'action_plot' in test_results:
-                            st.plotly_chart(test_results['action_plot'], use_container_width=True)
-                            
+                            st.plotly_chart(test_results['action_plot'],
+                                            use_container_width=True)
+
                         # Display combined price and actions
                         if 'combined_plot' in test_results:
-                            st.plotly_chart(test_results['combined_plot'], use_container_width=True)
-                            
+                            st.plotly_chart(test_results['combined_plot'],
+                                            use_container_width=True)
+
                     with analysis_tab:
                         st.subheader("Technical Analysis")
                         if 'info_history' in test_results:
                             visualizer = TradingVisualizer()
-                            
+
                             # Show correlation analysis if multiple stocks
                             portfolio_data = st.session_state.model.data_handler.fetch_data(
-                                st.session_state.stock_names, 
+                                st.session_state.stock_names,
                                 st.session_state.test_start_date,
-                                st.session_state.test_end_date
-                            )
+                                st.session_state.test_end_date)
                             if len(st.session_state.stock_names) > 1:
-                                corr_fig = visualizer.plot_correlation_heatmap(portfolio_data)
-                                st.plotly_chart(corr_fig, use_container_width=True)
-                            
+                                corr_fig = visualizer.plot_correlation_heatmap(
+                                    portfolio_data)
+                                st.plotly_chart(corr_fig,
+                                                use_container_width=True)
+
                             # Show drawdown analysis
                             for symbol in st.session_state.stock_names:
-                                drawdown_fig = visualizer.plot_performance_and_drawdown(portfolio_data, symbol)
-                                st.plotly_chart(drawdown_fig, use_container_width=True)
+                                drawdown_fig = visualizer.plot_performance_and_drawdown(
+                                    portfolio_data, symbol)
+                                st.plotly_chart(drawdown_fig,
+                                                use_container_width=True)
 
 
 # def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,

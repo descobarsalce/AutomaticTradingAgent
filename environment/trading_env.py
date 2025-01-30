@@ -169,7 +169,7 @@ class TradingEnv(gym.Env):
             action = int(actions[idx])
 
             if action == 1:  # Buy
-                trade_amount = self.balance * self.position_size
+                trade_amount = min(self.balance * self.position_size, self.balance-self.transaction_cost)
                 shares_to_buy = trade_amount / current_price
                 total_cost = trade_amount + self.transaction_cost
 

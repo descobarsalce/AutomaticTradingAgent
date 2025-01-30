@@ -10,20 +10,17 @@ logger.setLevel(logging.INFO)
 
 class TradingEnv(gym.Env):
     """
-    Consolidated trading environment that combines features from all implementations:
-    - Multi-asset support from MarketEnvironment
-    - Advanced reward shaping from TradingEnvironment
-    - Comprehensive logging and tracking from TradingEnv
+    Trading environment with continuous action space for portfolio allocation.
+    Actions represent the target portfolio weights for each asset.
     """
     def __init__(self,
                  data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
                  initial_balance: float = 10000,
                  transaction_cost: float = 0.0,
-                 position_size: float = 0.2,
                  use_position_profit: bool = False,
                  use_holding_bonus: bool = False,
                  use_trading_penalty: bool = False,
-                 training_mode: bool = False,
+                 training_mode: bool = True,
                  log_frequency: int = 30):
         super().__init__()
 
@@ -33,14 +30,19 @@ class TradingEnv(gym.Env):
         self.use_trading_penalty = use_trading_penalty
         self.training_mode = training_mode
         self.log_frequency = log_frequency
-        self.position_size = position_size
 
         # Handle both single and multi-asset data
         self.data = data if isinstance(data, dict) else {'asset': data}
         self.symbols = list(self.data.keys())
 
-        # Action space: 0=hold, 1=buy, 2=sell for each asset
-        self.action_space = self.create_action_space(self.symbols, num_actions=3)
+        # Continuous action space: portfolio weights for each asset
+        # Each weight is between 0 and 1, representing the portion of portfolio to allocate
+        self.action_space = spaces.Box(
+            low=0,
+            high=1,
+            shape=(len(self.symbols),),
+            dtype=np.float32
+        )
 
         # Observation space includes OHLCV + positions + balance for each asset
         obs_dim = (len(self.symbols) * 6) + 1  # OHLCV + position for each asset + balance
@@ -65,26 +67,6 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.transaction_cost = transaction_cost
 
-    @staticmethod    
-    def create_action_space(symbols, num_actions: int = 3) -> gym.Space:
-        """
-        Create a Gym action space for a trading environment.
-
-        Args:
-            num_symbols (int): Number of symbols (assets) being traded.
-            num_actions (int): Number of discrete actions per asset. 
-                               For example, 3 could represent [Hold, Buy, Sell].
-
-        Returns:
-            gym.Space: A Gym action space. 
-                       If multiple symbols, uses MultiDiscrete, otherwise Discrete.
-        """
-        num_symbols = len(symbols)
-        if num_symbols > 1:
-            return spaces.MultiDiscrete([num_actions] * num_symbols)
-        return spaces.Discrete(num_actions)
-
-    
     def _get_observation(self) -> np.ndarray:
         """Get current observation of market and account state."""
         obs = []
@@ -102,7 +84,7 @@ class TradingEnv(gym.Env):
         return np.array(obs, dtype=np.float32)
 
     def _compute_reward(self, prev_net_worth: float, current_net_worth: float,
-                       actions: Union[int, np.ndarray], trades_executed: Dict[str, bool]) -> float:
+                       actions: np.ndarray, trades_executed: Dict[str, bool]) -> float:
         """Calculate reward based on trading performance and behavior."""
         reward = 0.0
 
@@ -125,99 +107,83 @@ class TradingEnv(gym.Env):
 
         return reward
 
-    def reset_portfolio_and_balance(self) -> None:
-        """Reset the portfolio and balance to initial state."""
-        self._portfolio_history = []
-        self.current_step = 0
-        self.balance = self.initial_balance
-        self.positions = {symbol: 0.0 for symbol in self.symbols}
-        self.cost_bases = {symbol: 0.0 for symbol in self.symbols}
-        self.holding_periods = {symbol: 0 for symbol in self.symbols}
-        self.net_worth = self.initial_balance
-        self.last_logged_step = -1
-        self.episode_trades = {symbol: 0 for symbol in self.symbols}
-        self.episode_count += 1
-
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
-        """Reset the environment to initial state."""
-        super().reset(seed=seed)
-        self.reset_portfolio_and_balance()
-        
-        observation = self._get_observation()
-        info = {
-            'initial_balance': self.initial_balance,
-            'net_worth': self.net_worth,
-            'positions': self.positions.copy(),
-            'balance': self.balance,
-            'episode': self.episode_count,
-            'total_steps': self.total_steps
-        }
-        return observation, info
-
-    def step(self, action: Union[int, np.ndarray]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
-        """Execute one step in the environment."""
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict]:
+        """Execute one step in the environment using continuous portfolio weights."""
         self.total_steps += 1
 
-        # Convert single action to list for unified processing
-        actions = [action] if isinstance(action, (int, np.integer)) else action
-        if len(actions) != len(self.symbols):
-            raise ValueError(f"Expected {len(self.symbols)} actions, got {len(actions)}")
+        # Ensure action is numpy array and normalize weights to sum to 1
+        weights = np.array(action, dtype=np.float32)
+        weights = np.clip(weights, 0, 1)
+        total_weight = np.sum(weights)
+        if total_weight > 0:
+            weights = weights / total_weight
 
         # Store previous state
         prev_net_worth = self.net_worth
         trades_executed = {symbol: False for symbol in self.symbols}
 
-        # Process actions for each asset
+        # Calculate target positions based on weights
+        current_prices = {symbol: self.data[symbol].iloc[self.current_step]['Close']
+                         for symbol in self.symbols}
+        target_positions = {}
+
+        # First pass: calculate theoretical target positions
         for idx, symbol in enumerate(self.symbols):
-            current_price = float(self.data[symbol].iloc[self.current_step]['Close'])
-            action = int(actions[idx])
+            target_value = self.net_worth * weights[idx]
+            target_positions[symbol] = target_value / current_prices[symbol]
 
-            if action == 1:  # Buy
-                trade_amount = min(self.balance * self.position_size, self.balance-self.transaction_cost)
-                shares_to_buy = trade_amount / current_price
-                total_cost = trade_amount + self.transaction_cost
+        # Second pass: execute trades to reach target positions
+        for idx, symbol in enumerate(self.symbols):
+            current_position = self.positions[symbol]
+            target_position = target_positions[symbol]
+            current_price = current_prices[symbol]
 
-                if total_cost <= self.balance:
-                    logger.info(f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}")
-                    self.balance -= total_cost
-                    if self.positions[symbol] > 0:
-                        old_cost = self.cost_bases[symbol] * self.positions[symbol]
-                        new_cost = current_price * shares_to_buy
-                        self.cost_bases[symbol] = (old_cost + new_cost) / (self.positions[symbol] + shares_to_buy)
-                    else:
-                        self.cost_bases[symbol] = current_price
-                    self.positions[symbol] += shares_to_buy
-                    self.holding_periods[symbol] = 0
-                    self.episode_trades[symbol] += 1
-                    trades_executed[symbol] = True
+            # Calculate position difference
+            position_diff = target_position - current_position
 
-            elif action == 2:  # Sell
-                if self.positions[symbol] > 0:
-                    shares_to_sell = self.positions[symbol]
-                    sell_amount = shares_to_sell * current_price
+            if abs(position_diff) > 1e-6:  # Threshold to avoid tiny trades
+                if position_diff > 0:  # Need to buy
+                    cost = abs(position_diff * current_price)
+                    total_cost = cost + self.transaction_cost
+
+                    if total_cost <= self.balance:
+                        self.balance -= total_cost
+                        if current_position > 0:
+                            # Update cost basis for additional purchase
+                            old_cost = self.cost_bases[symbol] * current_position
+                            new_cost = current_price * position_diff
+                            self.cost_bases[symbol] = (old_cost + new_cost) / target_position
+                        else:
+                            self.cost_bases[symbol] = current_price
+
+                        self.positions[symbol] = target_position
+                        trades_executed[symbol] = True
+                        logger.info(f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {position_diff:.4f}")
+
+                elif position_diff < 0:  # Need to sell
+                    sell_amount = abs(position_diff * current_price)
                     net_sell_amount = sell_amount - self.transaction_cost
-                    
-                    logger.info(f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}")
-                    
-                    self.balance += net_sell_amount
-                    self.positions[symbol] = 0
-                    self.holding_periods[symbol] = 0
-                    self.episode_trades[symbol] += 1
-                    trades_executed[symbol] = True
 
-            # Update holding period for non-zero positions
+                    self.balance += net_sell_amount
+                    self.positions[symbol] = target_position
+                    trades_executed[symbol] = True
+                    logger.info(f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {abs(position_diff):.4f}")
+
+            # Update holding period
             if self.positions[symbol] > 0:
                 self.holding_periods[symbol] += 1
+            else:
+                self.holding_periods[symbol] = 0
 
         # Update portfolio value
         self.net_worth = self.balance + sum(
-            self.positions[symbol] * self.data[symbol].iloc[self.current_step]['Close']
+            self.positions[symbol] * current_prices[symbol]
             for symbol in self.symbols
         )
         self._portfolio_history.append(self.net_worth)
 
         # Calculate reward
-        reward = self._compute_reward(prev_net_worth, self.net_worth, actions, trades_executed)
+        reward = self._compute_reward(prev_net_worth, self.net_worth, weights, trades_executed)
 
         # Update state
         self.current_step += 1
@@ -234,12 +200,41 @@ class TradingEnv(gym.Env):
             'positions': self.positions.copy(),
             'trades_executed': trades_executed,
             'episode_trades': self.episode_trades.copy(),
-            'actions': actions,  # Store actions in info
+            'portfolio_weights': weights,
             'date': self.data[self.symbols[0]].iloc[self.current_step].name
         }
-        self.last_info = info  # Store last info for callbacks
+        self.last_info = info
 
         return observation, reward, done, truncated, info
+
+    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
+        """Reset the environment to initial state."""
+        super().reset(seed=seed)
+        self.reset_portfolio_and_balance()
+
+        observation = self._get_observation()
+        info = {
+            'initial_balance': self.initial_balance,
+            'net_worth': self.net_worth,
+            'positions': self.positions.copy(),
+            'balance': self.balance,
+            'episode': self.episode_count,
+            'total_steps': self.total_steps
+        }
+        return observation, info
+
+    def reset_portfolio_and_balance(self) -> None:
+        """Reset the portfolio and balance to initial state."""
+        self._portfolio_history = []
+        self.current_step = 0
+        self.balance = self.initial_balance
+        self.positions = {symbol: 0.0 for symbol in self.symbols}
+        self.cost_bases = {symbol: 0.0 for symbol in self.symbols}
+        self.holding_periods = {symbol: 0 for symbol in self.symbols}
+        self.net_worth = self.initial_balance
+        self.last_logged_step = -1
+        self.episode_trades = {symbol: 0 for symbol in self.symbols}
+        self.episode_count += 1
 
     def get_portfolio_history(self) -> List[float]:
         """Return the history of portfolio values."""

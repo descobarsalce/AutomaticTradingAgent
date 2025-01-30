@@ -1,3 +1,7 @@
+"""
+Main application entry point. Provides interface for training and 
+analyzing portfolio allocation trading strategies.
+"""
 
 import streamlit as st
 import os
@@ -33,6 +37,7 @@ def init_session_state() -> None:
         - log_messages: List[str] - Chronological log messages
         - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
         - model: UnifiedTradingAgent - Trading agent model instance
+        - stock_list: List[str] - List of stock symbols for portfolio
 
     Implementation:
         The function checks for each required key in st.session_state and
@@ -54,19 +59,21 @@ def init_session_state() -> None:
     if 'ppo_params' not in st.session_state:
         st.session_state.ppo_params = None
     if 'model' not in st.session_state:
-        st.session_state.model = UnifiedTradingAgent()
+        st.session_state.model = UnifiedTradingAgent(optimize_for_sharpe=True)
     if 'stock_list' not in st.session_state:
-        st.session_state.stock_list = ['APPL', 'MSFT']
+        st.session_state.stock_list = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA']
 
 def main() -> None:
+    """Main application entry point."""
     init_session_state()
 
-    st.title("Trading Analysis and Agent Platform")
+    st.title("Portfolio Allocation and Trading Platform")
 
-    # Create tabs for Technical Analysis, Model Training, and Database Explorer
+    # Create tabs for different functionalities
     tab_training, tab_analysis, tab_database = st.tabs(
         ["Model Training", "Technical Analysis", "Database Explorer"])
 
+    # Display appropriate content for each tab
     with tab_analysis:
         display_tech_analysis_tab()
 

@@ -217,19 +217,22 @@ class UnifiedTradingAgent:
     def predict(self,
                 observation: NDArray,
                 deterministic: bool = True) -> NDArray:
-        """Generate trading action."""
+        """Generate portfolio allocation weights."""
         if self.model is None:
             raise ValueError("Model not initialized")
 
-        action, _ = self.model.predict(observation,
-                                       deterministic=deterministic)
-        action_val = int(
-            action.item() if isinstance(action, np.ndarray) else action)
+        # Get raw actions from model (portfolio weights)
+        action, _ = self.model.predict(observation, deterministic=deterministic)
 
-        # if not 0 <= action_val <= 2:
-        #     raise ValueError(f"Invalid action value: {action_val}")
+        # Ensure actions are valid portfolio weights (between 0 and 1)
+        weights = np.clip(action, 0, 1)
 
-        return np.array([action_val])
+        # Normalize weights to sum to 1 if they sum to > 0
+        total_weight = np.sum(weights)
+        if total_weight > 0:
+            weights = weights / total_weight
+
+        return weights
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,

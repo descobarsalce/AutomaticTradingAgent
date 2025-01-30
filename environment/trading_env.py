@@ -174,6 +174,7 @@ class TradingEnv(gym.Env):
                 total_cost = trade_amount + self.transaction_cost
 
                 if total_cost <= self.balance:
+                    logger.info(f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}")
                     self.balance -= total_cost
                     if self.positions[symbol] > 0:
                         old_cost = self.cost_bases[symbol] * self.positions[symbol]
@@ -191,7 +192,9 @@ class TradingEnv(gym.Env):
                     shares_to_sell = self.positions[symbol]
                     sell_amount = shares_to_sell * current_price
                     net_sell_amount = sell_amount - self.transaction_cost
-
+                    
+                    logger.info(f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}")
+                    
                     self.balance += net_sell_amount
                     self.positions[symbol] = 0
                     self.holding_periods[symbol] = 0

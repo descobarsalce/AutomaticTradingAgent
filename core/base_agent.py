@@ -239,7 +239,7 @@ class UnifiedTradingAgent:
         self.initialize_env(data, env_params)
         self.load("trained_model.zip")
 
-        obs, _ = self.env.reset()
+        obs, _ = self.env.reset_portfolio_and_balance()
         done = False
         info_history = []
 

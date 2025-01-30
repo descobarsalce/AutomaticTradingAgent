@@ -125,9 +125,8 @@ class TradingEnv(gym.Env):
 
         return reward
 
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
-        """Reset the environment to initial state."""
-        super().reset(seed=seed)
+    def reset_portfolio_and_balance(self) -> None:
+        """Reset the portfolio and balance to initial state."""
         self._portfolio_history = []
         self.current_step = 0
         self.balance = self.initial_balance
@@ -139,6 +138,11 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.episode_count += 1
 
+    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
+        """Reset the environment to initial state."""
+        super().reset(seed=seed)
+        self.reset_portfolio_and_balance()
+        
         observation = self._get_observation()
         info = {
             'initial_balance': self.initial_balance,

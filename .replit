@@ -27,7 +27,6 @@ externalPort = 80
 localPort = 8501
 
 [workflows]
-runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -68,5 +67,5 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m streamlit run main.py --server.address 0.0.0.0 --server.port 8501 --server.headless=true --server.enableCORS=true"
+args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501

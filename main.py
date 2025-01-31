@@ -1,3 +1,4 @@
+
 import streamlit as st
 import os
 import numpy as np
@@ -16,7 +17,6 @@ from utils.stock_utils import parse_stock_list
 from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
 from components.database_tab import display_database_explorer
-from components.chatbot_tab import display_chatbot_tab
 
 # Configure logging
 import logging
@@ -28,6 +28,26 @@ logger.setLevel(logging.DEBUG)
 def init_session_state() -> None:
     """
     Initialize Streamlit session state variables for persistent storage across reruns.
+
+    Initializes:
+        - log_messages: List[str] - Chronological log messages
+        - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
+        - model: UnifiedTradingAgent - Trading agent model instance
+
+    Implementation:
+        The function checks for each required key in st.session_state and
+        initializes it if missing. This ensures persistence across Streamlit reruns
+        while avoiding reinitializing existing state.
+
+    Example:
+        ```python
+        # Initialize state at app startup
+        init_session_state()
+
+        # Access state variables
+        model = st.session_state.model
+        logs = st.session_state.log_messages
+        ```
     """
     if 'log_messages' not in st.session_state:
         st.session_state.log_messages = []
@@ -43,9 +63,9 @@ def main() -> None:
 
     st.title("Trading Analysis and Agent Platform")
 
-    # Create tabs including the new Chatbot tab
-    tab_training, tab_analysis, tab_database, tab_chatbot = st.tabs(
-        ["Model Training", "Technical Analysis", "Database Explorer", "AI Assistant"])
+    # Create tabs for Technical Analysis, Model Training, and Database Explorer
+    tab_training, tab_analysis, tab_database = st.tabs(
+        ["Model Training", "Technical Analysis", "Database Explorer"])
 
     with tab_analysis:
         display_tech_analysis_tab()
@@ -55,9 +75,6 @@ def main() -> None:
 
     with tab_database:
         display_database_explorer()
-
-    with tab_chatbot:
-        display_chatbot_tab()
 
 
 if __name__ == "__main__":

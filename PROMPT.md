@@ -4,11 +4,6 @@ you are improving this pipeline to go into production. We are focusing on pickin
 
 I need you to improve the following:
 
-Action Space Enhancement:
-Replace the current discrete action space (0,1,2) with a continuous action space that represents:
-a) Portfolio allocation weights for each stock (0-1)
-b) Position sizing based on confidence levels
-c) Allow simultaneous positions across multiple stocks
-Think deeply and step by step because it is a challenging and complex problem
+i want to add a new tab on my page that allows me to incorporate within the page a chatbot that users can use to chat with the data and ask questions directly to the dataset. This chatbot should be able to search code online and generate a graph according to the user request
 
 ask me if there is anything else that you need to clarify that can improve the answer

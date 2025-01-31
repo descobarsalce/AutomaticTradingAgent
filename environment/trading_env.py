@@ -105,6 +105,13 @@ class TradingEnv(gym.Env):
                        actions: Union[int, np.ndarray], trades_executed: Dict[str, bool]) -> float:
         """Calculate reward based on trading performance and behavior."""
         reward = 0.0
+        
+        # Penalize attempting trades without sufficient balance
+        for symbol, executed in trades_executed.items():
+            if not executed and isinstance(actions, (list, np.ndarray)):
+                idx = self.symbols.index(symbol)
+                if actions[idx] == 1:  # Attempted buy
+                    reward -= 0.01  # Small penalty for failed trades
 
         # Portfolio return reward
         if prev_net_worth > 0:
@@ -183,11 +190,14 @@ class TradingEnv(gym.Env):
             action = int(actions[idx])
 
             if action == 1:  # Buy
-                trade_amount = min(self.balance * self.position_size, self.balance-self.transaction_cost)
-                shares_to_buy = trade_amount / current_price
-                total_cost = trade_amount + self.transaction_cost
+                # Calculate maximum affordable shares considering transaction cost
+                max_trade_amount = max(0, self.balance - self.transaction_cost)
+                trade_amount = min(max_trade_amount * self.position_size, max_trade_amount)
+                shares_to_buy = trade_amount / current_price if current_price > 0 else 0
+                total_cost = (shares_to_buy * current_price) + self.transaction_cost
 
-                if total_cost <= self.balance:
+                # Only execute trade if we can buy at least 0.01 shares
+                if total_cost <= self.balance and shares_to_buy >= 0.01:
                     logger.info(f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}")
                     self.balance -= total_cost
                     if self.positions[symbol] > 0:

@@ -474,6 +474,11 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                         if 'information_ratio' in metrics:
                             st.metric("Information Ratio",
                                       f"{metrics['information_ratio']:.2f}")
+                        # Calculate and display total return
+                        if 'portfolio_history' in test_results:
+                            total_return = ((test_results['portfolio_history'][-1] - test_results['portfolio_history'][0]) 
+                                          / test_results['portfolio_history'][0])
+                            st.metric("Total Return", f"{total_return:.2%}")
 
                     # Display performance charts
                     if 'combined_plot' in test_results:

@@ -39,14 +39,18 @@ class FeatureEngineer:
 
     # NOTE THAT THIS NORMALIZATION IS WRONG BECAUSE IT USES DATA FROM AFTER THE TRAIN/TEST PERIOD. IT CANNOT BE FORWARD LOOKING, SO I NEED TO CONFIRM.
     @staticmethod
-    def normalize_data(data: pd.Series) -> pd.Series:
-        """Normalizes a series to [0,1]. If min==max, returns all zeros."""
-        min_val = data.min()
-        max_val = data.max()
-        if max_val > min_val:
-            return (data - min_val) / (max_val - min_val)
-        else:
-            return pd.Series(0, index=data.index)
+    def normalize_data(data: pd.Series, window: int = 252) -> pd.Series:
+        """Normalizes using expanding window to prevent lookahead bias"""
+        normalized = pd.Series(index=data.index, dtype=float)
+        for i in range(len(data)):
+            lookback_data = data.iloc[max(0, i-window+1):i+1]
+            min_val = lookback_data.min()
+            max_val = lookback_data.max()
+            if max_val > min_val:
+                normalized.iloc[i] = (data.iloc[i] - min_val) / (max_val - min_val)
+            else:
+                normalized.iloc[i] = 0
+        return normalized
 
     @staticmethod
     def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:

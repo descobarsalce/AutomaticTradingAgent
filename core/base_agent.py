@@ -327,6 +327,52 @@ class UnifiedTradingAgent:
                 'sortino_ratio':
                 MetricsCalculator.calculate_sortino_ratio(returns),
                 'information_ratio':
+
+    def backtest(self, stock_names: List, start_date: datetime, end_date: datetime, 
+                env_params: Dict[str, Any], window_size: int = 252) -> Dict[str, Any]:
+        """
+        Backtest using expanding window to prevent lookahead bias
+        """
+        if not os.path.exists("trained_model.zip"):
+            raise ValueError("No trained model found. Please train first.")
+            
+        results = []
+        current_date = start_date
+        
+        while current_date < end_date:
+            # Use expanding window of historical data for training
+            train_data = self.prepare_processed_data(
+                stock_names, 
+                start_date,
+                current_date
+            )
+            
+            # Test on next window_size days
+            test_end = min(current_date + timedelta(days=window_size), end_date)
+            test_data = self.prepare_processed_data(
+                stock_names,
+                current_date,
+                test_end
+            )
+            
+            # Initialize and test
+            self.initialize_env(test_data, env_params)
+            test_results = self.test(stock_names, current_date, test_end, env_params)
+            results.append(test_results)
+            
+            current_date = test_end
+            
+        # Aggregate results
+        portfolio_values = pd.concat([pd.Series(r['portfolio_history']) for r in results])
+        total_return = (portfolio_values.iloc[-1] - portfolio_values.iloc[0]) / portfolio_values.iloc[0]
+        
+        return {
+            'portfolio_history': portfolio_values.tolist(),
+            'total_return': total_return,
+            'sharpe_ratio': np.mean([r['metrics']['sharpe_ratio'] for r in results]),
+            'max_drawdown': np.max([r['metrics']['max_drawdown'] for r in results])
+        }
+
                 MetricsCalculator.calculate_information_ratio(returns),
                 'max_drawdown':
                 MetricsCalculator.calculate_maximum_drawdown(

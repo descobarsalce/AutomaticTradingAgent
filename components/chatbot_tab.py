@@ -13,7 +13,17 @@ import os
 
 # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
 # do not change this unless explicitly requested by the user
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+def check_api_key():
+    """Verify OpenAI API key is configured"""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        st.error("""
+        OpenAI API key not found. Please set up your API key to use the chatbot.
+        The key should start with 'sk-' and can be obtained from https://platform.openai.com/api-keys
+        """)
+        return False
+    return True
 
 def format_sql_results(df):
     """Format SQL query results for the chatbot"""
@@ -21,20 +31,24 @@ def format_sql_results(df):
 
 def generate_response(user_input: str, sql_result: str = None):
     """Generate response using OpenAI API"""
+    if not check_api_key():
+        return None
+
     system_prompt = """You are a helpful assistant for a trading data analysis platform. 
     You can help users analyze trading data and generate insights. If you're provided with SQL query results,
     analyze them and provide insights. When users request visualizations, suggest the type of plot that would
     be most appropriate for their analysis."""
-    
+
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_input}
     ]
-    
+
     if sql_result:
         messages.append({"role": "assistant", "content": f"Here's the data you requested:\n{sql_result}"})
-    
+
     try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model="gpt-4o",  # Using the latest model
             messages=messages,
@@ -43,7 +57,8 @@ def generate_response(user_input: str, sql_result: str = None):
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"Error generating response: {str(e)}"
+        st.error(f"Error generating response: {str(e)}")
+        return None
 
 def execute_query(query: str):
     """Execute SQL query and return results as DataFrame"""
@@ -63,7 +78,10 @@ def execute_query(query: str):
 def display_chatbot_tab():
     """Display the chatbot interface tab"""
     st.title("Trading Data Chatbot")
-    
+
+    if not check_api_key():
+        return
+
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -83,11 +101,11 @@ def display_chatbot_tab():
         # Generate and display assistant response
         with st.chat_message("assistant"):
             response_container = st.empty()
-            
+
             # Check if the prompt contains SQL-related keywords
             sql_keywords = ["select", "from", "where", "group by", "order by"]
             is_sql_query = any(keyword in prompt.lower() for keyword in sql_keywords)
-            
+
             if is_sql_query:
                 # Execute SQL query
                 df = execute_query(prompt)
@@ -98,9 +116,10 @@ def display_chatbot_tab():
                     response = "I couldn't execute your SQL query. Please check the syntax or try a different query."
             else:
                 response = generate_response(prompt)
-            
-            response_container.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
+
+            if response:
+                response_container.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
 
     # Display helpful examples
     with st.expander("Example Queries"):

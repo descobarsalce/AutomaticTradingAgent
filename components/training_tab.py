@@ -104,14 +104,20 @@ def display_training_tab():
             height=300,
             help="Access data via st.session_state.model.data_handler")
 
+        # Initialize persistent namespace in session state if not exists
+        if 'code_namespace' not in st.session_state:
+            st.session_state.code_namespace = {
+                'np': np,
+                'pd': pd,
+                'plt': plt,
+                'go': go,
+                'vars': {},  # For user-defined variables
+            }
+            
         if st.button("Execute Code"):
             try:
-                # Create a local namespace with access to common libraries and data
-                local_ns = {
-                    'np': np,
-                    'pd': pd,
-                    'plt': plt,
-                    'go': go,
+                # Update namespace with latest session state
+                st.session_state.code_namespace.update({
                     'data_handler': st.session_state.model.data_handler,
                     'stock_names': st.session_state.stock_names,
                     'train_start_date': st.session_state.train_start_date,
@@ -119,7 +125,12 @@ def display_training_tab():
                     'test_start_date': st.session_state.test_start_date,
                     'test_end_date': st.session_state.test_end_date,
                     'env_params': st.session_state.env_params,
-                }
+                    'model': st.session_state.model,
+                    'vars': st.session_state.code_namespace['vars'],  # Preserve user variables
+                })
+                
+                # Create reference to vars dict for easier access
+                locals().update(st.session_state.code_namespace['vars'])
 
                 # Create string buffer to capture print output
                 import io
@@ -130,10 +141,19 @@ def display_training_tab():
 
                 # Execute the code and capture output
                 with st.spinner("Executing code..."):
-                    exec(code, globals(), local_ns)
+                    exec(code, globals(), st.session_state.code_namespace)
+                    
+                    # Save all newly defined variables
+                    st.session_state.code_namespace['vars'].update({
+                        k: v for k, v in st.session_state.code_namespace.items()
+                        if k not in ['np', 'pd', 'plt', 'go', 'data_handler', 
+                                   'stock_names', 'train_start_date', 'train_end_date',
+                                   'test_start_date', 'test_end_date', 'env_params',
+                                   'model', 'vars']
+                    })
 
                     # Display any generated plots
-                    if 'plt' in locals():
+                    if 'plt' in st.session_state.code_namespace:
                         st.pyplot(plt.gcf())
                         plt.close()
 

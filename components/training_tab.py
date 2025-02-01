@@ -203,57 +203,7 @@ def display_training_tab():
 
 
 
-def hyperparameter_tuning() -> None:
-    """
-    Interface for hyperparameter optimization using Optuna
-    """
-    from core.hyperparameter_search import (create_parameter_ranges,
-                                          run_hyperparameter_optimization,
-                                          display_optimization_results)
 
-    stock_names = st.session_state.stock_names
-    train_start_date = st.session_state.train_start_date
-    train_end_date = st.session_state.train_end_date
-    env_params = st.session_state.env_params
-
-    st.header("Hyperparameter Tuning Options")
-
-    with st.expander("Tuning Configuration", expanded=True):
-        trials_number = st.number_input("Number of Trials",
-                                      min_value=1,
-                                      value=20,
-                                      step=1)
-        pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
-        param_ranges = create_parameter_ranges()
-        optimization_metric = st.selectbox(
-            "Optimization Metric",
-            ["sharpe_ratio", "sortino_ratio", "total_return"],
-            help="Metric to optimize during hyperparameter search")
-
-    if st.button("Start Hyperparameter Tuning"):
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-
-        try:
-            study = run_hyperparameter_optimization(
-                stock_names=stock_names,
-                train_start_date=train_start_date,
-                train_end_date=train_end_date,
-                env_params=env_params,
-                param_ranges=param_ranges,
-                trials_number=trials_number,
-                optimization_metric=optimization_metric,
-                progress_bar=progress_bar,
-                status_text=status_text,
-                pruning_enabled=pruning_enabled
-            )
-
-            st.success("Hyperparameter tuning completed!")
-            display_optimization_results(study)
-
-        except Exception as e:
-            st.error(f"Optimization failed: {str(e)}")
-            logger.exception("Hyperparameter optimization error")
 
 
 def display_testing_interface(ppo_params, use_optuna_params=False):

@@ -82,7 +82,7 @@ def display_training_tab():
         use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
                                         value=False)
         if not use_optuna_params:
-            ppo_params = get_parameters(use_optuna_params)
+            ppo_params = get_training_parameters(use_optuna_params)
             if st.button("Start Training"):
                 run_training(ppo_params)
         else:
@@ -189,13 +189,6 @@ def display_training_tab():
                 sys.stdout = original_stdout
 
 
-
-
-def get_parameters(use_optuna_params) -> Dict[str, Any]:
-    """
-    Gets training parameters using the training functions module
-    """
-    return get_training_parameters(use_optuna_params)
 
 
 def run_training(ppo_params: Dict[str, Any]) -> None:

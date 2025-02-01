@@ -27,6 +27,7 @@ from core.training_functions import (
     display_training_metrics,
     run_training
 )
+from core.hyperparameter_search import hyperparameter_tuning
 
 def display_training_tab():
     """

@@ -1,4 +1,3 @@
-
 import optuna
 import streamlit as st
 from typing import Dict, Any, List
@@ -35,7 +34,7 @@ def display_tech_analysis_tab():
     st.header("Technical Analysis Dashboard")
 
     model = st.session_state.model # Used for the data handler that lives within with the proper setup.
-    
+
     # Visualization stock selection (separate from training)
     viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
                                     value="AAPL, MSFT, GOOGL")
@@ -204,16 +203,16 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         # Advanced Analytics Section
         if model and hasattr(model, 'portfolio_history') and model.portfolio_history:
             st.header("Portfolio Analytics")
-            
+
             # Portfolio Performance
             portfolio_df = pd.DataFrame(model.portfolio_history, columns=['Portfolio Value'])
             st.subheader("Portfolio Value Over Time")
             st.line_chart(portfolio_df)
-            
+
             # Returns Analysis
             if hasattr(model, 'evaluation_metrics') and model.evaluation_metrics.get('returns'):
                 chart_col1, chart_col2 = st.columns(2)
-                
+
                 with chart_col1:
                     fig = go.Figure(data=[
                         go.Histogram(x=model.evaluation_metrics['returns'],
@@ -225,6 +224,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
                     st.plotly_chart(fig, use_container_width=True)
 
                     # Drawdown
+                    import numpy as np
                     values = np.array(model.portfolio_history)
                     peak = np.maximum.accumulate(values)
                     drawdowns = (peak - values) / peak

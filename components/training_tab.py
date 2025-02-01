@@ -221,21 +221,6 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     st.success("Training completed and model saved!")
 
 
-def display_training_metrics(metrics: Dict[str, float]) -> None:
-    """
-    Displays the training metrics in a formatted layout
-    """
-    metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
-    with metrics_col1:
-        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-        st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
-    with metrics_col2:
-        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-        st.metric("Volatility", f"{metrics['volatility']:.2%}")
-    with metrics_col3:
-        st.metric("Total Return", f"{metrics['total_return']:.2%}")
-        st.metric("Final Portfolio Value", f"${metrics['final_value']:,.2f}")
-
 
 def hyperparameter_tuning() -> None:
     """

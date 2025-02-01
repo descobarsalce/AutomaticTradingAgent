@@ -24,7 +24,8 @@ from core.training_functions import (
     initialize_training,
     execute_training,
     get_training_parameters,
-    display_training_metrics
+    display_training_metrics,
+    run_training
 )
 
 def display_training_tab():
@@ -198,34 +199,7 @@ def display_training_tab():
 
 
 
-def run_training(ppo_params: Dict[str, Any]) -> None:
-    """
-    Executes the training process using the training functions module
-    """
-    progress_bar = st.progress(0)
-    status_placeholder = st.empty()
 
-    metrics = execute_training(ppo_params, progress_bar, status_placeholder)
-
-    if metrics:
-        st.subheader("Parameters Used for Training")
-        col1, col2, col3 = st.columns(3)
-        index_col = 0
-        all_cols = [col1, col2, col3]
-        for param, value in ppo_params.items():
-            with all_cols[index_col % 3]:
-                st.metric(param, value)
-                index_col += 1
-
-        display_training_metrics(metrics)
-
-    if hasattr(st.session_state.model.env, '_trade_history'):
-        TradingVisualizer.display_trade_history(
-            st.session_state.model.env._trade_history, "Training History",
-            "training_trade")
-
-    st.session_state.ppo_params = ppo_params
-    st.success("Training completed and model saved!")
 
 
 

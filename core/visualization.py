@@ -469,3 +469,33 @@ class TradingVisualizer:
                           showlegend=True)
 
         return fig
+@staticmethod
+def display_trade_history(trade_history, title="Trading History", download_prefix="trade"):
+    """
+    Display trade history in a Streamlit interface
+    Args:
+        trade_history: List of trade info dictionaries
+        title: Title for the history section
+        download_prefix: Prefix for the download file name
+    """
+    import streamlit as st
+    import pandas as pd
+    
+    st.subheader(title)
+    if trade_history and len(trade_history) > 0:
+        trade_df = pd.DataFrame({
+            'Date': [info['date'] for info in trade_history],
+            'Action': [info['actions'] for info in trade_history],
+            'Portfolio Value': [info['net_worth'] for info in trade_history],
+            'Positions': [info['positions'] for info in trade_history]
+        })
+        st.dataframe(trade_df)
+        
+        st.download_button(
+            f"Download {title}",
+            trade_df.to_csv(index=False),
+            f"{download_prefix}_history.csv",
+            "text/csv"
+        )
+    else:
+        st.info("No trade history available")

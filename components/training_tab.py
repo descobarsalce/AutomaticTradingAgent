@@ -113,7 +113,7 @@ def display_training_tab():
                 'go': go,
                 'vars': {},  # For user-defined variables
             }
-            
+
         if st.button("Execute Code"):
             try:
                 # Update namespace with latest session state
@@ -128,7 +128,7 @@ def display_training_tab():
                     'model': st.session_state.model,
                     'vars': st.session_state.code_namespace['vars'],  # Preserve user variables
                 })
-                
+
                 # Create reference to vars dict for easier access
                 locals().update(st.session_state.code_namespace['vars'])
 
@@ -142,7 +142,7 @@ def display_training_tab():
                 # Execute the code and capture output
                 with st.spinner("Executing code..."):
                     exec(code, globals(), st.session_state.code_namespace)
-                    
+
                     # Save all newly defined variables
                     st.session_state.code_namespace['vars'].update({
                         k: v for k, v in st.session_state.code_namespace.items()
@@ -258,7 +258,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
             'Positions': [info['positions'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else []
         })
         st.dataframe(trade_df)
-        
+
         # Option to download trade history
         st.download_button(
             "Download Trade History",
@@ -532,6 +532,14 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                 test_results_container = st.container()
                 with test_results_container:
                     st.subheader("Test Results Analysis")
+
+                    # Display test trade history
+                    if 'info_history' in test_results:
+                        TradingVisualizer.display_trade_history(
+                            test_results['info_history'],
+                            "Test History",
+                            "test_trade"
+                        )
 
                     # Create tabs for different visualization aspects
                     metrics_tab, trades_tab, analysis_tab = st.tabs([

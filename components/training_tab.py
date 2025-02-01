@@ -95,55 +95,56 @@ def display_training_tab():
     if st.session_state.ppo_params is not None:
         display_testing_interface(st.session_state.ppo_params,
                                   use_optuna_params)
-        
-        # Add Python code execution interface
-        st.header("Data Analysis Console")
-        with st.expander("Python Code Execution", expanded=True):
-            code = st.text_area("Enter Python code:", 
-                height=200,
-                help="Access data via st.session_state.model.data_handler")
-            
-            if st.button("Execute Code"):
-                try:
-                    # Create a local namespace with access to common libraries and data
-                    local_ns = {
-                        'np': np,
-                        'pd': pd,
-                        'plt': plt,
-                        'go': go,
-                        'data_handler': st.session_state.model.data_handler,
-                        'stock_names': st.session_state.stock_names,
-                        'train_start_date': st.session_state.train_start_date,
-                        'train_end_date': st.session_state.train_end_date,
-                    }
-                    
-                    # Create string buffer to capture print output
-                    import io
-                    import sys
-                    output_buffer = io.StringIO()
-                    original_stdout = sys.stdout
-                    sys.stdout = output_buffer
-                    
-                    # Execute the code and capture output
-                    with st.spinner("Executing code..."):
-                        exec(code, globals(), local_ns)
-                        
-                        # Display any generated plots
-                        if 'plt' in locals():
-                            st.pyplot(plt.gcf())
-                            plt.close()
-                        
-                        # Get and display the captured output
-                        sys.stdout = original_stdout
-                        output = output_buffer.getvalue()
-                        if output:
-                            st.text_area("Output:", value=output, height=150)
-                        
-                except Exception as e:
-                    st.error(f"Error executing code: {str(e)}")
-                finally:
-                    # Ensure stdout is restored
+
+    # Add Python code execution interface
+    st.header("Data Analysis Console")
+    with st.expander("Python Code Execution", expanded=True):
+        code = st.text_area(
+            "Enter Python code:",
+            height=200,
+            help="Access data via st.session_state.model.data_handler")
+
+        if st.button("Execute Code"):
+            try:
+                # Create a local namespace with access to common libraries and data
+                local_ns = {
+                    'np': np,
+                    'pd': pd,
+                    'plt': plt,
+                    'go': go,
+                    'data_handler': st.session_state.model.data_handler,
+                    'stock_names': st.session_state.stock_names,
+                    'train_start_date': st.session_state.train_start_date,
+                    'train_end_date': st.session_state.train_end_date,
+                }
+
+                # Create string buffer to capture print output
+                import io
+                import sys
+                output_buffer = io.StringIO()
+                original_stdout = sys.stdout
+                sys.stdout = output_buffer
+
+                # Execute the code and capture output
+                with st.spinner("Executing code..."):
+                    exec(code, globals(), local_ns)
+
+                    # Display any generated plots
+                    if 'plt' in locals():
+                        st.pyplot(plt.gcf())
+                        plt.close()
+
+                    # Get and display the captured output
                     sys.stdout = original_stdout
+                    output = output_buffer.getvalue()
+                    if output:
+                        st.text_area("Output:", value=output, height=150)
+
+            except Exception as e:
+                st.error(f"Error executing code: {str(e)}")
+            finally:
+                # Ensure stdout is restored
+                sys.stdout = original_stdout
 
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
@@ -528,8 +529,10 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                                       f"{metrics['information_ratio']:.2f}")
                         # Calculate and display total return
                         if 'portfolio_history' in test_results:
-                            total_return = ((test_results['portfolio_history'][-1] - test_results['portfolio_history'][0]) 
-                                          / test_results['portfolio_history'][0])
+                            total_return = (
+                                (test_results['portfolio_history'][-1] -
+                                 test_results['portfolio_history'][0]) /
+                                test_results['portfolio_history'][0])
                             st.metric("Total Return", f"{total_return:.2%}")
 
                     # Display performance charts

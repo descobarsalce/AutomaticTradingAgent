@@ -20,13 +20,17 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
         test_col1, test_col2 = st.columns(2)
         with test_col1:
             test_start_date = datetime.combine(
-                st.date_input("Test Start Date", 
-                            value=datetime.now() - timedelta(days=365)),
+                st.date_input("Test Start Date",
+                              value=datetime.now() - timedelta(days=365)),
                 datetime.min.time())
         with test_col2:
             test_end_date = datetime.combine(
                 st.date_input("Test End Date", value=datetime.now()),
                 datetime.min.time())
+
+        # Store dates in session state
+        st.session_state.test_start_date = test_start_date
+        st.session_state.test_end_date = test_end_date
 
         st.markdown("""
             <style>
@@ -47,64 +51,76 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                 if use_optuna_params:
                     ppo_params = st.session_state.ppo_params
 
-                test_results = execute_model_test(model, stock_names, 
-                                               test_start_date, test_end_date, 
-                                               env_params)
-                
+                test_results = model.test(
+                    stock_names=stock_names,
+                    start_date=test_start_date,
+                    end_date=test_end_date,
+                    env_params=env_params)
+
                 if test_results and 'metrics' in test_results:
-                    display_test_results(test_results, ppo_params)
+                    test_results_container = st.container()
+                    with test_results_container:
+                        st.subheader("Test Results Analysis")
 
-def execute_model_test(model, stock_names, start_date, end_date, env_params):
-    """
-    Executes the model testing process
-    """
-    return model.test(stock_names=stock_names,
-                     start_date=start_date,
-                     end_date=end_date,
-                     env_params=env_params)
+                        # Display test trade history
+                        if 'info_history' in test_results:
+                            TradingVisualizer.display_trade_history(
+                                test_results['info_history'], "Test History",
+                                "test_trade")
 
-def display_test_results(test_results: Dict[str, Any], ppo_params: Dict[str, Any]):
-    """
-    Displays test results including metrics and visualizations
-    """
-    test_results_container = st.container()
-    with test_results_container:
-        st.subheader("Test Results Analysis")
+                        # Create tabs for different visualization aspects
+                        metrics_tab, trades_tab, analysis_tab = st.tabs([
+                            "Performance Metrics", "Trade Analysis",
+                            "Technical Analysis"
+                        ])
 
-        # Display test trade history
-        if 'info_history' in test_results:
-            TradingVisualizer.display_trade_history(
-                test_results['info_history'], "Test History", "test_trade")
+                        with metrics_tab:
+                            st.subheader("Performance Metrics")
 
-        # Create tabs for different visualization aspects
-        metrics_tab, trades_tab, analysis_tab = st.tabs([
-            "Performance Metrics", "Trade Analysis", "Technical Analysis"
-        ])
+                            # Display parameters used for testing
+                            st.subheader("Parameters Used for Testing")
+                            col1, col2, col3 = st.columns(3)
+                            index_col = 0
+                            all_cols = [col1, col2, col3]
+                            for param, value in ppo_params.items():
+                                with all_cols[index_col % 3]:
+                                    st.metric(param, value)
+                                    index_col += 1
 
-        with metrics_tab:
-            st.subheader("Performance Metrics")
+                            # Display metrics
+                            metrics = test_results['metrics']
+                            display_metrics_grid(metrics, test_results)
 
-            # Display parameters used for testing
-            st.subheader("Parameters Used for Testing")
-            col1, col2, col3 = st.columns(3)
-            index_col = 0
-            all_cols = [col1, col2, col3]
-            for param, value in ppo_params.items():
-                with all_cols[index_col % 3]:
-                    st.metric(param, value)
-                    index_col += 1
+                            # Display performance charts
+                            if 'combined_plot' in test_results:
+                                st.plotly_chart(test_results['combined_plot'])
 
-            # Display metrics
-            metrics = test_results['metrics']
-            display_metrics_grid(metrics, test_results)
+                        with trades_tab:
+                            st.subheader("Trading Activity")
+                            display_trading_activity(test_results)
 
-        with trades_tab:
-            st.subheader("Trading Activity")
-            display_trading_activity(test_results)
+                        with analysis_tab:
+                            st.subheader("Technical Analysis")
+                            if 'info_history' in test_results:
+                                visualizer = TradingVisualizer()
 
-        with analysis_tab:
-            st.subheader("Technical Analysis")
-            display_technical_analysis(test_results)
+                                # Show correlation analysis if multiple stocks
+                                portfolio_data = model.data_handler.fetch_data(
+                                    stock_names,
+                                    test_start_date,
+                                    test_end_date)
+                                if len(stock_names) > 1:
+                                    corr_fig = visualizer.plot_correlation_heatmap(
+                                        portfolio_data)
+                                    st.plotly_chart(corr_fig,
+                                                    use_container_width=True)
+
+                                # Show drawdown analysis
+                                for symbol in stock_names:
+                                    drawdown_fig = visualizer.plot_performance_and_drawdown(
+                                        portfolio_data, symbol)
+                                    st.plotly_chart(drawdown_fig,
+                                                    use_container_width=True)
 
 def display_metrics_grid(metrics: Dict[str, float], test_results: Dict[str, Any]):
     """
@@ -137,24 +153,3 @@ def display_trading_activity(test_results: Dict[str, Any]):
     if 'combined_plot' in test_results:
         st.plotly_chart(test_results['combined_plot'],
                        use_container_width=True)
-
-def display_technical_analysis(test_results: Dict[str, Any]):
-    """
-    Displays technical analysis visualizations
-    """
-    if 'info_history' in test_results:
-        visualizer = TradingVisualizer()
-        if hasattr(st.session_state.model, 'data_handler'):
-            portfolio_data = st.session_state.model.data_handler.fetch_data(
-                st.session_state.stock_names,
-                st.session_state.test_start_date,
-                st.session_state.test_end_date)
-            
-            if len(st.session_state.stock_names) > 1:
-                corr_fig = visualizer.plot_correlation_heatmap(portfolio_data)
-                st.plotly_chart(corr_fig, use_container_width=True)
-
-            for symbol in st.session_state.stock_names:
-                drawdown_fig = visualizer.plot_performance_and_drawdown(
-                    portfolio_data, symbol)
-                st.plotly_chart(drawdown_fig, use_container_width=True)

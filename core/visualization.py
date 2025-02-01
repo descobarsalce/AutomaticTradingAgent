@@ -56,8 +56,10 @@ class TradingVisualizer:
                 chart_data['Close'], window=self.rsi_period).rsi()
 
             # SMAs
-            chart_data['SMA_20'] = ta.trend.sma_indicator(chart_data['Close'], window=20)
-            chart_data['SMA_50'] = ta.trend.sma_indicator(chart_data['Close'], window=50)
+            chart_data['SMA_20'] = ta.trend.sma_indicator(chart_data['Close'],
+                                                          window=20)
+            chart_data['SMA_50'] = ta.trend.sma_indicator(chart_data['Close'],
+                                                          window=50)
 
             # MACD
             macd = ta.trend.MACD(chart_data['Close'])
@@ -71,8 +73,9 @@ class TradingVisualizer:
             chart_data['BB_Mid'] = bollinger.bollinger_mavg()
 
             # Stochastic Oscillator
-            stoch = ta.momentum.StochasticOscillator(
-                chart_data['High'], chart_data['Low'], chart_data['Close'])
+            stoch = ta.momentum.StochasticOscillator(chart_data['High'],
+                                                     chart_data['Low'],
+                                                     chart_data['Close'])
             chart_data['Stoch_K'] = stoch.stoch()
             chart_data['Stoch_D'] = stoch.stoch_signal()
 
@@ -118,11 +121,13 @@ class TradingVisualizer:
             # Calculate SMAs before plotting
             if self.show_sma20:
                 sma20_col = f'{symbol}_SMA_20'
-                chart_data[sma20_col] = ta.trend.sma_indicator(chart_data['Close'], window=20)
+                chart_data[sma20_col] = ta.trend.sma_indicator(
+                    chart_data['Close'], window=20)
 
             if self.show_sma50:
                 sma50_col = f'{symbol}_SMA_50'
-                chart_data[sma50_col] = ta.trend.sma_indicator(chart_data['Close'], window=50)
+                chart_data[sma50_col] = ta.trend.sma_indicator(
+                    chart_data['Close'], window=50)
 
             # Add moving averages to the plot
             if self.show_sma20:
@@ -231,7 +236,8 @@ class TradingVisualizer:
             print(f"Error creating chart for {symbol}: {str(e)}")
             return None
 
-    def plot_correlation_heatmap(self, portfolio_data: Dict[str, pd.DataFrame],
+    def plot_correlation_heatmap(self,
+                                 portfolio_data: Dict[str, pd.DataFrame],
                                  price_col: str = 'Close') -> go.Figure:
         """
         Creates a correlation heatmap for daily returns of multiple symbols in 'portfolio_data'.
@@ -266,7 +272,8 @@ class TradingVisualizer:
         fig.update_layout(template="plotly_dark")
         return fig
 
-    def plot_cumulative_returns(self, portfolio_data: Dict[str, pd.DataFrame],
+    def plot_cumulative_returns(self,
+                                portfolio_data: Dict[str, pd.DataFrame],
                                 price_col: str = 'Close') -> go.Figure:
         """
         Plots cumulative returns of each symbol in 'portfolio_data' on the same chart.
@@ -293,7 +300,8 @@ class TradingVisualizer:
                           hovermode="x unified")
         return fig
 
-    def plot_drawdown(self, portfolio_data: Dict[str, pd.DataFrame],
+    def plot_drawdown(self,
+                      portfolio_data: Dict[str, pd.DataFrame],
                       symbol: str,
                       price_col: str = 'Close') -> go.Figure:
         """
@@ -345,7 +353,8 @@ class TradingVisualizer:
         # We could add a second y-axis for drawdowns if you want them separate
         return fig
 
-    def plot_performance_and_drawdown(self, portfolio_data: Dict[str, pd.DataFrame],
+    def plot_performance_and_drawdown(self,
+                                      portfolio_data: Dict[str, pd.DataFrame],
                                       symbol: str,
                                       price_col: str = 'Close') -> go.Figure:
         """
@@ -469,33 +478,34 @@ class TradingVisualizer:
                           showlegend=True)
 
         return fig
-@staticmethod
-def display_trade_history(trade_history, title="Trading History", download_prefix="trade"):
-    """
-    Display trade history in a Streamlit interface
-    Args:
-        trade_history: List of trade info dictionaries
-        title: Title for the history section
-        download_prefix: Prefix for the download file name
-    """
-    import streamlit as st
-    import pandas as pd
-    
-    st.subheader(title)
-    if trade_history and len(trade_history) > 0:
-        trade_df = pd.DataFrame({
-            'Date': [info['date'] for info in trade_history],
-            'Action': [info['actions'] for info in trade_history],
-            'Portfolio Value': [info['net_worth'] for info in trade_history],
-            'Positions': [info['positions'] for info in trade_history]
-        })
-        st.dataframe(trade_df)
-        
-        st.download_button(
-            f"Download {title}",
-            trade_df.to_csv(index=False),
-            f"{download_prefix}_history.csv",
-            "text/csv"
-        )
-    else:
-        st.info("No trade history available")
+
+    @staticmethod
+    def display_trade_history(trade_history,
+                              title="Trading History",
+                              download_prefix="trade"):
+        """
+        Display trade history in a Streamlit interface
+        Args:
+            trade_history: List of trade info dictionaries
+            title: Title for the history section
+            download_prefix: Prefix for the download file name
+        """
+        import streamlit as st
+        import pandas as pd
+
+        st.subheader(title)
+        if trade_history and len(trade_history) > 0:
+            trade_df = pd.DataFrame({
+                'Date': [info['date'] for info in trade_history],
+                'Action': [info['actions'] for info in trade_history],
+                'Portfolio Value':
+                [info['net_worth'] for info in trade_history],
+                'Positions': [info['positions'] for info in trade_history]
+            })
+            st.dataframe(trade_df)
+
+            st.download_button(f"Download {title}",
+                               trade_df.to_csv(index=False),
+                               f"{download_prefix}_history.csv", "text/csv")
+        else:
+            st.info("No trade history available")

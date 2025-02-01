@@ -93,8 +93,8 @@ def display_training_tab():
         hyperparameter_tuning()
 
     if st.session_state.ppo_params is not None:
-        display_testing_interface(st.session_state.ppo_params,
-                                  use_optuna_params)
+        display_testing_interface_wrapper(st.session_state.ppo_params,
+                                          use_optuna_params)
 
     # Add Python code execution interface
     st.header("Data Analysis Console")
@@ -203,7 +203,7 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     """
     progress_bar = st.progress(0)
     status_placeholder = st.empty()
-    
+
     metrics = execute_training(ppo_params, progress_bar, status_placeholder)
 
     if metrics:
@@ -577,3 +577,6 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                                     portfolio_data, symbol)
                                 st.plotly_chart(drawdown_fig,
                                                 use_container_width=True)
+
+def display_testing_interface_wrapper(ppo_params, use_optuna_params=False):
+    display_testing_interface(ppo_params, use_optuna_params)

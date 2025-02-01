@@ -102,8 +102,27 @@ def run_hyperparameter_optimization(stock_names: list,
     study.optimize(objective, n_trials=trials_number)
     return study
 
+def save_best_params(params: Dict[str, Any], value: float) -> None:
+    """Save best parameters to a file"""
+    import json
+    best_params = {'params': params, 'value': value}
+    with open('best_hyperparameters.json', 'w') as f:
+        json.dump(best_params, f)
+
+def load_best_params() -> Optional[Dict[str, Any]]:
+    """Load best parameters from file"""
+    import json
+    try:
+        with open('best_hyperparameters.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
 def display_optimization_results(study: optuna.Study) -> None:
     """Display optimization results using Streamlit"""
+    # Save best parameters
+    save_best_params(study.best_params, study.best_value)
+    
     trials_df = pd.DataFrame([{
         'Trial': t.number,
         'Value': t.value,

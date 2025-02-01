@@ -140,6 +140,7 @@ class TradingEnv(gym.Env):
     def reset_portfolio_and_balance(self) -> Tuple[np.ndarray, Dict]:
         """Reset the portfolio and balance to initial state."""
         self._portfolio_history = []
+        self._trade_history = []  # Reset trade history
         self.current_step = 0
         self.balance = self.initial_balance
         self.positions = {symbol: 0.0 for symbol in self.symbols}

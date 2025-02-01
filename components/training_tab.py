@@ -116,6 +116,9 @@ def display_training_tab():
                     'stock_names': st.session_state.stock_names,
                     'train_start_date': st.session_state.train_start_date,
                     'train_end_date': st.session_state.train_end_date,
+                    'test_start_date': st.session_state.test_start_date,
+                    'test_end_date': st.session_state.test_end_date,
+                    'env_params': st.session_state.env_params,
                 }
 
                 # Create string buffer to capture print output

@@ -1,0 +1,32 @@
+ValueError: could not broadcast input array from shape (6,) into shape (7,)
+Traceback:
+File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 600, in _run_script
+    exec(code, module.__dict__)
+File "/home/runner/workspace/main.py", line 81, in <module>
+    main()
+File "/home/runner/workspace/main.py", line 74, in main
+    display_training_tab()
+File "/home/runner/workspace/components/training_tab.py", line 81, in display_training_tab
+    run_training(ppo_params)
+File "/home/runner/workspace/components/training_tab.py", line 207, in run_training
+    metrics = st.session_state.model.train(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/utils/common.py", line 205, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/core/base_agent.py", line 186, in train
+    self.model.learn(total_timesteps=total_timesteps,
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/ppo/ppo.py", line 315, in learn
+    return super().learn(
+           ^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/on_policy_algorithm.py", line 287, in learn
+    total_timesteps, callback = self._setup_learn(
+                                ^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/base_class.py", line 423, in _setup_learn
+    self._last_obs = self.env.reset()  # type: ignore[assignment]
+                     ^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 78, in reset
+    self._save_obs(env_idx, obs)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 108, in _save_obs
+    self.buf_obs[key][env_idx] = obs
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^

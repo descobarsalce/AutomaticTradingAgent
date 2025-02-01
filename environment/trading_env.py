@@ -96,8 +96,8 @@ class TradingEnv(gym.Env):
                 float(data['High']),
                 float(data['Low']),
                 float(data['Close']),
-                float(data['Volume']),
-                float(self.positions[symbol])
+                float(data['Volume'])
+                # float(self.positions[symbol])
             ])
         obs.append(float(self.balance))
         return np.array(obs, dtype=np.float32)

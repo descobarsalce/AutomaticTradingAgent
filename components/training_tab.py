@@ -266,6 +266,12 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
             "trade_history.csv",
             "text/csv"
         )
+        visualizer = TradingVisualizer()
+        visualizer.display_trade_history(
+            st.session_state.model.env._trade_history,
+            "Training History",
+            "training_trade"
+        )
 
     st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")
@@ -535,7 +541,8 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
 
                     # Display test trade history
                     if 'info_history' in test_results:
-                        TradingVisualizer.display_trade_history(
+                        visualizer = TradingVisualizer()
+                        visualizer.display_trade_history(
                             test_results['info_history'],
                             "Test History",
                             "test_trade"

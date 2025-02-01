@@ -469,7 +469,8 @@ class TradingVisualizer:
                           showlegend=True)
 
         return fig
-def display_trade_history(self, trade_history, title="Trading History", download_prefix="trade"):
+@staticmethod
+def display_trade_history(trade_history, title="Trading History", download_prefix="trade"):
     """
     Display trade history in a Streamlit interface
     Args:

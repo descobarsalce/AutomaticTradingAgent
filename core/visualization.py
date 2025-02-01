@@ -504,8 +504,8 @@ class TradingVisualizer:
             })
             st.dataframe(trade_df)
 
-            st.download_button(f"Download {title}",
-                               trade_df.to_csv(index=False),
-                               f"{download_prefix}_history.csv", "text/csv")
+            # st.download_button(f"Download {title}",
+            #                    trade_df.to_csv(index=False),
+            #                    f"{download_prefix}_history.csv", "text/csv")
         else:
             st.info("No trade history available")

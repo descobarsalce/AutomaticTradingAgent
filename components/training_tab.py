@@ -267,11 +267,6 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
             st.session_state.model.env._trade_history, "Training History",
             "training_trade")
 
-        # Option to download trade history
-        st.download_button("Download Trade History",
-                           trade_df.to_csv(index=False), "trade_history.csv",
-                           "text/csv")
-
     st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")
 

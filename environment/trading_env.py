@@ -8,6 +8,7 @@ from gymnasium import spaces
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 class TradingEnv(gym.Env):
     """
     Consolidated trading environment that combines features from all implementations:
@@ -15,6 +16,7 @@ class TradingEnv(gym.Env):
     - Advanced reward shaping from TradingEnvironment
     - Comprehensive logging and tracking from TradingEnv
     """
+
     def __init__(self,
                  data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
                  initial_balance: float = 10000,
@@ -40,16 +42,16 @@ class TradingEnv(gym.Env):
         self.symbols = list(self.data.keys())
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset
-        self.action_space = self.create_action_space(self.symbols, num_actions=3)
+        self.action_space = self.create_action_space(self.symbols,
+                                                     num_actions=3)
 
         # Observation space includes OHLCV + positions + balance for each asset
-        obs_dim = (len(self.symbols) * 6) + 1  # OHLCV + position for each asset + balance
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(obs_dim,),
-            dtype=np.float32
-        )
+        obs_dim = (len(self.symbols) *
+                   6) + 1  # OHLCV + position for each asset + balance
+        self.observation_space = spaces.Box(low=-np.inf,
+                                            high=np.inf,
+                                            shape=(obs_dim, ),
+                                            dtype=np.float32)
 
         # Initialize trading state
         self.initial_balance = initial_balance
@@ -65,7 +67,7 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.transaction_cost = transaction_cost
 
-    @staticmethod    
+    @staticmethod
     def create_action_space(symbols, num_actions: int = 3) -> gym.Space:
         """
         Create a Gym action space for a trading environment.
@@ -84,7 +86,6 @@ class TradingEnv(gym.Env):
             return spaces.MultiDiscrete([num_actions] * num_symbols)
         return spaces.Discrete(num_actions)
 
-    
     def _get_observation(self) -> np.ndarray:
         """Get current observation of market and account state."""
         obs = []
@@ -92,7 +93,7 @@ class TradingEnv(gym.Env):
             data = self.data[symbol].iloc[self.current_step]
             obs.extend([
                 float(data['Open']),
-                float(data['High']), 
+                float(data['High']),
                 float(data['Low']),
                 float(data['Close']),
                 float(data['Volume']),
@@ -102,10 +103,11 @@ class TradingEnv(gym.Env):
         return np.array(obs, dtype=np.float32)
 
     def _compute_reward(self, prev_net_worth: float, current_net_worth: float,
-                       actions: Union[int, np.ndarray], trades_executed: Dict[str, bool]) -> float:
+                        actions: Union[int, np.ndarray],
+                        trades_executed: Dict[str, bool]) -> float:
         """Calculate reward based on trading performance and behavior."""
         reward = 0.0
-        
+
         # Penalize attempting trades without sufficient balance
         for symbol, executed in trades_executed.items():
             if not executed and isinstance(actions, (list, np.ndarray)):
@@ -115,14 +117,17 @@ class TradingEnv(gym.Env):
 
         # Portfolio return reward
         if prev_net_worth > 0:
-            portfolio_return = (current_net_worth - prev_net_worth) / prev_net_worth
+            portfolio_return = (current_net_worth -
+                                prev_net_worth) / prev_net_worth
             reward += portfolio_return
 
         if self.use_holding_bonus:
             # Add holding bonus for profitable positions
             for symbol in self.symbols:
-                current_price = self.data[symbol].iloc[self.current_step]['Close']
-                if self.positions[symbol] > 0 and current_price > self.cost_bases[symbol]:
+                current_price = self.data[symbol].iloc[
+                    self.current_step]['Close']
+                if self.positions[
+                        symbol] > 0 and current_price > self.cost_bases[symbol]:
                     reward += 0.001 * self.holding_periods[symbol]
 
         if self.use_trading_penalty:
@@ -144,7 +149,7 @@ class TradingEnv(gym.Env):
         self.last_logged_step = -1
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.episode_count += 1
-        
+
         observation = self._get_observation()
         info = {
             'initial_balance': self.initial_balance,
@@ -155,11 +160,13 @@ class TradingEnv(gym.Env):
         }
         return observation, info
 
-    def reset(self, seed: Optional[int] = None, options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
+    def reset(self,
+              seed: Optional[int] = None,
+              options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
         """Reset the environment to initial state."""
         super().reset(seed=seed)
         self.reset_portfolio_and_balance()
-        
+
         observation = self._get_observation()
         info = {
             'initial_balance': self.initial_balance,
@@ -171,14 +178,17 @@ class TradingEnv(gym.Env):
         }
         return observation, info
 
-    def step(self, action: Union[int, np.ndarray]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
+    def step(
+        self, action: Union[int, np.ndarray]
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """Execute one step in the environment."""
         self.total_steps += 1
 
         # Convert single action to list for unified processing
         actions = [action] if isinstance(action, (int, np.integer)) else action
         if len(actions) != len(self.symbols):
-            raise ValueError(f"Expected {len(self.symbols)} actions, got {len(actions)}")
+            raise ValueError(
+                f"Expected {len(self.symbols)} actions, got {len(actions)}")
 
         # Store previous state
         prev_net_worth = self.net_worth
@@ -186,24 +196,31 @@ class TradingEnv(gym.Env):
 
         # Process actions for each asset
         for idx, symbol in enumerate(self.symbols):
-            current_price = float(self.data[symbol].iloc[self.current_step]['Close'])
+            current_price = float(
+                self.data[symbol].iloc[self.current_step]['Close'])
             action = int(actions[idx])
 
             if action == 1:  # Buy
                 # Calculate maximum affordable shares considering transaction cost
                 max_trade_amount = max(0, self.balance - self.transaction_cost)
-                trade_amount = min(max_trade_amount * self.position_size, max_trade_amount)
+                trade_amount = min(max_trade_amount * self.position_size,
+                                   max_trade_amount)
                 shares_to_buy = trade_amount / current_price if current_price > 0 else 0
-                total_cost = (shares_to_buy * current_price) + self.transaction_cost
+                total_cost = (shares_to_buy *
+                              current_price) + self.transaction_cost
 
                 # Only execute trade if we can buy at least 0.01 shares
                 if total_cost <= self.balance and shares_to_buy >= 0.01:
-                    logger.info(f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}")
+                    logger.info(
+                        f"BUY  | {symbol} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}"
+                    )
                     self.balance -= total_cost
                     if self.positions[symbol] > 0:
-                        old_cost = self.cost_bases[symbol] * self.positions[symbol]
+                        old_cost = self.cost_bases[symbol] * self.positions[
+                            symbol]
                         new_cost = current_price * shares_to_buy
-                        self.cost_bases[symbol] = (old_cost + new_cost) / (self.positions[symbol] + shares_to_buy)
+                        self.cost_bases[symbol] = (old_cost + new_cost) / (
+                            self.positions[symbol] + shares_to_buy)
                     else:
                         self.cost_bases[symbol] = current_price
                     self.positions[symbol] += shares_to_buy
@@ -216,9 +233,11 @@ class TradingEnv(gym.Env):
                     shares_to_sell = self.positions[symbol]
                     sell_amount = shares_to_sell * current_price
                     net_sell_amount = sell_amount - self.transaction_cost
-                    
-                    logger.info(f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}")
-                    
+
+                    logger.info(
+                        f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}"
+                    )
+
                     self.balance += net_sell_amount
                     self.positions[symbol] = 0
                     self.holding_periods[symbol] = 0
@@ -231,13 +250,14 @@ class TradingEnv(gym.Env):
 
         # Update portfolio value
         self.net_worth = self.balance + sum(
-            self.positions[symbol] * self.data[symbol].iloc[self.current_step]['Close']
-            for symbol in self.symbols
-        )
+            self.positions[symbol] *
+            self.data[symbol].iloc[self.current_step]['Close']
+            for symbol in self.symbols)
         self._portfolio_history.append(self.net_worth)
 
         # Calculate reward
-        reward = self._compute_reward(prev_net_worth, self.net_worth, actions, trades_executed)
+        reward = self._compute_reward(prev_net_worth, self.net_worth, actions,
+                                      trades_executed)
 
         # Update state
         self.current_step += 1

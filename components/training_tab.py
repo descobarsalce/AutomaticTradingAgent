@@ -37,7 +37,7 @@ def display_training_tab():
         best_params = load_best_params()
         if best_params:
             st.session_state.ppo_params = best_params['params']
-    
+
     st.header("Trading Agent Configuration")
 
     # Input parameters
@@ -106,7 +106,7 @@ def display_training_tab():
         hyperparameter_tuning()
 
     if st.session_state.ppo_params is not None:
-        display_testing_interface_wrapper(st.session_state.ppo_params,
+        display_testing_interface(st.session_state.ppo_params,
                                           use_optuna_params)
 
     # Add Python code execution interface
@@ -421,6 +421,3 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                                     portfolio_data, symbol)
                                 st.plotly_chart(drawdown_fig,
                                                 use_container_width=True)
-
-def display_testing_interface_wrapper(ppo_params, use_optuna_params=False):
-    display_testing_interface(ppo_params, use_optuna_params)

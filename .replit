@@ -27,6 +27,7 @@ externalPort = 80
 localPort = 8501
 
 [workflows]
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -40,6 +41,10 @@ args = "Trading Environment Test"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Streamlit Server"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Training Test"
 
 [[workflows.workflow]]
 name = "Trading Environment Test"
@@ -69,3 +74,32 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501
+
+[[workflows.workflow]]
+name = "Training Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = """
+python -c '
+import logging
+logging.basicConfig(level=logging.INFO)
+from environment import create_trading_env
+from core.orchestrator import TradingSystemOrchestrator
+
+def custom_env_creator():
+    import yfinance as yf
+    # Download sample data
+    data = yf.download(\"AAPL\", start=\"2020-01-01\", end=\"2024-01-01\")
+    return create_trading_env(data=data, training_mode=True)
+
+orchestrator = TradingSystemOrchestrator(custom_env_creator)
+orchestrator.run_complete_pipeline(optimize_first=True)
+'"""

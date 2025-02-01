@@ -82,7 +82,3 @@ except Exception as e:
 logging.info("Training Metrics:")
 for metric, value in metrics.items():
     logging.info(f"{metric}: {value:.4f}")
-
-logging.info(f"Final Portfolio Value: {portfolio_history[-1]}")
-logging.info("Final Allocations:")
-logging.info(f"{allocations_df.iloc[-1]}")

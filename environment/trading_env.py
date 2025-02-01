@@ -278,6 +278,11 @@ class TradingEnv(gym.Env):
             'date': self.data[self.symbols[0]].iloc[self.current_step].name
         }
         self.last_info = info  # Store last info for callbacks
+        
+        # Store trade history
+        if not hasattr(self, '_trade_history'):
+            self._trade_history = []
+        self._trade_history.append(info)
 
         return observation, reward, done, truncated, info
 

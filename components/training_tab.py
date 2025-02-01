@@ -197,9 +197,9 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     """
     Executes the training process and displays results
     """
-
     progress_bar = st.progress(0)
     status_placeholder = st.empty()
+    trade_history = []
 
     progress_callback = ProgressBarCallback(
         total_timesteps=(st.session_state.train_start_date -
@@ -227,6 +227,25 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
                 index_col += 1
 
         display_training_metrics(metrics)
+
+    # Display trade history
+    if hasattr(st.session_state.model.env, 'last_info'):
+        st.subheader("Trading History")
+        trade_df = pd.DataFrame({
+            'Date': [info['date'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
+            'Action': [info['actions'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
+            'Portfolio Value': [info['net_worth'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
+            'Positions': [info['positions'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else []
+        })
+        st.dataframe(trade_df)
+        
+        # Option to download trade history
+        st.download_button(
+            "Download Trade History",
+            trade_df.to_csv(index=False),
+            "trade_history.csv",
+            "text/csv"
+        )
 
     st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")

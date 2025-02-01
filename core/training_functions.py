@@ -10,6 +10,7 @@ import optuna
 from core.base_agent import UnifiedTradingAgent
 from utils.callbacks import ProgressBarCallback
 from utils.stock_utils import parse_stock_list
+from core.visualization import TradingVisualizer
 
 
 def initialize_training(stock_names: List[str], train_start_date: datetime,

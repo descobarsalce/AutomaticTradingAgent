@@ -256,6 +256,33 @@ def hyperparameter_tuning() -> None:
     env_params = st.session_state.env_params
 
     st.header("Hyperparameter Tuning Options")
+    
+    use_previous_params = st.checkbox("Use Previously Saved Parameters", value=False)
+    
+    if use_previous_params and os.path.exists('hyperparameter_tuning_results.csv'):
+        prev_results = pd.read_csv('hyperparameter_tuning_results.csv')
+        if not prev_results.empty:
+            best_trial = prev_results.loc[prev_results['Value'].idxmax()]
+            st.success(f"Loading best parameters from previous run (Trial {int(best_trial['Trial'])})")
+            
+            # Set parameters directly without running optimization
+            st.session_state.ppo_params = {
+                'learning_rate': float(best_trial['learning_rate']),
+                'n_steps': int(best_trial['n_steps']),
+                'batch_size': int(best_trial['batch_size']),
+                'n_epochs': int(best_trial['n_epochs']),
+                'gamma': float(best_trial['gamma']),
+                'gae_lambda': float(best_trial['gae_lambda'])
+            }
+            
+            # Display loaded parameters
+            st.write("Loaded Parameters:")
+            for param, value in st.session_state.ppo_params.items():
+                st.write(f"- {param}: {value}")
+            return
+    
+    elif use_previous_params:
+        st.warning("No previous optimization results found")
 
     with st.expander("Tuning Configuration", expanded=True):
         trials_number = st.number_input("Number of Trials",

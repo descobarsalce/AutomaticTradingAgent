@@ -118,15 +118,25 @@ def display_training_tab():
             try:
                 # Update namespace with latest session state
                 st.session_state.code_namespace.update({
-                    'data_handler': st.session_state.model.data_handler,
-                    'stock_names': st.session_state.stock_names,
-                    'train_start_date': st.session_state.train_start_date,
-                    'train_end_date': st.session_state.train_end_date,
-                    'test_start_date': st.session_state.test_start_date,
-                    'test_end_date': st.session_state.test_end_date,
-                    'env_params': st.session_state.env_params,
-                    'model': st.session_state.model,
-                    'vars': st.session_state.code_namespace['vars'],  # Preserve user variables
+                    'data_handler':
+                    st.session_state.model.data_handler,
+                    'stock_names':
+                    st.session_state.stock_names,
+                    'train_start_date':
+                    st.session_state.train_start_date,
+                    'train_end_date':
+                    st.session_state.train_end_date,
+                    'test_start_date':
+                    st.session_state.test_start_date,
+                    'test_end_date':
+                    st.session_state.test_end_date,
+                    'env_params':
+                    st.session_state.env_params,
+                    'model':
+                    st.session_state.model,
+                    'vars':
+                    st.session_state.
+                    code_namespace['vars'],  # Preserve user variables
                 })
 
                 # Create reference to vars dict for easier access
@@ -145,11 +155,14 @@ def display_training_tab():
 
                     # Save all newly defined variables
                     st.session_state.code_namespace['vars'].update({
-                        k: v for k, v in st.session_state.code_namespace.items()
-                        if k not in ['np', 'pd', 'plt', 'go', 'data_handler', 
-                                   'stock_names', 'train_start_date', 'train_end_date',
-                                   'test_start_date', 'test_end_date', 'env_params',
-                                   'model', 'vars']
+                        k: v
+                        for k, v in st.session_state.code_namespace.items()
+                        if k not in [
+                            'np', 'pd', 'plt', 'go', 'data_handler',
+                            'stock_names', 'train_start_date',
+                            'train_end_date', 'test_start_date',
+                            'test_end_date', 'env_params', 'model', 'vars'
+                        ]
                     })
 
                     # Display any generated plots
@@ -251,18 +264,13 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
     # Display trade history using TradingVisualizer
     if hasattr(st.session_state.model.env, '_trade_history'):
         TradingVisualizer.display_trade_history(
-            st.session_state.model.env._trade_history,
-            "Training History",
-            "training_trade"
-        )
+            st.session_state.model.env._trade_history, "Training History",
+            "training_trade")
 
         # Option to download trade history
-        st.download_button(
-            "Download Trade History",
-            trade_df.to_csv(index=False),
-            "trade_history.csv",
-            "text/csv"
-        )
+        st.download_button("Download Trade History",
+                           trade_df.to_csv(index=False), "trade_history.csv",
+                           "text/csv")
 
     st.session_state.ppo_params = ppo_params
     st.success("Training completed and model saved!")
@@ -533,10 +541,8 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                     # Display test trade history
                     if 'info_history' in test_results:
                         TradingVisualizer.display_trade_history(
-                            test_results['info_history'],
-                            "Test History",
-                            "test_trade"
-                        )
+                            test_results['info_history'], "Test History",
+                            "test_trade")
 
                     # Create tabs for different visualization aspects
                     metrics_tab, trades_tab, analysis_tab = st.tabs([
@@ -620,37 +626,3 @@ def display_testing_interface(ppo_params, use_optuna_params=False):
                                     portfolio_data, symbol)
                                 st.plotly_chart(drawdown_fig,
                                                 use_container_width=True)
-
-
-# def generate_test_charts(show_rsi: bool, show_sma20: bool, show_sma50: bool,
-#                         rsi_period: int) -> None:
-#     """
-#     Generates and displays test charts
-#     """
-#     with st.spinner("Fetching and processing data..."):
-#         try:
-#             portfolio_data = st.session_state.model.data_handler.fetch_data(
-#                 st.session_state.model.stock_names, test_start_date, test_end_date)
-
-#             if not portfolio_data:
-#                 st.error("No data available for the selected symbol and date range.")
-#             else:
-#                 portfolio_data = st.session_state.model.data_handler.prepare_data()
-
-#                 if st.session_state.model.stock_names in portfolio_data:
-#                     data = portfolio_data[st.session_state.model.stock_names]
-
-#                     visualizer = TradingVisualizer()
-#                     visualizer.show_rsi = show_rsi
-#                     visualizer.show_sma20 = show_sma20
-#                     visualizer.show_sma50 = show_sma50
-#                     visualizer.rsi_period = rsi_period
-
-#                     st.subheader("Technical Analysis")
-#                     main_chart = visualizer.create_single_chart(
-#                         st.session_state.model.stock_names, data)
-#                     if main_chart:
-#                         st.plotly_chart(main_chart, use_container_width=True)
-
-#         except Exception as e:
-#             st.error(f"Error generating charts: {str(e)}")

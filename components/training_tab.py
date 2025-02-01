@@ -8,6 +8,9 @@ import optuna
 import pandas as pd
 import plotly.graph_objects as go
 from typing import Dict, Any, Optional
+
+import matplotlib.pyplot as plt
+
 from utils.callbacks import ProgressBarCallback
 
 from core.visualization import TradingVisualizer
@@ -92,6 +95,39 @@ def display_training_tab():
     if st.session_state.ppo_params is not None:
         display_testing_interface(st.session_state.ppo_params,
                                   use_optuna_params)
+        
+        # Add Python code execution interface
+        st.header("Data Analysis Console")
+        with st.expander("Python Code Execution", expanded=True):
+            code = st.text_area("Enter Python code:", 
+                height=200,
+                help="Access data via st.session_state.model.data_handler")
+            
+            if st.button("Execute Code"):
+                try:
+                    # Create a local namespace with access to common libraries and data
+                    local_ns = {
+                        'np': np,
+                        'pd': pd,
+                        'plt': plt,
+                        'go': go,
+                        'data_handler': st.session_state.model.data_handler,
+                        'stock_names': st.session_state.stock_names,
+                        'train_start_date': st.session_state.train_start_date,
+                        'train_end_date': st.session_state.train_end_date,
+                    }
+                    
+                    # Execute the code and capture output
+                    with st.spinner("Executing code..."):
+                        exec(code, globals(), local_ns)
+                        
+                        # Display any generated plots
+                        if 'plt' in locals():
+                            st.pyplot(plt.gcf())
+                            plt.close()
+                        
+                except Exception as e:
+                    st.error(f"Error executing code: {str(e)}")
 
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:

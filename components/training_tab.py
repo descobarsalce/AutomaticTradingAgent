@@ -12,8 +12,8 @@ from typing import Dict, Any, Optional
 import matplotlib.pyplot as plt
 
 from utils.callbacks import ProgressBarCallback
-
 from core.visualization import TradingVisualizer
+from core.testing_functions import display_testing_interface
 
 from core.base_agent import UnifiedTradingAgent
 import os

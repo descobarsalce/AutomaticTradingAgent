@@ -28,7 +28,6 @@ dependencies = [
     "ipywidgets>=8.1.5",
     "openai>=1.60.2",
     "trafilatura>=2.0.0",
-    "matplotlib>=3.9.3",
 ]
 
 [[tool.uv.index]]

@@ -226,6 +226,9 @@ def hyperparameter_tuning() -> None:
     """
     Interface for hyperparameter optimization using Optuna
     """
+    from core.hyperparameter_search import (create_parameter_ranges,
+                                          run_hyperparameter_optimization,
+                                          display_optimization_results)
 
     stock_names = st.session_state.stock_names
     train_start_date = st.session_state.train_start_date
@@ -236,50 +239,11 @@ def hyperparameter_tuning() -> None:
 
     with st.expander("Tuning Configuration", expanded=True):
         trials_number = st.number_input("Number of Trials",
-                                        min_value=1,
-                                        value=20,
-                                        step=1)
+                                      min_value=1,
+                                      value=20,
+                                      step=1)
         pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
-
-        st.subheader("Parameter Search Ranges")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            lr_min = st.number_input("Learning Rate Min",
-                                     value=1e-5,
-                                     format="%.1e")
-            lr_max = st.number_input("Learning Rate Max",
-                                     value=5e-4,
-                                     format="%.1e")
-            steps_min = st.number_input("Steps Min", value=512, step=64)
-            steps_max = st.number_input("Steps Max", value=2048, step=64)
-            batch_min = st.number_input("Batch Size Min", value=64, step=32)
-            batch_max = st.number_input("Batch Size Max", value=512, step=32)
-
-        with col2:
-            epochs_min = st.number_input("Training Epochs Min",
-                                         value=3,
-                                         step=1)
-            epochs_max = st.number_input("Training Epochs Max",
-                                         value=10,
-                                         step=1)
-            gamma_min = st.number_input("Gamma Min",
-                                        value=0.90,
-                                        step=0.01,
-                                        format="%.3f")
-            gamma_max = st.number_input("Gamma Max",
-                                        value=0.999,
-                                        step=0.001,
-                                        format="%.3f")
-            gae_min = st.number_input("GAE Lambda Min",
-                                      value=0.90,
-                                      step=0.01,
-                                      format="%.2f")
-            gae_max = st.number_input("GAE Lambda Max",
-                                      value=0.99,
-                                      step=0.01,
-                                      format="%.2f")
-
+        param_ranges = create_parameter_ranges()
         optimization_metric = st.selectbox(
             "Optimization Metric",
             ["sharpe_ratio", "sortino_ratio", "total_return"],
@@ -289,128 +253,22 @@ def hyperparameter_tuning() -> None:
         progress_bar = st.progress(0)
         status_text = st.empty()
 
-        # Create study with pruning
-        study = optuna.create_study(
-            direction='maximize',
-            pruner=optuna.pruners.MedianPruner() if pruning_enabled else None)
-
-        def objective(trial: optuna.Trial) -> float:
-            try:
-                ppo_params = {
-                    'learning_rate':
-                    trial.suggest_loguniform('learning_rate', lr_min, lr_max),
-                    'n_steps':
-                    trial.suggest_int('n_steps', steps_min, steps_max),
-                    'batch_size':
-                    trial.suggest_int('batch_size', batch_min, batch_max),
-                    'n_epochs':
-                    trial.suggest_int('n_epochs', epochs_min, epochs_max),
-                    'gamma':
-                    trial.suggest_uniform('gamma', gamma_min, gamma_max),
-                    'gae_lambda':
-                    trial.suggest_uniform('gae_lambda', gae_min, gae_max),
-                }
-
-                status_text.text(
-                    f"Trial {trial.number + 1}/{trials_number}: Testing parameters {ppo_params}"
-                )
-
-                trial_model = UnifiedTradingAgent()
-
-                # Train with current parameters
-                metrics = trial_model.train(stock_names=stock_names,
-                                            start_date=train_start_date,
-                                            end_date=train_end_date,
-                                            env_params=env_params,
-                                            ppo_params=ppo_params)
-
-                # Use selected optimization metric
-                trial_value = metrics.get(optimization_metric, float('-inf'))
-                progress = (trial.number + 1) / trials_number
-                progress_bar.progress(progress)
-
-                return trial_value
-
-            except Exception as e:
-                st.error(f"Error in trial {trial.number}: {str(e)}")
-                return float('-inf')
-
         try:
-            study.optimize(objective, n_trials=trials_number)
+            study = run_hyperparameter_optimization(
+                stock_names=stock_names,
+                train_start_date=train_start_date,
+                train_end_date=train_end_date,
+                env_params=env_params,
+                param_ranges=param_ranges,
+                trials_number=trials_number,
+                optimization_metric=optimization_metric,
+                progress_bar=progress_bar,
+                status_text=status_text,
+                pruning_enabled=pruning_enabled
+            )
 
             st.success("Hyperparameter tuning completed!")
-
-            # Create detailed results dataframe
-            trials_df = pd.DataFrame([{
-                'Trial': t.number,
-                'Value': t.value,
-                **t.params
-            } for t in study.trials if t.value is not None])
-
-            # Display results in tabs
-            tab1, tab2, tab3 = st.tabs([
-                "Best Parameters", "Optimization History",
-                "Parameter Importance"
-            ])
-
-            with tab1:
-                st.subheader("Best Configuration Found")
-                for param, value in study.best_params.items():
-                    if param == 'learning_rate':
-                        st.metric(f"Best {param}", f"{value:.2e}")
-                    elif param in ['gamma', 'gae_lambda']:
-                        st.metric(f"Best {param}", f"{value:.4f}")
-                    else:
-                        st.metric(f"Best {param}", f"{int(value)}")
-                st.metric(f"Best {optimization_metric}",
-                          f"{study.best_value:.6f}")
-                # Save best parameters
-                st.session_state.ppo_params = study.best_params
-
-            with tab2:
-                st.subheader("Trial History")
-                history_fig = go.Figure()
-                history_fig.add_trace(
-                    go.Scatter(x=trials_df.index,
-                               y=trials_df['Value'],
-                               mode='lines+markers',
-                               name='Trial Value'))
-                history_fig.update_layout(
-                    title='Optimization History',
-                    xaxis_title='Trial Number',
-                    yaxis_title=optimization_metric.replace('_', ' ').title())
-                st.plotly_chart(history_fig)
-
-            with tab3:
-                st.subheader("Parameter Importance")
-                importance_dict = optuna.importance.get_param_importances(
-                    study)
-                importance_df = pd.DataFrame({
-                    'Parameter':
-                    list(importance_dict.keys()),
-                    'Importance':
-                    list(importance_dict.values())
-                }).sort_values('Importance', ascending=True)
-
-                importance_fig = go.Figure()
-                importance_fig.add_trace(
-                    go.Bar(x=importance_df['Importance'],
-                           y=importance_df['Parameter'],
-                           orientation='h'))
-                importance_fig.update_layout(
-                    title='Parameter Importance Analysis',
-                    xaxis_title='Relative Importance',
-                    yaxis_title='Parameter',
-                    height=400)
-                st.plotly_chart(importance_fig)
-
-            # Save full results to CSV
-            trials_df.to_csv('hyperparameter_tuning_results.csv', index=False)
-
-            # Download button for results
-            st.download_button("Download Complete Results CSV",
-                               trials_df.to_csv(index=False),
-                               "hyperparameter_tuning_results.csv", "text/csv")
+            display_optimization_results(study)
 
         except Exception as e:
             st.error(f"Optimization failed: {str(e)}")

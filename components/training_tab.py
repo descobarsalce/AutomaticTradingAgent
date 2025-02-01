@@ -183,73 +183,30 @@ def display_training_tab():
                 sys.stdout = original_stdout
 
 
+from core.training_functions import (
+    initialize_training,
+    execute_training,
+    get_training_parameters,
+    display_training_metrics
+)
+
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
     """
-    Displays and handles manual parameter input interface
-    Returns:
-        Dictionary of PPO parameters
+    Gets training parameters using the training functions module
     """
-
-    if use_optuna_params:
-        if st.session_state.ppo_params is not None:
-            # If the code has already found optimal parameters (stored in the state session)
-            st.info("Using Optuna's optimized parameters")
-            params = st.session_state.ppo_params
-            return {}, use_optuna_params
-    elif use_optuna_params:
-        if st.session_state.ppo_params is None:
-            st.warning(
-                "No Optuna parameters available. Please run hyperparameter tuning first."
-            )
-    else:
-        col3, col4 = st.columns(2)
-        with col3:
-            learning_rate = st.number_input("Learning Rate",
-                                            value=3e-4,
-                                            format="%.1e")
-            ppo_steps = st.number_input("PPO Steps Per Update", value=512)
-            batch_size = st.number_input("Batch Size", value=128)
-            n_epochs = st.number_input("Number of Epochs", value=5)
-        with col4:
-            gamma = st.number_input("Gamma (Discount Factor)", value=0.99)
-            clip_range = st.number_input("Clip Range", value=0.2)
-            target_kl = st.number_input("Target KL Divergence", value=0.05)
-
-        return {
-            'learning_rate': learning_rate,
-            'n_steps': ppo_steps,
-            'batch_size': batch_size,
-            'n_epochs': n_epochs,
-            'gamma': gamma,
-            'clip_range': clip_range,
-            'target_kl': target_kl
-        }
+    return get_training_parameters(use_optuna_params)
 
 
 def run_training(ppo_params: Dict[str, Any]) -> None:
     """
-    Executes the training process and displays results
+    Executes the training process using the training functions module
     """
     progress_bar = st.progress(0)
     status_placeholder = st.empty()
-    trade_history = []
-
-    progress_callback = ProgressBarCallback(
-        total_timesteps=(st.session_state.train_start_date -
-                         st.session_state.train_end_date).days,
-        progress_bar=progress_bar,
-        status_placeholder=status_placeholder)
-
-    metrics = st.session_state.model.train(
-        stock_names=st.session_state.stock_names,
-        start_date=st.session_state.train_start_date,
-        end_date=st.session_state.train_end_date,
-        env_params=st.session_state.env_params,
-        ppo_params=ppo_params,
-        callback=progress_callback)
+    
+    metrics = execute_training(ppo_params, progress_bar, status_placeholder)
 
     if metrics:
-        # Display parameters used for testing, automatically sorting into columns:
         st.subheader("Parameters Used for Training")
         col1, col2, col3 = st.columns(3)
         index_col = 0
@@ -261,7 +218,6 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
 
         display_training_metrics(metrics)
 
-    # Display trade history using TradingVisualizer
     if hasattr(st.session_state.model.env, '_trade_history'):
         TradingVisualizer.display_trade_history(
             st.session_state.model.env._trade_history, "Training History",

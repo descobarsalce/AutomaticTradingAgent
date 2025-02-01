@@ -20,6 +20,12 @@ import os
 import numpy as np
 from utils.stock_utils import parse_stock_list
 
+from core.training_functions import (
+    initialize_training,
+    execute_training,
+    get_training_parameters,
+    display_training_metrics
+)
 
 def display_training_tab():
     """
@@ -183,12 +189,7 @@ def display_training_tab():
                 sys.stdout = original_stdout
 
 
-from core.training_functions import (
-    initialize_training,
-    execute_training,
-    get_training_parameters,
-    display_training_metrics
-)
+
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:
     """

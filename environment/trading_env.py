@@ -26,7 +26,8 @@ class TradingEnv(gym.Env):
                  use_holding_bonus: bool = False,
                  use_trading_penalty: bool = False,
                  training_mode: bool = False,
-                 log_frequency: int = 30):
+                 log_frequency: int = 30,
+                 stock_names: Optional[List[str]] = None):
         super().__init__()
 
         self._portfolio_history = []
@@ -38,7 +39,17 @@ class TradingEnv(gym.Env):
         self.position_size = position_size
 
         # Handle both single and multi-asset data
-        self.data = data if isinstance(data, dict) else {'asset': data}
+        if isinstance(data, dict):
+            self.data = data
+        else:
+            # If single DataFrame is passed, extract column name from index
+            # or use first stock name if available
+            if hasattr(data, 'columns') and len(data.columns.get_level_values(0).unique()) > 0:
+                asset_name = data.columns.get_level_values(0).unique()[0]
+            else:
+                asset_name = stock_names[0] if isinstance(stock_names, list) and stock_names else "ASSET"
+            self.data = {asset_name: data}
+            
         self.symbols = list(self.data.keys())
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset

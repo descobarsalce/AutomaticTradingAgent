@@ -117,6 +117,13 @@ def display_training_tab():
                         'train_end_date': st.session_state.train_end_date,
                     }
                     
+                    # Create string buffer to capture print output
+                    import io
+                    import sys
+                    output_buffer = io.StringIO()
+                    original_stdout = sys.stdout
+                    sys.stdout = output_buffer
+                    
                     # Execute the code and capture output
                     with st.spinner("Executing code..."):
                         exec(code, globals(), local_ns)
@@ -126,8 +133,17 @@ def display_training_tab():
                             st.pyplot(plt.gcf())
                             plt.close()
                         
+                        # Get and display the captured output
+                        sys.stdout = original_stdout
+                        output = output_buffer.getvalue()
+                        if output:
+                            st.text_area("Output:", value=output, height=150)
+                        
                 except Exception as e:
                     st.error(f"Error executing code: {str(e)}")
+                finally:
+                    # Ensure stdout is restored
+                    sys.stdout = original_stdout
 
 
 def get_parameters(use_optuna_params) -> Dict[str, Any]:

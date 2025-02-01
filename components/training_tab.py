@@ -248,16 +248,13 @@ def run_training(ppo_params: Dict[str, Any]) -> None:
 
         display_training_metrics(metrics)
 
-    # Display trade history
-    if hasattr(st.session_state.model.env, 'last_info'):
-        st.subheader("Trading History")
-        trade_df = pd.DataFrame({
-            'Date': [info['date'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
-            'Action': [info['actions'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
-            'Portfolio Value': [info['net_worth'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else [],
-            'Positions': [info['positions'] for info in st.session_state.model.env._trade_history] if hasattr(st.session_state.model.env, '_trade_history') else []
-        })
-        st.dataframe(trade_df)
+    # Display trade history using TradingVisualizer
+    if hasattr(st.session_state.model.env, '_trade_history'):
+        TradingVisualizer.display_trade_history(
+            st.session_state.model.env._trade_history,
+            "Training History",
+            "training_trade"
+        )
 
         # Option to download trade history
         st.download_button(

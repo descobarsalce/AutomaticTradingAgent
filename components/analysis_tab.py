@@ -200,49 +200,6 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
         display_charts_grid(volume_charts, "Volume Analysis", num_columns)
         display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
         display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
-        
-        # Stacked Area Chart
-        st.subheader("Stocks Stacked Area Chart")
-        normalized_prices = {}
-        first_date = None
-        
-        # Get and normalize data for each stock
-        for stock in viz_stocks:
-            if stock in portfolio_data:
-                data = portfolio_data[stock]
-                if first_date is None:
-                    first_date = data.index[0]
-                # Normalize to percentage change from first day
-                initial_price = data['Close'].iloc[0]
-                normalized_prices[stock] = (data['Close'] / initial_price - 1) * 100
-
-        if normalized_prices:
-            df = pd.DataFrame(normalized_prices)
-            fig = go.Figure()
-            
-            # Add traces for each stock
-            for stock in viz_stocks:
-                if stock in df.columns:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=df.index,
-                            y=df[stock],
-                            name=stock,
-                            stackgroup='one',
-                            mode='lines',
-                            line=dict(width=0.5)
-                        )
-                    )
-
-            fig.update_layout(
-                title="Normalized Stock Performance (Stacked)",
-                xaxis_title="Date",
-                yaxis_title="% Change",
-                template="plotly_dark",
-                showlegend=True,
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig, use_container_width=True)
 
         # Advanced Analytics Section
         if model and hasattr(model, 'portfolio_history') and model.portfolio_history:

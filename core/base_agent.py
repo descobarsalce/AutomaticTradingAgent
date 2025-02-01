@@ -316,39 +316,51 @@ class UnifiedTradingAgent:
     def _update_metrics(self) -> None:
         """Update performance metrics."""
         try:
-            returns = MetricsCalculator.calculate_returns(
-                self.portfolio_history)
-
-            self.evaluation_metrics.update({
-                'returns':
-                float(np.mean(returns)) if len(returns) > 0 else 0.0,
-                'sharpe_ratio':
-                MetricsCalculator.calculate_sharpe_ratio(returns),
-                'sortino_ratio':
-                MetricsCalculator.calculate_sortino_ratio(returns),
-                'information_ratio':
-                MetricsCalculator.calculate_information_ratio(returns),
-                'max_drawdown':
-                MetricsCalculator.calculate_maximum_drawdown(
+            # Only calculate metrics if we have enough history
+            if len(self.portfolio_history) > 1:
+                returns = MetricsCalculator.calculate_returns(
                     self.portfolio_history)
-            })
-
-            valid_positions = [
-                p for p in self.positions_history if isinstance(p, dict)
-            ]
-            self.evaluation_metrics['total_trades'] = len(valid_positions)
-
-            if len(valid_positions) > 1:
-                profitable_trades = sum(1
-                                        for i in range(1, len(valid_positions))
-                                        if sum(valid_positions[i].values()) >
-                                        sum(valid_positions[i - 1].values()))
-                self.evaluation_metrics['win_rate'] = profitable_trades / len(
-                    valid_positions)
-
+                
+                # Calculate metrics with error handling
+                metrics_dict = {
+                    'returns': float(np.mean(returns)) if len(returns) > 0 else 0.0,
+                    'sharpe_ratio': 0.0,
+                    'sortino_ratio': 0.0,
+                    'information_ratio': 0.0,
+                    'max_drawdown': 0.0,
+                    'total_trades': 0,
+                    'win_rate': 0.0
+                }
+                
+                # Only calculate ratios if we have valid returns
+                if len(returns) > 0:
+                    try:
+                        metrics_dict['sharpe_ratio'] = MetricsCalculator.calculate_sharpe_ratio(returns)
+                        metrics_dict['sortino_ratio'] = MetricsCalculator.calculate_sortino_ratio(returns)
+                        metrics_dict['information_ratio'] = MetricsCalculator.calculate_information_ratio(returns)
+                        metrics_dict['max_drawdown'] = MetricsCalculator.calculate_maximum_drawdown(self.portfolio_history)
+                    except Exception as e:
+                        logger.warning(f"Error calculating some metrics: {str(e)}")
+                
+                # Calculate trade metrics
+                valid_positions = [p for p in self.positions_history if isinstance(p, dict) and p]
+                metrics_dict['total_trades'] = len(valid_positions)
+                
+                if len(valid_positions) > 1:
+                    try:
+                        profitable_trades = sum(1 for i in range(1, len(valid_positions))
+                                              if sum(valid_positions[i].values()) > sum(valid_positions[i-1].values()))
+                        metrics_dict['win_rate'] = profitable_trades / (len(valid_positions) - 1)
+                    except Exception as e:
+                        logger.warning(f"Error calculating trade metrics: {str(e)}")
+                
+                # Update the metrics
+                self.evaluation_metrics.update(metrics_dict)
+            
         except Exception as e:
-            logger.exception("Error updating metrics")
-            self.evaluation_metrics = {k: 0.0 for k in self.evaluation_metrics}
+            logger.exception("Critical error updating metrics")
+            # Keep existing metrics instead of resetting to 0
+            logger.warning("Keeping previous metrics due to update failure")
 
     @type_check
     def get_metrics(self) -> Dict[str, Union[float, List[float], int]]:

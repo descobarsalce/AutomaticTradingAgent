@@ -101,7 +101,7 @@ def display_training_tab():
     with st.expander("Python Code Execution", expanded=True):
         code = st.text_area(
             "Enter Python code:",
-            height=200,
+            height=300,
             help="Access data via st.session_state.model.data_handler")
 
         if st.button("Execute Code"):
@@ -138,7 +138,7 @@ def display_training_tab():
                     sys.stdout = original_stdout
                     output = output_buffer.getvalue()
                     if output:
-                        st.text_area("Output:", value=output, height=150)
+                        st.text_area("Output:", value=output, height=250)
 
             except Exception as e:
                 st.error(f"Error executing code: {str(e)}")

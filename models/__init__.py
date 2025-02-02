@@ -1,2 +1,2 @@
 
-from .database import Session, StockData
+from .database import DBSession, StockData

@@ -22,6 +22,9 @@ class StockData(Base):
 
     __table_args__ = (UniqueConstraint('symbol', 'date', name='uix_symbol_date'),)
 
+# Create session maker
+DBSession = db_config.SessionLocal
+
 def init_db():
     Base.metadata.create_all(db_config.engine)
 

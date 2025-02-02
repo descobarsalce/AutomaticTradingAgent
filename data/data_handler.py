@@ -16,7 +16,6 @@ from models.database import StockData
 
 logger = logging.getLogger(__name__)
 
-
 class DataHandler:
 
     def __init__(self):
@@ -72,7 +71,7 @@ class DataHandler:
     def get_cached_data(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
         """Check if we have fresh data in the cache"""
         try:
-            cached_records = self.db_session.query(StockData).filter(
+            cached_records = self.session.query(StockData).filter(
                 and_(
                     StockData.symbol == symbol,
                     StockData.date >= start_date,
@@ -84,7 +83,7 @@ class DataHandler:
                 return None
 
             newest_record = max(record.last_updated for record in cached_records)
-            if datetime.utcnow() - newest_record > timedelta(days=1):
+            if datetime.now(datetime.timezone.utc) - newest_record > timedelta(days=1):
                 return None
 
             data = pd.DataFrame([{
@@ -118,7 +117,7 @@ class DataHandler:
                     last_updated=datetime.utcnow()
                 )
 
-                existing = self.db_session.query(StockData).filter(
+                existing = self.session.query(StockData).filter(
                     StockData.symbol == symbol,
                     StockData.date == date
                 ).first()
@@ -131,11 +130,11 @@ class DataHandler:
                     existing.volume = row['Volume']
                     existing.last_updated = datetime.utcnow()
                 else:
-                    self.db_session.add(stock_data)
+                    self.session.add(stock_data)
 
-            self.db_session.commit()
+            self.session.commit()
 
         except Exception as e:
             logger.error(f"Error caching data: {e}")
-            self.db_session.rollback()
+            self.session.rollback()
             raise

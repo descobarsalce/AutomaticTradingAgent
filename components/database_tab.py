@@ -3,12 +3,15 @@
 Database Explorer Component
 Handles database exploration and visualization interface
 """
-import streamlit as st
+import streamlit as
+st
 import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
-from models.database import Session, StockData
+from models.database import StockData
 import os
+
+from .data_handlder import DataHandler
 
 def display_database_explorer():
     """Display the database explorer interface"""
@@ -16,7 +19,7 @@ def display_database_explorer():
     st.header("Database Statistics")
 
     # Initialize database session
-    session = Session()
+    session = DataHandler()
 
     col1, col2, col3 = st.columns(3)
 

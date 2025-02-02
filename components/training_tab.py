@@ -20,14 +20,11 @@ import os
 import numpy as np
 from utils.stock_utils import parse_stock_list
 
-from core.training_functions import (
-    initialize_training,
-    execute_training,
-    get_training_parameters,
-    display_training_metrics,
-    run_training
-)
+from core.training_functions import (initialize_training, execute_training,
+                                     get_training_parameters,
+                                     display_training_metrics, run_training)
 from core.hyperparameter_search import hyperparameter_tuning
+
 
 def display_training_tab():
     """
@@ -108,8 +105,12 @@ def display_training_tab():
         hyperparameter_tuning()
 
     if st.session_state.ppo_params is not None:
-        display_testing_interface(st.session_state.ppo_params,
-                                          use_optuna_params)
+        # display_testing_interface(model, stock_names, env_params, ppo_params, use_optuna_params=False):
+        display_testing_interface(st.session_state.model,
+                                  st.session_state.stock_names,
+                                  st.session_state.env_params,
+                                  st.session_state.ppo_params,
+                                  use_optuna_params=use_optuna_params)
 
     # Add Python code execution interface
     st.header("Data Analysis Console")
@@ -196,14 +197,3 @@ def display_training_tab():
             finally:
                 # Ensure stdout is restored
                 sys.stdout = original_stdout
-
-
-
-
-
-
-
-
-
-
-

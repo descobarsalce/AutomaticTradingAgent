@@ -13,7 +13,9 @@ from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from environment import TradingEnv
-from data.data_handler import DataHandler
+import streamlit as st
+
+from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
                           DEFAULT_STOP_LOSS, MIN_TRADE_SIZE)
 
@@ -30,7 +32,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 
 class UnifiedTradingAgent:
     """Unified trading agent combining all trading functionality."""
@@ -41,12 +42,11 @@ class UnifiedTradingAgent:
                  tensorboard_log: str = "./tensorboard_logs/",
                  seed: Optional[int] = None) -> None:
         """Initialize the unified trading agent."""
-        self.env: Optional[xTradingEnv] = None
+        self.env: Optional[TradingEnv] = None
         self.model: Optional[PPO] = None
-        self.data_handler = DataHandler()
         self.portfolio_history: List[float] = []
         self.positions_history: List[Dict[str, float]] = []
-        self.portfolio_data: Dict[str, pd.DataFrame] = {}
+        self.stocks_data: Dict[str, pd.DataFrame] = {}
         self.evaluation_metrics: Dict[str, Union[float, List[float], int]] = {
             'returns': [],
             'sharpe_ratio': 0.0,
@@ -56,23 +56,22 @@ class UnifiedTradingAgent:
             'total_trades': 0,
             'win_rate': 0.0
         }
-
-        self.optimize_for_sharpe = optimize_for_sharpe
+        self.optimize_for_sharpe = optimize_for_sharpe # not used really
         self.tensorboard_log = tensorboard_log
         self.seed = seed
-        self.ppo_params = self.DEFAULT_PPO_PARAMS.copy()
+        self.ppo_params = DEFAULT_PPO_PARAMS.copy()
 
     @type_check
     def prepare_processed_data(self, stock_names: List, start_date: datetime,
                                end_date: datetime) -> pd.DataFrame:
         """Fetch and prepare data."""
-        self.portfolio_data = self.data_handler.fetch_data(stock_names, start_date,
+        self.stocks_data = st.session_state.data_handler.fetch_data(stock_names, start_date,
                                                            end_date)
-        if not self.portfolio_data:
+        if not self.stocks_data:
             raise ValueError("No data found in database")
 
         # Now we extract the features for the model:
-        prepared_data = self.data_handler.prepare_data(self.portfolio_data)
+        prepared_data = st.session_state.data_handler.prepare_data(self.stocks_data)
         return next(iter(prepared_data.values()))
 
     @type_check
@@ -105,8 +104,8 @@ class UnifiedTradingAgent:
 
         # Validate parameters
         for param, value in self.ppo_params.items():
-            if param in self.PARAM_RANGES and value is not None:
-                min_val, max_val = self.PARAM_RANGES[param]
+            if param in PARAM_RANGES and value is not None:
+                min_val, max_val = PARAM_RANGES[param]
                 if not (min_val <= value <= max_val):
                     logger.warning(
                         f"Parameter {param} value {value} outside range [{min_val}, {max_val}]"
@@ -116,7 +115,7 @@ class UnifiedTradingAgent:
         # Set network architecture
         policy_kwargs = ({
             'net_arch': [dict(pi=[128, 128, 128], vf=[128, 128, 128])]
-        } if self.optimize_for_sharpe else self.DEFAULT_POLICY_KWARGS.copy())
+        } if self.optimize_for_sharpe else DEFAULT_POLICY_KWARGS.copy())
 
         if 'verbose' not in self.ppo_params:
             self.ppo_params['verbose'] = 1
@@ -196,9 +195,6 @@ class UnifiedTradingAgent:
                                        deterministic=deterministic)
         action_val = int(
             action.item() if isinstance(action, np.ndarray) else action)
-
-        # if not 0 <= action_val <= 2:
-        #     raise ValueError(f"Invalid action value: {action_val}")
 
         return np.array([action_val])
 

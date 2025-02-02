@@ -37,6 +37,7 @@ class DataHandler:
         for symbol in symbols:
             try:
                 cached_data = self.get_cached_data(symbol, start_date, end_date)
+                ## This seems incomplete. The system should verify that all of the requires dates are available. It's not enough to have all columns, you need to have all the dates. If you are only missing some dates, then you can download only the remaining ones.
                 if cached_data is not None and all(col in cached_data.columns for col in required_columns):
                     all_stocks_data[symbol] = cached_data
                     continue

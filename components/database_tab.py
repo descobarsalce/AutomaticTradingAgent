@@ -10,16 +10,12 @@ from sqlalchemy import func, distinct
 from models.database import StockData
 import os
 
-from data.data_handler import DataHandler
-
 def display_database_explorer():
     """Display the database explorer interface"""
     st.title("Database Explorer")
     st.header("Database Statistics")
 
-    # Initialize database session
-    data_handler = DataHandler()
-    session = data_handler
+    session = st.session_state.data_handler
     
     col1, col2, col3 = st.columns(3)
 

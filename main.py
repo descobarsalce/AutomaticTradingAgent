@@ -1,25 +1,11 @@
 
 import streamlit as st
-import os
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
-from typing import Dict, Any
-from utils.callbacks import ProgressBarCallback
 from core.base_agent import UnifiedTradingAgent
-
-import optuna
-from sqlalchemy import func, distinct
-from models.database import StockData
-from utils.db_config import get_db_session
-from utils.stock_utils import parse_stock_list
-
 from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
 from components.database_tab import display_database_explorer
+from data.data_handler import DataHandler
 
-# Configure logging
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,6 +44,9 @@ def init_session_state() -> None:
         st.session_state.model = UnifiedTradingAgent()
     if 'stock_list' not in st.session_state:
         st.session_state.stock_list = ['APPL', 'MSFT']
+    if 'data_handler' not in st.session_state:
+        st.session_state.data_handler = DataHandler()
+
 
 def main() -> None:
     init_session_state()

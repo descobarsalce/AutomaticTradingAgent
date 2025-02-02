@@ -34,8 +34,6 @@ def init_db():
     Base.metadata.create_all(engine)
 
 
-Base = declarative_base()
-
+# Initialize engine and Session
 engine = create_engine('sqlite:///trading_data.db')
-Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)

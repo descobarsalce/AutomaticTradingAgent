@@ -31,11 +31,11 @@ def display_training_tab():
     Renders the training interface tab
     """
     # Initialize session state with saved parameters if they exist
-    if 'ppo_params' not in st.session_state:
-        from core.hyperparameter_search import load_best_params
-        best_params = load_best_params()
-        if best_params:
-            st.session_state.ppo_params = best_params['params']
+    # if 'ppo_params' not in st.session_state:
+    #     from core.hyperparameter_search import load_best_params
+    #     best_params = load_best_params()
+    #     if best_params:
+    #         st.session_state.ppo_params = best_params['params']
 
     st.header("Trading Agent Configuration")
 

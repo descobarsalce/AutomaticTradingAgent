@@ -8,10 +8,10 @@ import numpy as np
 # from datetime import datetime, timedelta
 from data.data_feature_engineer import FeatureEngineer
 from utils.db_config import get_db_session
-from sqlalchemy.orm import Session
 import logging
 from typing import Dict, Optional
-from models.database import Session, StockData
+from models.database import DBSession, StockData
+from datetime import timedelta, datetime
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +20,10 @@ class DataHandler:
 
     def __init__(self):
         self.feature_engineer = FeatureEngineer()
-        self.session = Session()
+        self.session = DBSession()
 
     @property
-    def db_session(self) -> Session:
+    def db_session(self) -> DBSession:
         """Lazy database session initialization"""
         if self.session is None:
             self.session = get_db_session()
@@ -34,6 +34,7 @@ class DataHandler:
         if isinstance(symbols, str):
             symbols = [symbols]
 
+        all_stocks_data = {}
         for symbol in symbols:
             try:
                 # Use the database session from centralized config
@@ -42,7 +43,7 @@ class DataHandler:
                 if cached_data is not None and all(
                         col in cached_data.columns
                         for col in required_columns):
-                    portfolio_data[symbol] = cached_data
+                    all_stocks_data[symbol] = cached_data
                     continue
 
                 # Only fetch from yfinance if cache miss or stale data
@@ -54,15 +55,15 @@ class DataHandler:
                     raise ValueError(f"Missing required columns for {symbol}")
 
                 self.cache_data(symbol, data)
-                portfolio_data[symbol] = data
+                all_stocks_data[symbol] = data
             except Exception as e:
                 logger.error(f"Error fetching data for {symbol}: {str(e)}")
                 raise ValueError(f"Error fetching data for {symbol}: {str(e)}")
 
-        if not portfolio_data:
+        if not all_stocks_data:
             raise ValueError("No valid data retrieved for any symbols")
 
-        return portfolio_data
+        return all_stocks_data
 
     def prepare_data(
             self,

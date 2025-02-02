@@ -18,13 +18,13 @@ class StockData(Base):
     low = Column(Float)
     close = Column(Float)
     volume = Column(Float)
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.now(datetime.UTC))
 
     __table_args__ = (UniqueConstraint('symbol', 'date', name='uix_symbol_date'),)
 
 # Create engine and session factory
 engine = create_engine('sqlite:///trading_data.db', echo=True)
-Session = sessionmaker(bind=engine)
+DBSession = sessionmaker(bind=engine)
 
 def init_db():
     Base.metadata.create_all(engine)

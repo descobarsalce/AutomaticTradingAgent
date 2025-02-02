@@ -11,7 +11,7 @@ from sqlalchemy import func, distinct
 from models.database import StockData
 import os
 
-from .data_handlder import DataHandler
+from .data_handler import DataHandler
 
 def display_database_explorer():
     """Display the database explorer interface"""
@@ -19,8 +19,9 @@ def display_database_explorer():
     st.header("Database Statistics")
 
     # Initialize database session
-    session = DataHandler()
-
+    data_handler = DataHandler()
+    session = data_handler.get_session()
+    
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols

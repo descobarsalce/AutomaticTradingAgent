@@ -70,7 +70,7 @@ class DataHandler:
             self.session.close()
 
     def get_cached_data(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
-        """Check if we have fresh data in the cache"""
+        """Check if we have fresh data in the cache and validate continuity"""
         try:
             cached_records = self.session.query(StockData).filter(
                 and_(
@@ -83,6 +83,15 @@ class DataHandler:
             if not cached_records:
                 return None
 
+            # Check data continuity
+            dates = pd.date_range(start=start_date, end=end_date, freq='B')  # Business days
+            available_dates = set(record.date.date() for record in cached_records)
+            missing_dates = [d for d in dates if d.date() not in available_dates]
+            
+            if len(missing_dates) > 0:
+                logger.warning(f"Missing {len(missing_dates)} trading days for {symbol}")
+                return None  # Force refetch if data is incomplete
+                
             newest_record = max(record.last_updated for record in cached_records)
             if datetime.now(datetime.timezone.utc) - newest_record > timedelta(days=1):
                 return None

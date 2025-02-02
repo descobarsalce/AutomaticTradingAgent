@@ -9,7 +9,7 @@ import numpy as np
 from sqlalchemy import and_, distinct
 from datetime import timedelta, datetime
 from data.data_feature_engineer import FeatureEngineer
-from utils.db_config import db_config
+from utils.db_config import get_db_session
 import logging
 from typing import Dict, Optional
 from models.database import StockData
@@ -23,11 +23,10 @@ class DataHandler:
         self.feature_engineer = FeatureEngineer()
         self.session = None
 
-    @property
-    def db_session(self):
-        """Lazy database session initialization"""
+    def get_session(self):
+        """Get a database session using context management"""
         if self.session is None:
-            self.session = db_config.SessionLocal()
+            self.session = next(get_db_session())
         return self.session
 
     def fetch_data(self, symbols, start_date, end_date):

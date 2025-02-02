@@ -1,7 +1,6 @@
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 from utils.db_config import db_config
 
@@ -22,8 +21,8 @@ class StockData(Base):
 
     __table_args__ = (UniqueConstraint('symbol', 'date', name='uix_symbol_date'),)
 
-# Create session maker
-DBSession = db_config.SessionLocal
+    def __repr__(self):
+        return f"<StockData(symbol='{self.symbol}', date='{self.date}')>"
 
 def init_db():
     Base.metadata.create_all(db_config.engine)

@@ -1,13 +1,9 @@
-"""
-Centralized database configuration module.
-Provides unified database connection handling and settings.
-"""
 
 import os
 import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from typing import Optional
+from typing import Optional, Generator
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +23,13 @@ class DatabaseConfig:
             self._initialize_db()
 
     def _initialize_db(self) -> None:
-        """Initialize database connection"""
         try:
             database_url = os.getenv('DATABASE_URL', 'sqlite:///trading_data.db')
             self._engine = create_engine(
                 database_url,
                 pool_pre_ping=True,
-                pool_recycle=300
+                pool_recycle=300,
+                connect_args={"check_same_thread": False}  # For SQLite
             )
             self._SessionLocal = sessionmaker(
                 autocommit=False,
@@ -47,23 +43,21 @@ class DatabaseConfig:
 
     @property
     def engine(self):
-        """Get SQLAlchemy engine instance"""
         return self._engine
 
     @property
     def SessionLocal(self):
-        """Get SQLAlchemy session factory"""
         return self._SessionLocal
 
-    def get_session(self) -> Optional[Session]:
-        """Create a new database session"""
-        if self._SessionLocal is None:
-            return None
-        return self._SessionLocal()
+    def get_db(self) -> Generator[Session, None, None]:
+        db = self._SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
 # Global instance
 db_config = DatabaseConfig()
 
-def get_db_session() -> Session:
-    """Utility function to get a database session"""
-    return db_config.get_session()
+def get_db_session() -> Generator[Session, None, None]:
+    return db_config.get_db()

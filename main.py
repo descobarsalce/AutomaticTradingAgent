@@ -11,7 +11,8 @@ from core.base_agent import UnifiedTradingAgent
 
 import optuna
 from sqlalchemy import func, distinct
-from models.database import Session, StockData
+from models.database import StockData
+from utils.db_config import get_db_session
 from utils.stock_utils import parse_stock_list
 
 from components.analysis_tab import display_tech_analysis_tab

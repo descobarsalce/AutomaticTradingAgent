@@ -10,7 +10,7 @@ from data.data_feature_engineer import FeatureEngineer
 from utils.db_config import get_db_session
 from sqlalchemy.orm import Session
 import logging
-from typing import Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 

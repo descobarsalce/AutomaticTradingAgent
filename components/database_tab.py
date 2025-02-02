@@ -3,15 +3,14 @@
 Database Explorer Component
 Handles database exploration and visualization interface
 """
-import streamlit as
-st
+import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
 from models.database import StockData
 import os
 
-from .data_handler import DataHandler
+from data.data_handler import DataHandler
 
 def display_database_explorer():
     """Display the database explorer interface"""
@@ -20,18 +19,18 @@ def display_database_explorer():
 
     # Initialize database session
     data_handler = DataHandler()
-    session = data_handler.get_session()
+    session = data_handler
     
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols
-    unique_symbols = session.query(func.count(distinct(
+    unique_symbols = session.get_session().query(func.count(distinct(
         StockData.symbol))).scalar()
     col1.metric("Total Unique Symbols", unique_symbols)
 
     # Date range
-    min_date = session.query(func.min(StockData.date)).scalar()
-    max_date = session.query(func.max(StockData.date)).scalar()
+    min_date = session.get_session().query(func.min(StockData.date)).scalar()
+    max_date = session.get_session().query(func.max(StockData.date)).scalar()
     if min_date and max_date:
         date_range = f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
         col2.metric("Date Range", date_range)
@@ -46,11 +45,11 @@ def display_database_explorer():
 
     # Query for stock summary information
     stock_summary = []
-    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+    symbols = [row[0] for row in session.get_session().query(distinct(StockData.symbol)).all()]
 
     for symbol in symbols:
         # Get statistics for each stock
-        symbol_data = session.query(
+        symbol_data = session.get_session().query(
             StockData.symbol,
             func.min(StockData.date).label('start_date'),
             func.max(StockData.date).label('end_date'),
@@ -98,7 +97,7 @@ def display_database_explorer():
     st.header("Query Interface")
 
     # Symbol selection
-    symbols = [row[0] for row in session.query(distinct(StockData.symbol)).all()]
+    symbols = [row[0] for row in session.get_session().query(distinct(StockData.symbol)).all()]
     if symbols:
         selected_symbol = st.selectbox("Select Symbol", symbols)
 
@@ -111,7 +110,7 @@ def display_database_explorer():
 
         if st.button("Query Data"):
             # Fetch data
-            query_data = session.query(StockData).filter(
+            query_data = session.get_session().query(StockData).filter(
                 StockData.symbol == selected_symbol,
                 StockData.date >= start_date,
                 StockData.date <= end_date).order_by(StockData.date).all()

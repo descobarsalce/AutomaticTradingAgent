@@ -12,7 +12,7 @@ from data.data_feature_engineer import FeatureEngineer
 from utils.db_config import db_config
 import logging
 from typing import Dict, Optional
-from models.database import StockData, DBSession
+from models.database import StockData
 
 logger = logging.getLogger(__name__)
 

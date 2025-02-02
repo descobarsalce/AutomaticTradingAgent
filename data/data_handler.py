@@ -20,14 +20,14 @@ class DataHandler:
 
     def __init__(self):
         self.feature_engineer = FeatureEngineer()
-        self._db_session: Optional[Session] = None
+        self.session = Session()
 
     @property
     def db_session(self) -> Session:
         """Lazy database session initialization"""
-        if self._db_session is None:
-            self._db_session = get_db_session()
-        return self._db_session
+        if self.session is None:
+            self.session = get_db_session()
+        return self.session
 
     def fetch_data(self, symbols, start_date, end_date):
         required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
@@ -37,7 +37,7 @@ class DataHandler:
         for symbol in symbols:
             try:
                 # Use the database session from centralized config
-                cached_data = self._get_cached_data(symbol, start_date,
+                cached_data = self.get_cached_data(symbol, start_date,
                                                     end_date)
                 if cached_data is not None and all(
                         col in cached_data.columns
@@ -73,8 +73,8 @@ class DataHandler:
 
     def __del__(self):
         """Cleanup database session"""
-        if self._db_session is not None:
-            self._db_session.close()
+        if self.db_session is not None:
+            self.db_session.close()
 
     def get_cached_data(self, symbol: str, start_date, end_date):
         """Check if we have fresh data in the cache"""

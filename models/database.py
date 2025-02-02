@@ -4,7 +4,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-# Create Base class first
 Base = declarative_base()
 
 class StockData(Base):
@@ -18,16 +17,14 @@ class StockData(Base):
     low = Column(Float)
     close = Column(Float)
     volume = Column(Float)
-    last_updated = Column(DateTime, default=datetime.now(datetime.UTC))
+    last_updated = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint('symbol', 'date', name='uix_symbol_date'),)
 
-# Create engine and session factory
-engine = create_engine('sqlite:///trading_data.db', echo=True)
+engine = create_engine('sqlite:///trading_data.db')
 DBSession = sessionmaker(bind=engine)
 
 def init_db():
     Base.metadata.create_all(engine)
 
-# Initialize database tables
 init_db()

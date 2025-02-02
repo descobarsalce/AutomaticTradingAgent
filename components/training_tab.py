@@ -92,14 +92,16 @@ def display_training_tab():
             if st.button("Start Training"):
                 run_training(ppo_params)
         else:
-            if st.button("Start Training"):
-                if st.session_state.ppo_params is None:
-                    st.warning(
-                        "Please run hyperparameter tuning before training model."
-                    )
-                else:
-                    # Note that this will only work in the optimizaiton has already been run so that it has
+            from core.hyperparameter_search import load_best_params
+            best_params = load_best_params()
+            if best_params is not None:
+                st.session_state.ppo_params = best_params['params']
+                if st.button("Start Training"):
                     run_training(st.session_state.ppo_params)
+            else:
+                st.warning(
+                    "No optimized parameters found. Please run hyperparameter tuning first."
+                )
 
     with tab2:
         hyperparameter_tuning()

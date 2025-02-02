@@ -1,8 +1,9 @@
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
+from utils.db_config import db_config
 
 Base = declarative_base()
 
@@ -21,10 +22,7 @@ class StockData(Base):
 
     __table_args__ = (UniqueConstraint('symbol', 'date', name='uix_symbol_date'),)
 
-engine = create_engine('sqlite:///trading_data.db')
-DBSession = sessionmaker(bind=engine)
-
 def init_db():
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(db_config.engine)
 
 init_db()

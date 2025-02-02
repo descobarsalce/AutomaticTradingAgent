@@ -27,7 +27,7 @@ class DataHandler:
     def db_session(self):
         """Lazy database session initialization"""
         if self.session is None:
-            self.session = db_config.get_session()
+            self.session = db_config.SessionLocal()
         return self.session
 
     def fetch_data(self, symbols, start_date, end_date):

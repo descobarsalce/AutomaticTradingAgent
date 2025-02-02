@@ -80,10 +80,9 @@ class DataHandler:
         except Exception as e:
             logger.error(f"Error caching data: {str(e)}")
 
-    def prepare_data(self):
+    def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """Prepare data using feature engineer"""
-        self.portfolio_data = self.feature_engineer.prepare_data(self.portfolio_data)
-        return self.portfolio_data
+        return self.feature_engineer.prepare_data(portfolio_data)
 
     def __del__(self):
         """Cleanup database session"""

@@ -76,6 +76,7 @@ class UnifiedTradingAgent:
         self.data_handler = DataHandler()
         self.portfolio_history: List[float] = []
         self.positions_history: List[Dict[str, float]] = []
+        self.portfolio_data: Dict[str, pd.DataFrame] = {}
         self.evaluation_metrics: Dict[str, Union[float, List[float], int]] = {
             'returns': [],
             'sharpe_ratio': 0.0,
@@ -95,13 +96,13 @@ class UnifiedTradingAgent:
     def prepare_processed_data(self, stock_names: List, start_date: datetime,
                                end_date: datetime) -> pd.DataFrame:
         """Fetch and prepare data."""
-        portfolio_data = self.data_handler.fetch_data(stock_names, start_date,
-                                                      end_date)
-        if not portfolio_data:
+        self.portfolio_data = self.data_handler.fetch_data(stock_names, start_date,
+                                                           end_date)
+        if not self.portfolio_data:
             raise ValueError("No data found in database")
 
         # Now we extract the features for the model:
-        prepared_data = self.data_handler.prepare_data()
+        prepared_data = self.data_handler.prepare_data(self.portfolio_data)
         return next(iter(prepared_data.values()))
 
     @type_check

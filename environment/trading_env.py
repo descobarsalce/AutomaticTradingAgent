@@ -58,7 +58,7 @@ class TradingEnv(gym.Env):
 
         # Observation space includes OHLCV + positions + balance for each asset
         obs_dim = (len(self.symbols) *
-                   6) + 1  # OHLCV + position for each asset + balance
+                   6) + 2  # OHLCV + position for each asset + balance
         self.observation_space = spaces.Box(low=-np.inf,
                                             high=np.inf,
                                             shape=(obs_dim, ),
@@ -148,7 +148,7 @@ class TradingEnv(gym.Env):
 
         return reward
 
-    def reset_portfolio_and_balance(self) -> Tuple[np.ndarray, Dict]:
+    def reset_portfolio_and_balance(self):
         """Reset the portfolio and balance to initial state."""
         self._portfolio_history = []
         self._trade_history = []  # Reset trade history
@@ -161,8 +161,9 @@ class TradingEnv(gym.Env):
         self.last_logged_step = -1
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.episode_count += 1
-
-        observation = self._get_observation()
+        
+        # super().reset(seed=seeded_seed)
+        
         info = {
             'initial_balance': self.initial_balance,
             'net_worth': self.net_worth,
@@ -170,25 +171,7 @@ class TradingEnv(gym.Env):
             'balance': self.balance,
             'episode': self.episode_count
         }
-        return observation, info
-
-    def reset(self,
-              seed: Optional[int] = None,
-              options: Optional[Dict] = None) -> Tuple[np.ndarray, Dict]:
-        """Reset the environment to initial state."""
-        super().reset(seed=seed)
-        self.reset_portfolio_and_balance()
-
-        observation = self._get_observation()
-        info = {
-            'initial_balance': self.initial_balance,
-            'net_worth': self.net_worth,
-            'positions': self.positions.copy(),
-            'balance': self.balance,
-            'episode': self.episode_count,
-            'total_steps': self.total_steps
-        }
-        return observation, info
+        return info
 
     def step(
         self, action: Union[int, np.ndarray]

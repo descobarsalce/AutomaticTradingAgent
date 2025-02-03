@@ -208,7 +208,7 @@ class TradingEnv(gym.Env):
                 # Only execute trade if we can buy at least 0.01 shares
                 if total_cost <= self.balance and shares_to_buy >= 0.01:
                     logger.info(
-                        f"BUY  | {symbol} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}"
+                        f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}"
                     )
                     self.balance -= total_cost
                     if self.positions[symbol] > 0:

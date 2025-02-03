@@ -192,6 +192,7 @@ class TradingEnv(gym.Env):
 
         # Process actions for each asset
         for idx, symbol in enumerate(self.symbols):
+            logger.info(f"PROCESSING SYMBOL {symbol:5}")
             current_price = float(
                 self.data[symbol].iloc[self.current_step]['Close'])
             action = int(actions[idx])
@@ -207,9 +208,9 @@ class TradingEnv(gym.Env):
 
                 # Only execute trade if we can buy at least 0.01 shares
                 if total_cost <= self.balance and shares_to_buy >= 0.01:
-                    logger.info(
-                        f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}"
-                    )
+                    # logger.info(
+                    #     f"BUY  | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_buy:.4f} | Cost: ${total_cost:.2f}"
+                    # )
                     self.balance -= total_cost
                     if self.positions[symbol] > 0:
                         old_cost = self.cost_bases[symbol] * self.positions[
@@ -230,9 +231,9 @@ class TradingEnv(gym.Env):
                     sell_amount = shares_to_sell * current_price
                     net_sell_amount = sell_amount - self.transaction_cost
 
-                    logger.info(
-                        f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}"
-                    )
+                    # logger.info(
+                    #     f"SELL | {symbol:5} | Price: ${current_price:.2f} | Shares: {shares_to_sell:.4f} | Amount: ${net_sell_amount:.2f}"
+                    # )
 
                     self.balance += net_sell_amount
                     self.positions[symbol] = 0

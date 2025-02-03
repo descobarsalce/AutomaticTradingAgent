@@ -210,7 +210,7 @@ class UnifiedTradingAgent:
         if hasattr(self.env, '_trade_history'):
             self.env._trade_history = []
 
-        obs, info = self.env.reset_portfolio_and_balance()
+        obs, info = self.env.reset()
         logger.info(f"Observation initial test: {obs}")
         
         done = False

@@ -105,7 +105,7 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                                 visualizer = TradingVisualizer()
 
                                 # Show correlation analysis if multiple stocks
-                                portfolio_data = model.data_handler.fetch_data(
+                                portfolio_data = st.session_state.data_handler.fetch_data(
                                     stock_names,
                                     test_start_date,
                                     test_end_date)

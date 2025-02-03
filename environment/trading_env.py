@@ -164,13 +164,15 @@ class TradingEnv(gym.Env):
         
         # if seed is not None:
         #     super().reset(seed=seed)
-        
+        # Prepare info dict
         info = {
-            'initial_balance': self.initial_balance,
             'net_worth': self.net_worth,
-            'positions': self.positions.copy(),
             'balance': self.balance,
-            'episode': self.episode_count
+            'positions': self.positions.copy(),
+            'trades_executed': trades_executed,
+            'episode_trades': self.episode_trades.copy(),
+            'actions': actions,  # Store actions in info
+            'date': self.data[self.symbols[0]].iloc[self.current_step].name
         }
         return self._get_observation(), info
 

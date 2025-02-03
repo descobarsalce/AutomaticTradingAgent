@@ -209,7 +209,7 @@ class UnifiedTradingAgent:
         # Ensure trade history is reset
         if hasattr(self.env, '_trade_history'):
             self.env._trade_history = []
-            
+
         info = self.env.reset_portfolio_and_balance()
         done = False
         info_history = []
@@ -295,7 +295,7 @@ class UnifiedTradingAgent:
             if len(self.portfolio_history) > 1:
                 returns = MetricsCalculator.calculate_returns(
                     self.portfolio_history)
-                
+
                 # Calculate metrics with error handling
                 metrics_dict = {
                     'returns': float(np.mean(returns)) if len(returns) > 0 else 0.0,
@@ -306,7 +306,7 @@ class UnifiedTradingAgent:
                     'total_trades': 0,
                     'win_rate': 0.0
                 }
-                
+
                 # Only calculate ratios if we have valid returns
                 if len(returns) > 0:
                     try:
@@ -316,11 +316,11 @@ class UnifiedTradingAgent:
                         metrics_dict['max_drawdown'] = MetricsCalculator.calculate_maximum_drawdown(self.portfolio_history)
                     except Exception as e:
                         logger.warning(f"Error calculating some metrics: {str(e)}")
-                
+
                 # Calculate trade metrics
                 valid_positions = [p for p in self.positions_history if isinstance(p, dict) and p]
                 metrics_dict['total_trades'] = len(valid_positions)
-                
+
                 if len(valid_positions) > 1:
                     try:
                         profitable_trades = sum(1 for i in range(1, len(valid_positions))
@@ -328,10 +328,10 @@ class UnifiedTradingAgent:
                         metrics_dict['win_rate'] = profitable_trades / (len(valid_positions) - 1)
                     except Exception as e:
                         logger.warning(f"Error calculating trade metrics: {str(e)}")
-                
+
                 # Update the metrics
                 self.evaluation_metrics.update(metrics_dict)
-            
+
         except Exception as e:
             logger.exception("Critical error updating metrics")
             # Keep existing metrics instead of resetting to 0

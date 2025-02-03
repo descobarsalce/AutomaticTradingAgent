@@ -130,13 +130,13 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
 
         # First collect all data and create charts
         for stock in viz_stocks:
-            portfolio_data = data_handler.fetch_data([stock], viz_start_date, viz_end_date)
+            portfolio_data = st.session_state.data_handler.fetch_data([stock], viz_start_date, viz_end_date)
 
             if not portfolio_data:
                 st.error(f"No data available for {stock}")
                 continue
 
-            portfolio_data = data_handler.prepare_data(portfolio_data)
+            portfolio_data = st.session_state.data_handler.prepare_data(portfolio_data)
 
             if stock in portfolio_data:
                 data = portfolio_data[stock]

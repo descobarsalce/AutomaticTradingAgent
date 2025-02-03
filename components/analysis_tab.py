@@ -33,7 +33,10 @@ def display_tech_analysis_tab():
     """
     st.header("Technical Analysis Dashboard")
 
-    model = st.session_state.model # Used for the data handler that lives within with the proper setup.
+    # Use session's data handler
+    data_handler = st.session_state.data_handler 
+    if not data_handler.session or not data_handler.session.is_active:
+        data_handler.get_session()  # Ensure database session is initialized
 
     # Visualization stock selection (separate from training)
     viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
@@ -126,14 +129,13 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date, model,
 
         # First collect all data and create charts
         for stock in viz_stocks:
-            portfolio_data = model.data_handler.fetch_data(
-                stock, viz_start_date, viz_end_date)
+            portfolio_data = data_handler.fetch_data([stock], viz_start_date, viz_end_date)
 
             if not portfolio_data:
                 st.error(f"No data available for {stock}")
                 continue
 
-            portfolio_data = model.data_handler.prepare_data()
+            portfolio_data = data_handler.prepare_data(portfolio_data)
 
             if stock in portfolio_data:
                 data = portfolio_data[stock]

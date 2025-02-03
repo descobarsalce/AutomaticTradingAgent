@@ -495,13 +495,21 @@ class TradingVisualizer:
 
         st.subheader(title)
         if trade_history and len(trade_history) > 0:
-            trade_df = pd.DataFrame({
+            # Get all unique symbols from positions
+            symbols = list(trade_history[0]['positions'].keys())
+            
+            # Create a DataFrame with separate action columns for each symbol
+            data = {
                 'Date': [info['date'] for info in trade_history],
-                'Action': [info['actions'] for info in trade_history],
-                'Portfolio Value':
-                [info['net_worth'] for info in trade_history],
-                'Positions': [info['positions'] for info in trade_history]
-            })
+                'Portfolio Value': [info['net_worth'] for info in trade_history],
+            }
+            
+            # Add actions for each symbol
+            for i, symbol in enumerate(symbols):
+                data[f'Action_{symbol}'] = [info['actions'][i] if isinstance(info['actions'], (list, np.ndarray)) else info['actions'] for info in trade_history]
+                data[f'Position_{symbol}'] = [info['positions'][symbol] for info in trade_history]
+            
+            trade_df = pd.DataFrame(data)
             st.dataframe(trade_df)
 
             # st.download_button(f"Download {title}",

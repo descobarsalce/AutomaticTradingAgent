@@ -505,9 +505,17 @@ class TradingVisualizer:
             }
 
             # Add actions for each symbol
-            for i, symbol in enumerate(symbols):
-                data[f'Action_{symbol}'] = [info['actions'][i] if isinstance(info['actions'], (list, np.ndarray)) else info['actions'] for info in trade_history]
-                data[f'Position_{symbol}'] = [info['positions'][symbol] for info in trade_history]
+            for symbol in symbols:
+                data[f'Action_{symbol}'] = []
+                data[f'Position_{symbol}'] = []
+                for info in trade_history:
+                    # Handle actions based on symbol index in the original list
+                    symbol_idx = symbols.index(symbol)
+                    if isinstance(info['actions'], (list, np.ndarray)):
+                        data[f'Action_{symbol}'].append(info['actions'][symbol_idx])
+                    else:
+                        data[f'Action_{symbol}'].append(info['actions'])
+                    data[f'Position_{symbol}'].append(info['positions'][symbol])
 
             trade_df = pd.DataFrame(data)
 

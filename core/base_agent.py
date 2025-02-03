@@ -72,7 +72,7 @@ class UnifiedTradingAgent:
 
         # Now we extract the features for the model:
         prepared_data = st.session_state.data_handler.prepare_data(self.stocks_data)
-        return next(iter(prepared_data.values()))
+        return prepared_data
 
     @type_check
     def initialize_env(self, data: pd.DataFrame,

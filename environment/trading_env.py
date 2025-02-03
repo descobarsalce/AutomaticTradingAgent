@@ -41,14 +41,6 @@ class TradingEnv(gym.Env):
         # Handle both single and multi-asset data
         if isinstance(data, dict):
             self.data = data
-        else:
-            # If single DataFrame is passed, extract column name from index
-            # or use first stock name if available
-            if hasattr(data, 'columns') and len(data.columns.get_level_values(0).unique()) > 0:
-                asset_name = data.columns.get_level_values(0).unique()[0]
-            else:
-                asset_name = stock_names[0] if isinstance(stock_names, list) and stock_names else "ASSET"
-            self.data = {asset_name: data}
             
         self.symbols = list(self.data.keys())
 

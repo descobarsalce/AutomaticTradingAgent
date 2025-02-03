@@ -148,7 +148,7 @@ class TradingEnv(gym.Env):
 
         return reward
 
-    def reset_portfolio_and_balance(self, seed=None, options=None):
+    def reset(self, seed=None, options=None):
         """Reset the portfolio and balance to initial state."""
         self._portfolio_history = []
         self._trade_history = []  # Reset trade history
@@ -162,8 +162,8 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.episode_count += 1
         
-        if seed is not None:
-            super().reset(seed=seed)
+        # if seed is not None:
+        #     super().reset(seed=seed)
         
         info = {
             'initial_balance': self.initial_balance,

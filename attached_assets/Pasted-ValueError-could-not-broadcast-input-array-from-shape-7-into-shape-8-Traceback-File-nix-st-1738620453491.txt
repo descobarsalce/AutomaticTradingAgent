@@ -1,4 +1,4 @@
-TypeError: cannot unpack non-iterable NoneType object
+ValueError: could not broadcast input array from shape (7,) into shape (8,)
 Traceback:
 File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 600, in _run_script
     exec(code, module.__dict__)
@@ -28,6 +28,8 @@ File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_bas
 File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/base_class.py", line 423, in _setup_learn
     self._last_obs = self.env.reset()  # type: ignore[assignment]
                      ^^^^^^^^^^^^^^^^
-File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 77, in reset
-    obs, self.reset_infos[env_idx] = self.envs[env_idx].reset(seed=self._seeds[env_idx], **maybe_options)
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 78, in reset
+    self._save_obs(env_idx, obs)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/stable_baselines3/common/vec_env/dummy_vec_env.py", line 108, in _save_obs
+    self.buf_obs[key][env_idx] = obs
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^

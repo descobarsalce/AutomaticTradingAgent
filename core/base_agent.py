@@ -210,14 +210,12 @@ class UnifiedTradingAgent:
         if hasattr(self.env, '_trade_history'):
             self.env._trade_history = []
 
-        info = self.env.reset_portfolio_and_balance()
+        obs, info = self.env.reset_portfolio_and_balance()
+        logger.info(f"Observation initial test: {obs}")
+        
         done = False
         info_history = []
-
-        # Get observation and print in the logger console:
-        obs = self.env._get_observation()
-        logger.info(f"Observation initial test: {obs}")
-
+        
         while not done:
             action = self.predict(obs)
             obs, reward, terminated, truncated, info = self.env.step(action)

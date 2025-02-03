@@ -37,22 +37,24 @@ class DataHandler:
         if isinstance(symbols, str):
             symbols = [symbols]
 
-        all_stocks_data = {}
+        all_stocks_data = []
         for symbol in symbols:
             try:
                 cached_data = self.get_cached_data(symbol, start_date, end_date)
-                ## This seems incomplete. The system should verify that all of the requires dates are available. It's not enough to have all columns, you need to have all the dates. If you are only missing some dates, then you can download only the remaining ones.
                 if cached_data is not None and all(col in cached_data.columns for col in required_columns):
-                    all_stocks_data[symbol] = cached_data
+                    df = cached_data
                 else:
                     ticker = yf.Ticker(symbol)
-                    data = ticker.history(start=start_date, end=end_date)
-                    if data.empty:
+                    df = ticker.history(start=start_date, end=end_date)
+                    if df.empty:
                         raise ValueError(f"No data retrieved for {symbol}")
-                    if not all(col in data.columns for col in required_columns):
+                    if not all(col in df.columns for col in required_columns):
                         raise ValueError(f"Missing required columns for {symbol}")
-                    self.cache_data(symbol, data)
-                    all_stocks_data[symbol] = data
+                    self.cache_data(symbol, df)
+                
+                # Add suffix to column names
+                df.columns = [f"{col}_{symbol}" for col in df.columns]
+                all_stocks_data.append(df)
             except Exception as e:
                 logger.error(f"Error fetching data for {symbol}: {str(e)}")
                 raise ValueError(f"Error fetching data for {symbol}: {str(e)}")
@@ -60,7 +62,9 @@ class DataHandler:
         if not all_stocks_data:
             raise ValueError("No valid data retrieved for any symbols")
 
-        return all_stocks_data
+        # Concatenate all dataframes
+        result = pd.concat(all_stocks_data, axis=1)
+        return result
 
     def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """Prepare data using feature engineer"""

@@ -24,8 +24,12 @@ class DataHandler:
 
     def get_session(self):
         """Get a database session using context management"""
-        if self.session is None:
-            self.session = next(get_db_session())
+        if self.session is None or not self.session.is_active:
+            try:
+                self.session = next(get_db_session())
+            except Exception as e:
+                logger.error(f"Failed to create database session: {str(e)}")
+                raise
         return self.session
 
     def fetch_data(self, symbols, start_date, end_date):

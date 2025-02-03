@@ -45,7 +45,9 @@ def init_session_state() -> None:
     if 'stock_list' not in st.session_state:
         st.session_state.stock_list = ['APPL', 'MSFT']
     if 'data_handler' not in st.session_state:
-        st.session_state.data_handler = DataHandler()
+        data_handler = DataHandler()
+        data_handler.get_session()  # Ensure database session is initialized
+        st.session_state.data_handler = data_handler
 
 
 def main() -> None:

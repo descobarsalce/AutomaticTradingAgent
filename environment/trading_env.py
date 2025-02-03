@@ -58,7 +58,7 @@ class TradingEnv(gym.Env):
 
         # Observation space includes OHLCV + positions + balance for each asset
         obs_dim = (len(self.symbols) *
-                   6) + 2  # OHLCV + position for each asset + balance
+                   6) + 1  # OHLCV + position for each asset + balance
         self.observation_space = spaces.Box(low=-np.inf,
                                             high=np.inf,
                                             shape=(obs_dim, ),

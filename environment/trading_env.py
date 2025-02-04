@@ -251,7 +251,7 @@ class TradingEnv(gym.Env):
         # Update portfolio value
         self.net_worth = self.balance + sum(
             self.positions[symbol] *
-            self.data[symbol].iloc[self.current_step]['Close']
+            self.data.iloc[self.current_step][f'Close_{symbol}']
             for symbol in self.symbols)
         self._portfolio_history.append(self.net_worth)
 

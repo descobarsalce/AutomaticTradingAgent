@@ -67,7 +67,7 @@ class UnifiedTradingAgent:
         """Fetch and prepare data."""
         self.stocks_data = st.session_state.data_handler.fetch_data(stock_names, start_date,
                                                            end_date)
-        if not self.stocks_data:
+        if self.stocks_data.empty:
             raise ValueError("No data found in database")
 
         # Now we extract the features for the model:

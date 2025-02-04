@@ -40,7 +40,14 @@ class TradingEnv(gym.Env):
 
         self.data = data
         # Extract symbols from column names (e.g., Close_AAPL -> AAPL)
-        self.symbols = sorted(list(set(col.split('_')[1] for col in self.data.columns if '_' in col)))
+        try:
+            self.symbols = sorted(list({col.split('_')[1] for col in self.data.columns if '_' in col and len(col.split('_')) == 2}))
+            if not self.symbols:
+                raise ValueError("No valid symbols found in data columns")
+            logger.info(f"Extracted symbols: {self.symbols}")
+        except Exception as e:
+            logger.error(f"Error extracting symbols from columns: {self.data.columns}")
+            raise ValueError(f"Failed to extract valid symbols from data columns: {e}")
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset
         self.action_space = self.create_action_space(self.symbols,

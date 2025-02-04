@@ -197,7 +197,7 @@ class TradingEnv(gym.Env):
         for idx, symbol in enumerate(self.symbols):
             logger.info(f"PROCESSING SYMBOL {symbol:5}")
             current_price = float(
-                self.data[symbol].iloc[self.current_step]['Close'])
+                self.data.iloc[self.current_step][f'Close_{symbol}'])
             action = int(actions[idx])
 
             if action == 1:  # Buy

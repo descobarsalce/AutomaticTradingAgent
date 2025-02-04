@@ -467,12 +467,15 @@ class TradingVisualizer:
                             row_heights=[0.7, 0.3])
 
         # Add candlestick chart
+        # Extract first symbol's data (assuming single symbol for now)
+        symbol = [col.split('_')[1] for col in price_data.columns if 'Open_' in col][0]
+        
         fig.add_trace(go.Candlestick(x=price_data.index,
-                                     open=price_data['Open'],
-                                     high=price_data['High'],
-                                     low=price_data['Low'],
-                                     close=price_data['Close'],
-                                     name='Price'),
+                                     open=price_data[f'Open_{symbol}'],
+                                     high=price_data[f'High_{symbol}'],
+                                     low=price_data[f'Low_{symbol}'],
+                                     close=price_data[f'Close_{symbol}'],
+                                     name=f'{symbol} Price'),
                       row=1,
                       col=1)
 

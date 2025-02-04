@@ -68,7 +68,7 @@ class DataHandler:
 
     def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         """Prepare data using feature engineer"""
-        return self.feature_engineer.prepare_data(portfolio_data)
+        return portfolio_data #self.feature_engineer.prepare_data(portfolio_data)
 
     def __del__(self):
         """Cleanup database session"""

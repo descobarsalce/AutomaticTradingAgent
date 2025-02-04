@@ -132,7 +132,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
         for stock in viz_stocks:
             portfolio_data = st.session_state.data_handler.fetch_data([stock], viz_start_date, viz_end_date)
 
-            if not portfolio_data:
+            if portfolio_data.empty:
                 st.error(f"No data available for {stock}")
                 continue
 

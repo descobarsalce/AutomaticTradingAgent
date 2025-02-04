@@ -195,13 +195,14 @@ class TradingEnv(gym.Env):
 
         # Process actions for each asset
         for idx, symbol in enumerate(self.symbols):
-            logger.info(f"PROCESSING SYMBOL {symbol:5}")
+            # logger.info(f"PROCESSING SYMBOL {symbol:5}")
             current_price = float(
                 self.data.iloc[self.current_step][f'Close_{symbol}'])
             action = int(actions[idx])
 
             if action == 1:  # Buy
                 # Calculate maximum affordable shares considering transaction cost
+                
                 max_trade_amount = max(0, self.balance - self.transaction_cost)
                 trade_amount = min(max_trade_amount * self.position_size,
                                    max_trade_amount)
@@ -209,6 +210,7 @@ class TradingEnv(gym.Env):
                 total_cost = (shares_to_buy *
                               current_price) + self.transaction_cost
 
+                logger.info(f"PROCESSING SYMBOL {symbol:5} AND CHECKING BALANCE")
                 # Only execute trade if we can buy at least 0.01 shares
                 if total_cost <= self.balance and shares_to_buy >= 0.01:
                     # logger.info(
@@ -227,6 +229,7 @@ class TradingEnv(gym.Env):
                     self.holding_periods[symbol] = 0
                     self.episode_trades[symbol] += 1
                     trades_executed[symbol] = True
+                    logger.info(f"PROCESSING SYMBOL {symbol:5} AND BUYING!! FOR A TOTAL OF {shares_to_buy:.4f} SHARES and a cost of ${total_cost:.2f}")
 
             elif action == 2:  # Sell
                 if self.positions[symbol] > 0:
@@ -243,6 +246,7 @@ class TradingEnv(gym.Env):
                     self.holding_periods[symbol] = 0
                     self.episode_trades[symbol] += 1
                     trades_executed[symbol] = True
+                    logger.info(f"PROCESSING SYMBOL {symbol:5} AND SELLING!! FOR A TOTAL OF {shares_to_sell:.4f} SHARES and a cost of ${net_sell_amount:.2f}")
 
             # Update holding period for non-zero positions
             if self.positions[symbol] > 0:

@@ -163,9 +163,9 @@ class TradingEnv(gym.Env):
             'net_worth': self.net_worth,
             'balance': self.balance,
             'positions': self.positions.copy(),
-            'trades_executed': trades_executed,
-            'episode_trades': self.episode_trades.copy(),
-            'actions': actions,  # Store actions in info
+            'trades_executed': {symbol: False for symbol in self.symbols},
+            'episode_trades': {symbol: 0 for symbol in self.symbols},
+            'actions': {},  # Store actions in info
             'date': self.data[self.symbols[0]].iloc[self.current_step].name
         }
         return self._get_observation(), info

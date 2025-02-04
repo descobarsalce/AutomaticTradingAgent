@@ -513,6 +513,13 @@ class TradingVisualizer:
                 'Portfolio Value': [info['net_worth'] for info in trade_history],
                 'Balance': [info['balance'] for info in trade_history],
             }
+            
+            # Add current prices for each symbol
+            for symbol in symbols:
+                data[f'Current_Price_{symbol}'] = [
+                    float(info.get('current_data', {}).get(f'Close_{symbol}', 0.0))
+                    for info in trade_history
+                ]
 
             # Add actions and positions for each symbol
             for symbol in symbols:
@@ -567,12 +574,15 @@ class TradingVisualizer:
             colors = ['rgb(255, 127, 14)', 'rgb(44, 160, 44)', 'rgb(214, 39, 40)', 
                      'rgb(148, 103, 189)', 'rgb(140, 86, 75)', 'rgb(227, 119, 194)']
             for i, symbol in enumerate(symbols):
-                # Calculate the actual monetary value of positions
-                position_value = trade_df[f'Position_Value_{symbol}']
+                # Get position (number of shares) and calculate monetary value
+                position = trade_df[f'Position_{symbol}']
+                close_price = trade_df[f'Current_Price_{symbol}']
+                position_value = position * close_price
+                
                 fig.add_trace(go.Scatter(
                     x=trade_df['Date'],
                     y=position_value,
-                    name=f'{symbol} Position (${position_value.iloc[-1]:.2f})',
+                    name=f'{symbol} (Shares: {position.iloc[-1]:.2f}, Value: ${position_value.iloc[-1]:.2f})',
                     fill='tonexty',
                     mode='lines',
                     line=dict(width=0.5, color=colors[i % len(colors)]),

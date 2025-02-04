@@ -401,21 +401,21 @@ class TradingVisualizer:
         return fig
 
     def plot_performance_and_drawdown(self,
-                                      portfolio_data: Dict[str, pd.DataFrame],
+                                      portfolio_data: pd.DataFrame,
                                       symbol: str,
                                       price_col: str = 'Close') -> go.Figure:
         """
         Shows both the cumulative returns and drawdown on two subplots.
         """
-        if symbol not in portfolio_data:
-            raise ValueError(f"Symbol '{symbol}' not found in portfolio_data.")
-        df = portfolio_data[symbol]
-        if df.empty or price_col not in df.columns:
-            raise ValueError(
-                f"No valid data for symbol '{symbol}' to plot performance.")
+        price_column = f'{price_col}_{symbol}'
+        if price_column not in portfolio_data.columns:
+            raise ValueError(f"Price column '{price_column}' not found in portfolio_data.")
+        
+        if portfolio_data.empty:
+            raise ValueError(f"No valid data for symbol '{symbol}' to plot performance.")
 
-        sorted_df = df.sort_index()
-        daily_returns = sorted_df[price_col].pct_change().fillna(0)
+        sorted_df = portfolio_data.sort_index()
+        daily_returns = sorted_df[price_column].pct_change().fillna(0)
         cum_returns = (1 + daily_returns).cumprod()
         rolling_max = cum_returns.cummax()
         drawdown = (cum_returns - rolling_max) / rolling_max

@@ -234,7 +234,7 @@ class TradingEnv(gym.Env):
 
             elif action == 2:  # Sell
                 if self.positions[symbol] > 0:
-                    shares_to_sell = self.positions[symbol]
+                    shares_to_sell = min(self.positions[symbol],0.2)
                     sell_amount = shares_to_sell * current_price
                     net_sell_amount = sell_amount - self.transaction_cost
 

@@ -211,7 +211,7 @@ class TradingEnv(gym.Env):
                 total_cost = (shares_to_buy *
                               current_price) + self.transaction_cost
 
-                logger.info(f"PROCESSING SYMBOL {symbol:5} AND CHECKING BALANCE")
+                # logger.info(f"PROCESSING SYMBOL {symbol:5} AND CHECKING BALANCE")
                 # Only execute trade if we can buy at least 0.01 shares
                 if total_cost <= self.balance and shares_to_buy >= 0.01:
                     # logger.info(
@@ -230,7 +230,7 @@ class TradingEnv(gym.Env):
                     self.holding_periods[symbol] = 0
                     self.episode_trades[symbol] += 1
                     trades_executed[symbol] = True
-                    logger.info(f"PROCESSING SYMBOL {symbol:5} AND BUYING!! FOR A TOTAL OF {shares_to_buy:.4f} SHARES and a cost of ${total_cost:.2f}")
+                    # logger.info(f"PROCESSING SYMBOL {symbol:5} AND BUYING!! FOR A TOTAL OF {shares_to_buy:.4f} SHARES and a cost of ${total_cost:.2f}")
 
             elif action == 2:  # Sell
                 if self.positions[symbol] > 0:
@@ -247,7 +247,7 @@ class TradingEnv(gym.Env):
                     self.holding_periods[symbol] = 0
                     self.episode_trades[symbol] += 1
                     trades_executed[symbol] = True
-                    logger.info(f"PROCESSING SYMBOL {symbol:5} AND SELLING!! FOR A TOTAL OF {shares_to_sell:.4f} SHARES and a cost of ${net_sell_amount:.2f}")
+                    # logger.info(f"PROCESSING SYMBOL {symbol:5} AND SELLING!! FOR A TOTAL OF {shares_to_sell:.4f} SHARES and a cost of ${net_sell_amount:.2f}")
 
             # Update holding period for non-zero positions
             if self.positions[symbol] > 0:

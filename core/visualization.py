@@ -423,23 +423,23 @@ class TradingVisualizer:
 
         # Extract actions and dates
         dates = [info['date'] for info in info_history]
-        actions = [
+        actions = np.array([
             info['actions'][0]
-            if isinstance(info['actions'], list) else info['actions']
+            if isinstance(info['actions'], (list, np.ndarray)) else info['actions']
             for info in info_history
-        ]
+        ])
 
         # Create scatter plot for each action type
         action_colors = {0: 'gray', 1: 'green', 2: 'red'}
         action_names = {0: 'Hold', 1: 'Buy', 2: 'Sell'}
 
         for action_value in [0, 1, 2]:
-            mask = [a == action_value for a in actions]
-            if any(mask):
+            mask = actions == action_value
+            if np.any(mask):
                 fig.add_trace(
                     go.Scatter(
-                        x=[d for d, m in zip(dates, mask) if m],
-                        y=[action_value] * sum(mask),
+                        x=np.array(dates)[mask],
+                        y=[action_value] * np.sum(mask),
                         mode='markers',
                         name=action_names[action_value],
                         marker=dict(color=action_colors[action_value], size=8),

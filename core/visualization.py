@@ -245,24 +245,25 @@ class TradingVisualizer:
             return None
 
     def plot_correlation_heatmap(self,
-                                 portfolio_data: Dict[str, pd.DataFrame],
+                                 portfolio_data: pd.DataFrame,
                                  price_col: str = 'Close') -> go.Figure:
         """
-        Creates a correlation heatmap for daily returns of multiple symbols in 'portfolio_data'.
-        :param portfolio_data: dict[symbol -> DataFrame with OHLC data]
-        :param price_col: 'Close' or another column to compute returns
+        Creates a correlation heatmap for daily returns of multiple symbols.
+        :param portfolio_data: DataFrame with OHLC data for multiple symbols
+        :param price_col: Base name for price column (e.g., 'Close' will look for 'Close_SYMBOL')
         :return: Plotly Figure (heatmap)
         """
+        # Extract symbols from column names
+        symbols = sorted(list({col.split('_')[1] for col in portfolio_data.columns if '_' in col}))
+        
         # Build a DataFrame of daily returns for each symbol
         returns_dict = {}
-        for symbol, df in portfolio_data.items():
-            if price_col not in df.columns or df.empty:
-                continue
-            # Sort by index just in case
-            sorted_df = df.sort_index()
-            # Calculate daily returns
-            rets = sorted_df[price_col].pct_change().dropna()
-            returns_dict[symbol] = rets
+        for symbol in symbols:
+            price_column = f'{price_col}_{symbol}'
+            if price_column in portfolio_data.columns:
+                # Calculate daily returns
+                rets = portfolio_data[price_column].pct_change().dropna()
+                returns_dict[symbol] = rets
 
         if not returns_dict:
             raise ValueError("No valid data to compute correlation heatmap.")

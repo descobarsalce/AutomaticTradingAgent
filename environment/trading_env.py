@@ -91,15 +91,19 @@ class TradingEnv(gym.Env):
         """Get current observation of market and account state."""
         obs = []
         for symbol in self.symbols:
-            data_step = self.data.iloc[self.current_step]
-            obs.extend([
-                float(data_step[f'Open_{symbol}']),
-                float(data_step[f'High_{symbol}']),
-                float(data_step[f'Low_{symbol}']),
-                float(data_step[f'Close_{symbol}']),
-                float(data_step[f'Volume_{symbol}']),
-                float(self.positions[symbol])
-            ])
+            try:
+                data_step = self.data.iloc[self.current_step]
+                obs.extend([
+                    float(data_step[f'Open_{symbol}']),
+                    float(data_step[f'High_{symbol}']),
+                    float(data_step[f'Low_{symbol}']),
+                    float(data_step[f'Close_{symbol}']),
+                    float(data_step[f'Volume_{symbol}']),
+                    float(self.positions[symbol])
+                ])
+            except Exception as e:
+                logger.error(f"Error getting observation for {symbol}: {e}")
+                raise
         obs.append(float(self.balance))
         return np.array(obs, dtype=np.float32)
 

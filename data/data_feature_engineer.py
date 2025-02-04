@@ -265,9 +265,8 @@ class FeatureEngineer:
         if portfolio_data.empty:
             raise ValueError("portfolio_data is empty")
 
-        # Get unique symbols from column names
-        symbols = set(col.split('_')[1] for col in portfolio_data.columns if '_' in col)
-
+        # Get unique symbols from column names (e.g., Close_AAPL -> AAPL)
+        symbols = sorted(list(set(col.split('_')[1] for col in portfolio_data.columns if '_' in col)))
         prepared_data = portfolio_data.copy()
 
         for symbol in symbols:

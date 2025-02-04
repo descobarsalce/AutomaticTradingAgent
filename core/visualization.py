@@ -492,7 +492,7 @@ class TradingVisualizer:
                               title="Trading History",
                               download_prefix="trade"):
         """
-        Display trade history in a Streamlit interface
+        Display trade history in a Streamlit interface with position values and allocation chart
         Args:
             trade_history: List of trade info dictionaries
             title: Title for the history section
@@ -500,6 +500,7 @@ class TradingVisualizer:
         """
         import streamlit as st
         import pandas as pd
+        import plotly.graph_objects as go
 
         st.subheader(title)
         if trade_history and len(trade_history) > 0:
@@ -510,30 +511,80 @@ class TradingVisualizer:
             data = {
                 'Date': [info['date'] for info in trade_history],
                 'Portfolio Value': [info['net_worth'] for info in trade_history],
+                'Balance': [info['balance'] for info in trade_history],
             }
 
-            # Add actions for each symbol
+            # Add actions and positions for each symbol
             for symbol in symbols:
                 data[f'Action_{symbol}'] = []
                 data[f'Position_{symbol}'] = []
+                data[f'Position_Value_{symbol}'] = []
+                
                 for info in trade_history:
-                    # Handle actions based on symbol index in the original list
+                    # Handle actions
                     symbol_idx = symbols.index(symbol)
                     if isinstance(info['actions'], (list, np.ndarray)):
                         data[f'Action_{symbol}'].append(info['actions'][symbol_idx])
                     else:
                         data[f'Action_{symbol}'].append(info['actions'])
-                    data[f'Position_{symbol}'].append(info['positions'][symbol])
+                    
+                    # Store position and calculate position value
+                    position = info['positions'][symbol]
+                    data[f'Position_{symbol}'].append(position)
+                    
+                    # Get close price from the environment's current data
+                    close_price = float(info.get('close_prices', {}).get(symbol, 0))
+                    position_value = position * close_price
+                    data[f'Position_Value_{symbol}'].append(position_value)
 
             trade_df = pd.DataFrame(data)
 
-            # Display a legend for actions
+            # Display action legend
             st.write("Action Legend for each symbol:")
             st.write("0: Hold | 1: Buy | 2: Sell")
 
-            # Display the dataframe with the trade history
+            # Display the trade history dataframe
             st.write(f"Trade History for Symbols: {', '.join(symbols)}")
             st.dataframe(trade_df)
+
+            # Create stacked area chart for money allocation
+            fig = go.Figure()
+            
+            # Add balance area
+            fig.add_trace(go.Scatter(
+                x=trade_df['Date'],
+                y=trade_df['Balance'],
+                name='Cash Balance',
+                fill='tonexty',
+                mode='lines',
+                line=dict(width=0.5, color='rgb(131, 90, 241)'),
+                stackgroup='one'
+            ))
+
+            # Add position values for each symbol
+            colors = ['rgb(255, 127, 14)', 'rgb(44, 160, 44)', 'rgb(214, 39, 40)', 
+                     'rgb(148, 103, 189)', 'rgb(140, 86, 75)', 'rgb(227, 119, 194)']
+            for i, symbol in enumerate(symbols):
+                fig.add_trace(go.Scatter(
+                    x=trade_df['Date'],
+                    y=trade_df[f'Position_Value_{symbol}'],
+                    name=f'{symbol} Position',
+                    fill='tonexty',
+                    mode='lines',
+                    line=dict(width=0.5, color=colors[i % len(colors)]),
+                    stackgroup='one'
+                ))
+
+            fig.update_layout(
+                title='Asset Allocation Over Time',
+                xaxis_title='Date',
+                yaxis_title='Value ($)',
+                hovermode='x unified',
+                template='plotly_dark',
+                showlegend=True
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
 
             # st.download_button(f"Download {title}",
             #                    trade_df.to_csv(index=False),

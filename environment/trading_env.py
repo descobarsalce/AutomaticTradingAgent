@@ -162,7 +162,7 @@ class TradingEnv(gym.Env):
         self.last_logged_step = -1
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
         self.episode_count += 1
-        
+
         # if seed is not None:
         #     super().reset(seed=seed)
         # Prepare info dict
@@ -173,7 +173,8 @@ class TradingEnv(gym.Env):
             'trades_executed': {symbol: False for symbol in self.symbols},
             'episode_trades': {symbol: 0 for symbol in self.symbols},
             'actions': {},  # Store actions in info
-            'date': self.data.index[self.current_step]
+            'date': self.data.index[self.current_step],
+            'current_data': self.data.iloc[self.current_step]
         }
         return self._get_observation(), info
 
@@ -202,7 +203,7 @@ class TradingEnv(gym.Env):
 
             if action == 1:  # Buy
                 # Calculate maximum affordable shares considering transaction cost
-                
+
                 max_trade_amount = max(0, self.balance - self.transaction_cost)
                 trade_amount = min(max_trade_amount * self.position_size,
                                    max_trade_amount)
@@ -279,10 +280,11 @@ class TradingEnv(gym.Env):
             'trades_executed': trades_executed,
             'episode_trades': self.episode_trades.copy(),
             'actions': actions,  # Store actions in info
-            'date': self.data.index[self.current_step]
+            'date': self.data.index[self.current_step],
+            'current_data': self.data.iloc[self.current_step]
         }
         self.last_info = info  # Store last info for callbacks
-        
+
         # Store trade history
         if not hasattr(self, '_trade_history'):
             self._trade_history = []

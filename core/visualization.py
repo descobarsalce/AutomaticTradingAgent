@@ -532,8 +532,10 @@ class TradingVisualizer:
                     position = info['positions'][symbol]
                     data[f'Position_{symbol}'].append(position)
                     
-                    # Get close price from the environment's current data
-                    close_price = float(info.get('close_prices', {}).get(symbol, 0))
+                    # Get close price from the last info dictionary
+                    price_key = f'Close_{symbol}'
+                    current_data = info.get('current_data', {})
+                    close_price = float(current_data.get(price_key, 0.0))
                     position_value = position * close_price
                     data[f'Position_Value_{symbol}'].append(position_value)
 

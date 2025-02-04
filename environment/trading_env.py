@@ -261,7 +261,7 @@ class TradingEnv(gym.Env):
 
         # Update state
         self.current_step += 1
-        done = self.current_step >= len(next(iter(self.data.values()))) - 1
+        done = self.current_step >= len(self.data) - 1
         truncated = False
 
         # Get next observation

@@ -567,10 +567,12 @@ class TradingVisualizer:
             colors = ['rgb(255, 127, 14)', 'rgb(44, 160, 44)', 'rgb(214, 39, 40)', 
                      'rgb(148, 103, 189)', 'rgb(140, 86, 75)', 'rgb(227, 119, 194)']
             for i, symbol in enumerate(symbols):
+                # Calculate the actual monetary value of positions
+                position_value = trade_df[f'Position_Value_{symbol}']
                 fig.add_trace(go.Scatter(
                     x=trade_df['Date'],
-                    y=trade_df[f'Position_Value_{symbol}'],
-                    name=f'{symbol} Position',
+                    y=position_value,
+                    name=f'{symbol} Position (${position_value.iloc[-1]:.2f})',
                     fill='tonexty',
                     mode='lines',
                     line=dict(width=0.5, color=colors[i % len(colors)]),

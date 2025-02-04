@@ -282,17 +282,19 @@ class TradingVisualizer:
         return fig
 
     def plot_cumulative_returns(self,
-                                portfolio_data: Dict[str, pd.DataFrame],
+                                portfolio_data: pd.DataFrame,
                                 price_col: str = 'Close') -> go.Figure:
         """
-        Plots cumulative returns of each symbol in 'portfolio_data' on the same chart.
-        :param portfolio_data: dict[symbol -> DataFrame with OHLC data]
-        :param price_col: 'Close' or whichever price column you want to use
+        Plots cumulative returns of each symbol in portfolio_data on the same chart.
+        :param portfolio_data: DataFrame with OHLC data for multiple symbols
+        :param price_col: Base name for price column (e.g., 'Close')
         :return: Plotly Figure (line chart)
         """
         fig = go.Figure()
-        for symbol, df in portfolio_data.items():
-            if price_col in df.columns and not df.empty:
+        symbols = sorted(list({col.split('_')[1] for col in portfolio_data.columns if col.startswith(f'{price_col}_')}))
+        for symbol in symbols:
+            col = f'{price_col}_{symbol}'
+            if col in portfolio_data.columns and not portfolio_data.empty:
                 sorted_df = df.sort_index()
                 daily_returns = sorted_df[price_col].pct_change().fillna(0)
                 # Compute cumulative returns
@@ -310,19 +312,20 @@ class TradingVisualizer:
         return fig
 
     def plot_drawdown(self,
-                      portfolio_data: Dict[str, pd.DataFrame],
+                      portfolio_data: pd.DataFrame,
                       symbol: str,
                       price_col: str = 'Close') -> go.Figure:
         """
         Plots the drawdown for a single symbol (peak-to-trough declines over time).
-        :param portfolio_data: dict[symbol -> DataFrame with OHLC data]
-        :param symbol: symbol key to use from portfolio_data
-        :param price_col: 'Close' or whichever price column you want
+        :param portfolio_data: DataFrame with OHLC data for multiple symbols
+        :param symbol: symbol key to use from column names (e.g., 'AAPL' from 'Close_AAPL')
+        :param price_col: Base name for price column (e.g., 'Close')
         :return: Plotly Figure with drawdown line
         """
-        if symbol not in portfolio_data:
-            raise ValueError(f"Symbol '{symbol}' not found in portfolio_data.")
-        df = portfolio_data[symbol]
+        price_column = f'{price_col}_{symbol}'
+        if price_column not in portfolio_data.columns:
+            raise ValueError(f"Price column '{price_column}' not found in portfolio_data.")
+        df = portfolio_data
         if df.empty or price_col not in df.columns:
             raise ValueError(
                 f"No valid data for symbol '{symbol}' to plot drawdown.")

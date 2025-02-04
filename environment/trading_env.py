@@ -38,11 +38,9 @@ class TradingEnv(gym.Env):
         self.log_frequency = log_frequency
         self.position_size = position_size
 
-        # Handle both single and multi-asset data
-        if isinstance(data, dict):
-            self.data = data
-            
-        self.symbols = list(self.data.keys())
+        self.data = data
+        # Extract symbols from column names (e.g., Close_AAPL -> AAPL)
+        self.symbols = sorted(list(set(col.split('_')[1] for col in self.data.columns if '_' in col)))
 
         # Action space: 0=hold, 1=buy, 2=sell for each asset
         self.action_space = self.create_action_space(self.symbols,
@@ -93,13 +91,13 @@ class TradingEnv(gym.Env):
         """Get current observation of market and account state."""
         obs = []
         for symbol in self.symbols:
-            data = self.data[symbol].iloc[self.current_step]
+            data_step = self.data.iloc[self.current_step]
             obs.extend([
-                float(data['Open']),
-                float(data['High']),
-                float(data['Low']),
-                float(data['Close']),
-                float(data['Volume']),
+                float(data_step[f'Open_{symbol}']),
+                float(data_step[f'High_{symbol}']),
+                float(data_step[f'Low_{symbol}']),
+                float(data_step[f'Close_{symbol}']),
+                float(data_step[f'Volume_{symbol}']),
                 float(self.positions[symbol])
             ])
         obs.append(float(self.balance))

@@ -1,46 +1,21 @@
 """
 Feature engineering pipeline with consolidated technical indicators.
-Removed duplicate validation functions and uses centralized validation from utils.common
 """
-
 import pandas as pd
 import numpy as np
 import logging
-import concurrent.futures
 from typing import Dict, Optional, List
 from scipy.fftpack import fft
-from utils.common import (
-    validate_numeric,
-    validate_dataframe,
-    validate_portfolio_weights
-)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-
 class FeatureEngineer:
-    """
-    A single-class feature engineering pipeline that includes:
-    1. Technical indicators calculation using centralized functions
-    2. Fourier Transform features
-    3. Correlations among symbols
-    4. Lagged and rolling features
-    5. Data preparation orchestration
-    """
-
     def __init__(self, n_jobs: int = 1):
-        """
-        :param n_jobs: Number of threads to use for parallel correlation calculation.
-        """
         self.n_jobs = n_jobs
 
-    # Remove duplicate validation methods as they're now in utils.common
-
-    # NOTE THAT THIS NORMALIZATION IS WRONG BECAUSE IT USES DATA FROM AFTER THE TRAIN/TEST PERIOD. IT CANNOT BE FORWARD LOOKING, SO I NEED TO CONFIRM.
     @staticmethod
     def normalize_data(data: pd.Series) -> pd.Series:
-        """Normalizes a series to [0,1]. If min==max, returns all zeros."""
         min_val = data.min()
         max_val = data.max()
         if max_val > min_val:
@@ -280,220 +255,82 @@ class FeatureEngineer:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)
 
-    def _calculate_symbol_correlation(self,
-                                      ref: pd.Series,
-                                      other: pd.Series,
-                                      min_points: int = 2) -> Optional[float]:
-        aligned = pd.concat([ref, other], axis=1, join='inner').dropna()
-        if len(aligned) >= min_points:
-            return aligned.iloc[:, 0].corr(aligned.iloc[:, 1])
-        else:
-            return None
-
-    def _calculate_all_correlations(
-            self, symbol: str, ref_data: pd.Series,
-            portfolio_data: Dict[str,
-                                 pd.DataFrame]) -> Dict[str, Optional[float]]:
+    def prepare_data(self, portfolio_data: pd.DataFrame) -> pd.DataFrame:
         """
-        Computes correlation of 'ref_data' with each symbol's 'Close' in portfolio_data.
-        Parallel if self.n_jobs > 1.
+        Main pipeline to prepare features from concatenated portfolio data.
+        Columns are expected to be named like: Open_AAPL, Close_AAPL, etc.
         """
-        tasks = []
-        for other_symbol, other_df in portfolio_data.items():
-            if other_symbol == symbol:
-                continue
-            if 'Close' not in other_df.columns:
-                logger.warning(
-                    f"[{other_symbol}] No 'Close' column for correlation.")
-                continue
-            tasks.append((other_symbol, other_df['Close']))
+        if not isinstance(portfolio_data, pd.DataFrame):
+            raise TypeError("portfolio_data must be a DataFrame")
+        if portfolio_data.empty:
+            raise ValueError("portfolio_data is empty")
 
-        correlations = {}
-        if self.n_jobs > 1:
-            with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=self.n_jobs) as executor:
-                future_map = {
-                    executor.submit(self._calculate_symbol_correlation, ref_data, other_close):
-                    other_sym
-                    for (other_sym, other_close) in tasks
-                }
-                for future in concurrent.futures.as_completed(future_map):
-                    sym = future_map[future]
-                    correlations[sym] = future.result()
-        else:
-            # Single-thread fallback
-            for other_sym, other_close in tasks:
-                correlations[other_sym] = self._calculate_symbol_correlation(
-                    ref_data, other_close)
+        # Get unique symbols from column names
+        symbols = set(col.split('_')[1] for col in portfolio_data.columns if '_' in col)
 
-        return correlations
+        prepared_data = portfolio_data.copy()
 
-    def prepare_data(
-            self,
-            portfolio_data: Dict[str,
-                                 pd.DataFrame]) -> Dict[str, pd.DataFrame]:
-        """
-        Main pipeline to:
-         - Validate data
-         - Calculate standard indicators
-         - Add FFT
-         - Correlate with other symbols
-         - Normalize non-OHLCV columns
-         - Drop rows with missing data
-
-        Returns a dict of prepared DataFrames keyed by symbol.
-        """
-        if not isinstance(portfolio_data, dict) or not portfolio_data:
-            raise TypeError("'portfolio_data' must be a non-empty dictionary of DataFrames.")
-        if not all(isinstance(df, pd.DataFrame) for df in portfolio_data.values()):
-            raise TypeError("All values in portfolio_data must be DataFrames")
-        if all(df.empty for df in portfolio_data.values()):
-            raise ValueError("All DataFrames in portfolio_data are empty")
-            raise ValueError(
-                "No data available. Please provide 'portfolio_data' first.")
-
-        if not isinstance(portfolio_data, dict):
-            raise TypeError(
-                "'portfolio_data' must be a dictionary of DataFrames.")
-
-        prepared_data = {}
-        ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-
-        for symbol, df in portfolio_data.items():
+        for symbol in symbols:
             try:
-                # Basic check: must have a 'Close' column
-                if not validate_dataframe(df, ['Close']):
-                    logger.error(
-                        f"[{symbol}] Invalid DataFrame format. Missing 'Close' or empty."
-                    )
-                    continue
-                # Make a copy so we don't mutate the original
-                data_copy = df.copy()
+                # Calculate indicators for each symbol using its specific columns
+                close_col = f'Close_{symbol}'
+                high_col = f'High_{symbol}'
+                low_col = f'Low_{symbol}'
+                volume_col = f'Volume_{symbol}'
 
-                # Must have at least 50 data points for meaningful rolling calculations
-                if len(data_copy) < 50:
-                    logger.warning(
-                        f"[{symbol}] Insufficient data (<50 rows). Skipping advanced features."
-                    )
-                    prepared_data[symbol] = data_copy
-                    continue
+                if close_col in portfolio_data.columns:
+                    prepared_data[f'RSI_{symbol}'] = self.calculate_rsi(portfolio_data[close_col])
+                    prepared_data[f'Volatility_{symbol}'] = self.calculate_volatility(portfolio_data[close_col])
 
-                # -----------------------------------------------------------------
-                # 1) Compute Indicators
-                # -----------------------------------------------------------------
-                try:
-                    data_copy['RSI'] = self.calculate_rsi(data_copy['Close'])
-                    data_copy['Volatility'] = self.calculate_volatility(
-                        data_copy['Close'])
+                    # Bollinger Bands
+                    bb = self.calculate_bollinger_bands(portfolio_data[close_col])
+                    prepared_data[f'BB_Upper_{symbol}'] = bb['Upper_Band']
+                    prepared_data[f'BB_Lower_{symbol}'] = bb['Lower_Band']
+                    prepared_data[f'BB_SMA_{symbol}'] = bb['SMA']
 
-                    bollinger_bands = self.calculate_bollinger_bands(
-                        data_copy['Close'])
-                    data_copy = pd.concat([data_copy, bollinger_bands], axis=1)
+                    # MACD
+                    macd = self.calculate_macd(portfolio_data[close_col])
+                    prepared_data[f'MACD_{symbol}'] = macd['MACD']
+                    prepared_data[f'MACD_Signal_{symbol}'] = macd['Signal']
 
-                    macd_df = self.calculate_macd(data_copy['Close'])
-                    data_copy = pd.concat([data_copy, macd_df], axis=1)
+                    # Add lagged features
+                    for lag in range(1, 6):
+                        prepared_data[f'{close_col}_lag{lag}'] = portfolio_data[close_col].shift(lag)
 
-                    # Some advanced indicators require columns: 'High','Low','Volume'
-                    if all(col in data_copy.columns
-                           for col in ['High', 'Low', 'Close']):
-                        stoch = self.calculate_stochastic_oscillator(
-                            data_copy[['High', 'Low', 'Close']])
-                        data_copy = pd.concat([data_copy, stoch], axis=1)
+                    # Add rolling features
+                    for window in [7, 14, 30]:
+                        prepared_data[f'{close_col}_rolling_mean_{window}'] = portfolio_data[close_col].rolling(window=window).mean()
+                        prepared_data[f'{close_col}_rolling_std_{window}'] = portfolio_data[close_col].rolling(window=window).std()
 
-                    if all(col in data_copy.columns
-                           for col in ['High', 'Low', 'Close', 'Volume']):
-                        mfi = self.calculate_money_flow_index(
-                            data_copy[['High', 'Low', 'Close', 'Volume']])
-                        data_copy['MFI'] = mfi
+                    # FFT features
+                    fft_features = self.add_fourier_transform(portfolio_data[close_col])
+                    if not fft_features.empty:
+                        for col in fft_features.columns:
+                            prepared_data[f'{col}_{symbol}'] = fft_features[col]
 
-                        obv = self.calculate_on_balance_volume(
-                            data_copy[['Close', 'Volume']])
-                        data_copy['OBV'] = obv
+                # Stochastic oscillator if we have high/low data
+                if all(col in portfolio_data.columns for col in [high_col, low_col, close_col]):
+                    symbol_data = pd.DataFrame({
+                        'High': portfolio_data[high_col],
+                        'Low': portfolio_data[low_col],
+                        'Close': portfolio_data[close_col]
+                    })
+                    stoch = self.calculate_stochastic_oscillator(symbol_data)
+                    prepared_data[f'Stoch_K_{symbol}'] = stoch['Stoch_%K']
+                    prepared_data[f'Stoch_D_{symbol}'] = stoch['Stoch_%D']
 
-                        adl = self.calculate_accumulation_distribution_line(
-                            data_copy[['High', 'Low', 'Close', 'Volume']])
-                        data_copy['ADL'] = adl
-                except Exception as e:
-                    logger.error(
-                        f"[{symbol}] Error in indicator calculations: {e}")
+                # Volume-based indicators
+                if volume_col in portfolio_data.columns:
+                    symbol_data = pd.DataFrame({
+                        'Close': portfolio_data[close_col],
+                        'Volume': portfolio_data[volume_col]
+                    })
+                    prepared_data[f'OBV_{symbol}'] = self.calculate_on_balance_volume(symbol_data)
 
-                # -----------------------------------------------------------------
-                # 2) Lagged & Rolling Features
-                # -----------------------------------------------------------------
-                try:
-                    data_copy = self.add_lagged_features(data_copy,
-                                                         ['Close', 'RSI'],
-                                                         lags=5)
-                    data_copy = self.add_rolling_features(data_copy,
-                                                          'Close',
-                                                          windows=[7, 14, 30])
-                except Exception as e:
-                    logger.error(
-                        f"[{symbol}] Error in lagged/rolling features: {e}")
+            except Exception as e:
+                logger.error(f"Error processing symbol {symbol}: {str(e)}")
 
-                # -----------------------------------------------------------------
-                # 3) Fourier Transform
-                # -----------------------------------------------------------------
-                try:
-                    fft_df = self.add_fourier_transform(data_copy['Close'],
-                                                        top_n=3)
-                    if not fft_df.empty:
-                        data_copy = pd.concat([data_copy, fft_df], axis=1)
-                    else:
-                        logger.warning(
-                            f"[{symbol}] Skipping FFT. Insufficient data or error."
-                        )
-                except Exception as e:
-                    logger.error(f"[{symbol}] FFT Error: {e}")
-
-                # -----------------------------------------------------------------
-                # 4) Correlations
-                # -----------------------------------------------------------------
-                try:
-                    correlations = self._calculate_all_correlations(
-                        symbol, data_copy['Close'], portfolio_data)
-                    data_copy['Correlations'] = str(correlations)
-                except Exception as e:
-                    logger.error(
-                        f"[{symbol}] Error calculating correlations: {e}")
-
-                # -----------------------------------------------------------------
-                # 5) Normalization (non-OHLCV columns & non-object)
-                # -----------------------------------------------------------------
-                ohlcv_backup = data_copy[ohlcv_cols].copy() if all(
-                    c in data_copy.columns for c in ohlcv_cols) else None
-
-                for col in data_copy.columns:
-                    if col in ohlcv_cols:
-                        continue
-                    if data_copy[col].dtype == 'object':
-                        continue
-                    # only normalize if >1 unique value
-                    if data_copy[col].nunique() > 1:
-                        data_copy[col] = self.normalize_data(data_copy[col])
-                    else:
-                        logger.warning(
-                            f"[{symbol}] Column '{col}' is constant or insufficiently variable for normalization."
-                        )
-
-                # Restore the original OHLCV data if available
-                if ohlcv_backup is not None:
-                    for c in ohlcv_cols:
-                        data_copy[c] = ohlcv_backup[c]
-
-                # -----------------------------------------------------------------
-                # 6) Drop NaNs
-                # -----------------------------------------------------------------
-                data_copy.dropna(inplace=True)
-                if data_copy.empty:
-                    logger.warning(
-                        f"[{symbol}] All rows dropped after dropping NaNs.")
-
-                prepared_data[symbol] = data_copy
-
-            except Exception as ex:
-                logger.error(
-                    f"[{symbol}] Unexpected error in prepare_data: {ex}")
-                prepared_data[symbol] = df  # fallback to the original if error
+        # Drop any NaN values that might have been introduced
+        prepared_data.dropna(inplace=True)
 
         return prepared_data

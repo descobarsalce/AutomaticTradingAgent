@@ -29,7 +29,17 @@ class TradingVisualizer:
         self.figs = {}
 
         try:
-            for symbol, data in portfolio_data.items():
+            # Extract symbols from column names
+        symbols = sorted(list(set(col.split('_')[1] for col in portfolio_data.columns if '_' in col)))
+        for symbol in symbols:
+            # Extract symbol-specific data
+            symbol_data = pd.DataFrame({
+                'Open': portfolio_data[f'Open_{symbol}'],
+                'High': portfolio_data[f'High_{symbol}'],
+                'Low': portfolio_data[f'Low_{symbol}'],
+                'Close': portfolio_data[f'Close_{symbol}'],
+                'Volume': portfolio_data[f'Volume_{symbol}']
+            })
                 fig = self.create_single_chart(
                     symbol, data,
                     trades.get(symbol) if trades else None)

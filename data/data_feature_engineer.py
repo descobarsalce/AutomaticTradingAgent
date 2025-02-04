@@ -343,7 +343,12 @@ class FeatureEngineer:
 
         Returns a dict of prepared DataFrames keyed by symbol.
         """
-        if not portfolio_data:
+        if not isinstance(portfolio_data, dict) or not portfolio_data:
+            raise TypeError("'portfolio_data' must be a non-empty dictionary of DataFrames.")
+        if not all(isinstance(df, pd.DataFrame) for df in portfolio_data.values()):
+            raise TypeError("All values in portfolio_data must be DataFrames")
+        if all(df.empty for df in portfolio_data.values()):
+            raise ValueError("All DataFrames in portfolio_data are empty")
             raise ValueError(
                 "No data available. Please provide 'portfolio_data' first.")
 

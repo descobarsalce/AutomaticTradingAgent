@@ -197,10 +197,13 @@ class UnifiedTradingAgent:
 
         action, _ = self.model.predict(observation,
                                        deterministic=deterministic)
-        action_val = int(
-            action.item() if isinstance(action, np.ndarray) else action)
-
-        return np.array([action_val])
+        
+        # Handle both single and multi-asset predictions
+        if isinstance(action, np.ndarray):
+            if action.size == 1:
+                return np.array([int(action.item())])
+            return action.astype(int)
+        return np.array([int(action)])
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,

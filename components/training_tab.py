@@ -85,12 +85,34 @@ def display_training_tab():
 
     with tab1:
         st.header("Agent Parameters")
-        use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
-                                        value=False)
-        if not use_optuna_params:
+        col1, col2 = st.columns(2)
+        with col1:
+            use_optuna_params = st.checkbox("Use Optuna Optimized Parameters", value=False)
+        with col2:
+            use_saved_model = st.checkbox("Load Saved Model", value=False)
+
+        if use_saved_model:
+            saved_models = [f for f in os.listdir("saved_models") if f.endswith('.zip')]
+            if saved_models:
+                selected_model = st.selectbox("Select Model", saved_models)
+                if st.button("Load Model"):
+                    model_path = os.path.join("saved_models", selected_model)
+                    st.session_state.model.load(model_path)
+                    st.success(f"Model loaded from {model_path}")
+            else:
+                st.warning("No saved models found")
+        elif not use_optuna_params:
             ppo_params = get_training_parameters(use_optuna_params)
-            if st.button("Start Training"):
-                run_training(ppo_params)
+            col3, col4 = st.columns(2)
+            with col3:
+                if st.button("Start Training"):
+                    run_training(ppo_params)
+            with col4:
+                model_name = st.text_input("Save model as", "model_v1.zip")
+                if st.button("Save Model"):
+                    save_path = os.path.join("saved_models", model_name)
+                    st.session_state.model.save(save_path)
+                    st.success(f"Model saved to {save_path}")
         else:
             from core.hyperparameter_search import load_best_params
             best_params = load_best_params()
@@ -99,9 +121,7 @@ def display_training_tab():
                 if st.button("Start Training"):
                     run_training(st.session_state.ppo_params)
             else:
-                st.warning(
-                    "No optimized parameters found. Please run hyperparameter tuning first."
-                )
+                st.warning("No optimized parameters found. Please run hyperparameter tuning first.")
 
     with tab2:
         hyperparameter_tuning()

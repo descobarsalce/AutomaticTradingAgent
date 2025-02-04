@@ -67,9 +67,13 @@ class UnifiedTradingAgent:
         """Fetch and prepare data."""
         self.stocks_data = st.session_state.data_handler.fetch_data(stock_names, start_date,
                                                            end_date)
-        if self.stocks_data.empty:
+        if isinstance(self.stocks_data, pd.DataFrame) and self.stocks_data.empty:
             raise ValueError("No data found in database")
-
+        
+        # Validate data structure
+        if not any(f'Close_{symbol}' in self.stocks_data.columns for symbol in stock_names):
+            raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
+            
         # Now we extract the features for the model:
         prepared_data = st.session_state.data_handler.prepare_data(self.stocks_data)
         return prepared_data

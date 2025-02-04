@@ -220,13 +220,25 @@ class TradingVisualizer:
 
             # Update layout with interactive features and date formatting
             fig.update_layout(
-                height=1000,  # Increased height for action plot
+                height=800,
                 showlegend=True,
                 xaxis_rangeslider_visible=False,
                 template='plotly_dark',
                 dragmode='zoom',
                 hovermode='x unified',
-                margin=dict(l=50, r=50, t=50, b=50))
+                margin=dict(l=50, r=50, t=50, b=50),
+                font=dict(family="Arial, sans-serif"),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(128,128,128,0.2)',
+                    tickangle=45
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor='rgba(128,128,128,0.2)'
+                ))
 
             # Configure x-axis for date display
             fig.update_xaxes(rangeslider=dict(visible=False),
@@ -278,7 +290,15 @@ class TradingVisualizer:
                         x=corr_matrix.columns,
                         y=corr_matrix.columns,
                         title="Correlation Heatmap of Daily Returns")
-        fig.update_layout(template="plotly_dark")
+        fig.update_layout(
+            template="plotly_dark",
+            height=800,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Arial, sans-serif"),
+            margin=dict(l=50, r=50, t=50, b=50),
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=False))
         return fig
 
     def plot_cumulative_returns(self,
@@ -304,11 +324,26 @@ class TradingVisualizer:
                                y=cum_returns,
                                mode='lines',
                                name=symbol))
-        fig.update_layout(title="Cumulative Returns Over Time",
-                          xaxis_title="Date",
-                          yaxis_title="Cumulative Return",
-                          template="plotly_dark",
-                          hovermode="x unified")
+        fig.update_layout(
+            title="Cumulative Returns Over Time",
+            xaxis_title="Date",
+            yaxis_title="Cumulative Return",
+            template="plotly_dark",
+            hovermode="x unified",
+            height=800,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Arial, sans-serif"),
+            margin=dict(l=50, r=50, t=50, b=50),
+            xaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(128,128,128,0.2)',
+                tickangle=45
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(128,128,128,0.2)'
+            ))
         return fig
 
     def plot_drawdown(self,

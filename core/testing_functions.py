@@ -79,13 +79,8 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
 
                             # Display parameters used for testing
                             st.subheader("Parameters Used for Testing")
-                            col1, col2, col3 = st.columns(3)
-                            index_col = 0
-                            all_cols = [col1, col2, col3]
                             for param, value in ppo_params.items():
-                                with all_cols[index_col % 3]:
-                                    st.metric(param, value)
-                                    index_col += 1
+                                st.metric(param, value)
 
                             # Display metrics
                             metrics = test_results['metrics']

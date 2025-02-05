@@ -103,16 +103,15 @@ def display_training_tab():
                 st.warning("No saved models found")
         elif not use_optuna_params:
             ppo_params = get_training_parameters(use_optuna_params)
-            col3, col4 = st.columns(2)
-            with col3:
-                if st.button("Start Training"):
-                    run_training(ppo_params)
-            with col4:
-                model_name = st.text_input("Save model as", "model_v1.zip")
-                if st.button("Save Model"):
-                    save_path = os.path.join("saved_models", model_name)
-                    st.session_state.model.save(save_path)
-                    st.success(f"Model saved to {save_path}")
+            if st.button("Start Training"):
+                run_training(ppo_params)
+                
+            st.write("")  # Add spacing
+            model_name = st.text_input("Save model as", "model_v1.zip")
+            if st.button("Save Model", use_container_width=True):
+                save_path = os.path.join("saved_models", model_name)
+                st.session_state.model.save(save_path)
+                st.success(f"Model saved to {save_path}")
         else:
             from core.hyperparameter_search import load_best_params
             best_params = load_best_params()

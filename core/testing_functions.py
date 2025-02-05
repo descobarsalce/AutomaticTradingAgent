@@ -153,3 +153,32 @@ def display_trading_activity(test_results: Dict[str, Any]):
     if 'combined_plot' in test_results:
         st.plotly_chart(test_results['combined_plot'],
                        use_container_width=True)
+def perform_walk_forward_analysis(model, data, window_size=252, step_size=21):
+    """
+    Performs walk-forward analysis using sliding windows.
+    Args:
+        window_size: Training window size (default 1 year)
+        step_size: Forward testing period (default 1 month)
+    """
+    results = []
+    total_periods = len(data) - window_size
+    
+    for i in range(0, total_periods, step_size):
+        # Training period
+        train_start = i
+        train_end = i + window_size
+        
+        # Testing period
+        test_start = train_end
+        test_end = min(test_start + step_size, len(data))
+        
+        # Train on window
+        train_data = data.iloc[train_start:train_end]
+        model.train(train_data)
+        
+        # Test on unseen data
+        test_data = data.iloc[test_start:test_end]
+        period_results = model.test(test_data)
+        results.append(period_results)
+        
+    return results

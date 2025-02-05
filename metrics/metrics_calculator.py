@@ -283,3 +283,45 @@ class MetricsCalculator(BaseTechnicalIndicators):
         except Exception as e:
             logger.exception("Error calculating MACD")
             return np.array([]), np.array([])
+def calculate_out_of_sample_metrics(in_sample_results, out_of_sample_results):
+    """
+    Compare in-sample vs out-of-sample performance to detect overfitting.
+    Returns a dict with performance degradation metrics.
+    """
+    metrics = {}
+    
+    # Calculate performance degradation
+    metrics['sharpe_ratio_degradation'] = (
+        out_of_sample_results['sharpe_ratio'] / in_sample_results['sharpe_ratio']
+    )
+    
+    metrics['returns_degradation'] = (
+        out_of_sample_results['returns'] / in_sample_results['returns']
+    )
+    
+    # Profit factor comparison
+    metrics['profit_factor_degradation'] = (
+        out_of_sample_results['profit_factor'] / in_sample_results['profit_factor']
+    )
+    
+    return metrics
+def perform_monte_carlo_analysis(returns, n_simulations=1000, confidence_level=0.95):
+    """
+    Perform Monte Carlo simulation to estimate strategy robustness.
+    """
+    results = []
+    for _ in range(n_simulations):
+        # Resample returns with replacement
+        simulated_returns = np.random.choice(returns, size=len(returns), replace=True)
+        cumulative_returns = (1 + simulated_returns).cumprod()
+        results.append(cumulative_returns[-1])
+    
+    # Calculate confidence intervals
+    conf_interval = np.percentile(results, [(1-confidence_level)/2, 1-(1-confidence_level)/2])
+    
+    return {
+        'mean_terminal_value': np.mean(results),
+        'confidence_interval': conf_interval,
+        'worst_case': np.min(results),
+        'best_case': np.max(results)
+    }

@@ -101,9 +101,15 @@ class TradingEnv(gym.Env):
     def _get_observation(self) -> np.ndarray:
         """Get current observation of market and account state using only past data."""
         obs = []
-        # Get historical window up to current step
+        # Get historical window up to current step (exclusive of current step for features)
         start_idx = max(0, self.current_step - self.lookback_window)
-        historical_window = self._full_data.iloc[start_idx:self.current_step + 1]
+        historical_window = self._full_data.iloc[start_idx:self.current_step]
+        
+        # Only use current step data for actual prices
+        current_data = self._full_data.iloc[self.current_step:self.current_step + 1]
+        
+        # Ensure no future data leakage in feature calculation
+        features = self.feature_engineer.prepare_data(historical_window, current_index=len(historical_window)-1)
         
         # Current step data
         data_step = historical_window.iloc[-1]

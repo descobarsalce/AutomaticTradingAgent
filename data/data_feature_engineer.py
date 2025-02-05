@@ -255,11 +255,17 @@ class FeatureEngineer:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)
 
-    def prepare_data(self, portfolio_data: pd.DataFrame) -> pd.DataFrame:
+    def prepare_data(self, portfolio_data: pd.DataFrame, current_index: Optional[int] = None) -> pd.DataFrame:
         """
         Main pipeline to prepare features from concatenated portfolio data.
         Columns are expected to be named like: Open_AAPL, Close_AAPL, etc.
+        
+        Args:
+            portfolio_data: DataFrame with OHLCV data
+            current_index: If provided, only use data up to this index to prevent lookahead
         """
+        if current_index is not None:
+            portfolio_data = portfolio_data.iloc[:current_index + 1].copy()
         if not isinstance(portfolio_data, pd.DataFrame):
             raise TypeError("portfolio_data must be a DataFrame")
         if portfolio_data.empty:

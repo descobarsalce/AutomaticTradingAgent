@@ -27,7 +27,11 @@ class TradingEnv(gym.Env):
                  use_trading_penalty: bool = False,
                  training_mode: bool = False,
                  log_frequency: int = 30,
-                 stock_names: Optional[List[str]] = None):
+                 stock_names: Optional[List[str]] = None,
+                 lookback_window: int = 252):  # ~1 year of trading days
+        
+        self.lookback_window = lookback_window
+        self._full_data = data.copy()  # Store full dataset
         super().__init__()
 
         self._portfolio_history = []
@@ -95,11 +99,20 @@ class TradingEnv(gym.Env):
         return spaces.Discrete(num_actions)
 
     def _get_observation(self) -> np.ndarray:
-        """Get current observation of market and account state."""
+        """Get current observation of market and account state using only past data."""
         obs = []
+        # Get historical window up to current step
+        start_idx = max(0, self.current_step - self.lookback_window)
+        historical_window = self._full_data.iloc[start_idx:self.current_step + 1]
+        
+        # Current step data
+        data_step = historical_window.iloc[-1]
+        
         for symbol in self.symbols:
             try:
-                data_step = self.data.iloc[self.current_step]
+                # Calculate features using only available data
+                symbol_data = {col: historical_window[col] for col in historical_window.columns if symbol in col}
+                features = self._calculate_features(symbol_data)
                 obs.extend([
                     float(data_step[f'Open_{symbol}']),
                     float(data_step[f'High_{symbol}']),

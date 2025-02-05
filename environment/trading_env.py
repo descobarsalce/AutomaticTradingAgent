@@ -130,25 +130,6 @@ class TradingEnv(gym.Env):
         
         return np.array(obs, dtype=np.float32)
         
-        for symbol in self.symbols:
-            try:
-                # Calculate features using only available data
-                symbol_data = {col: historical_window[col] for col in historical_window.columns if symbol in col}
-                features = self._calculate_features(symbol_data)
-                obs.extend([
-                    float(data_step[f'Open_{symbol}']),
-                    float(data_step[f'High_{symbol}']),
-                    float(data_step[f'Low_{symbol}']),
-                    float(data_step[f'Close_{symbol}']),
-                    float(data_step[f'Volume_{symbol}']),
-                    float(self.positions[symbol])
-                ])
-            except Exception as e:
-                logger.error(f"Error getting observation for {symbol}: {e}")
-                raise
-        obs.append(float(self.balance))
-        return np.array(obs, dtype=np.float32)
-
     def _compute_reward(self, prev_net_worth: float, current_net_worth: float,
                         actions: Union[int, np.ndarray],
                         trades_executed: Dict[str, bool]) -> float:

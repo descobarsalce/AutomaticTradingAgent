@@ -1,1 +1,1 @@
-{"params": {"learning_rate": 0.00019478301869457223, "n_steps": 1871, "batch_size": 486, "n_epochs": 606, "gamma": 0.983289163383401, "gae_lambda": 0.9384859121683493}, "value": 1.8170520029328112}
+{"params": {"learning_rate": 0.0002195209181291887, "n_steps": 1284, "batch_size": 275, "n_epochs": 5, "gamma": 0.9703239505218295, "gae_lambda": 0.9849858107483196}, "value": -Infinity}

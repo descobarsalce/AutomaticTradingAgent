@@ -147,6 +147,23 @@ def display_trading_activity(test_results: Dict[str, Any]):
 
     if 'combined_plot' in test_results:
         st.plotly_chart(test_results['combined_plot'],
+
+def perform_monte_carlo_analysis(model, data, num_simulations=100):
+    """
+    Performs Monte Carlo analysis by running multiple backtest simulations
+    """
+    results = []
+    for _ in range(num_simulations):
+        # Randomize initial conditions slightly
+        modified_data = data.copy()
+        modified_data *= (1 + np.random.normal(0, 0.001, size=data.shape))
+        
+        # Run backtest with modified data
+        simulation_result = model.test(modified_data)
+        results.append(simulation_result)
+    
+    return results
+
                        use_container_width=True)
 def perform_walk_forward_analysis(model, data, window_size=252, step_size=21):
     """

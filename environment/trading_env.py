@@ -29,6 +29,8 @@ class TradingEnv(gym.Env):
                  log_frequency: int = 30,
                  stock_names: Optional[List[str]] = None,
                  lookback_window: int = 252):  # ~1 year of trading days
+        from data.data_feature_engineer import FeatureEngineer
+        self.feature_engineer = FeatureEngineer()
         
         self.lookback_window = lookback_window
         self._full_data = data.copy()  # Store full dataset
@@ -101,18 +103,32 @@ class TradingEnv(gym.Env):
     def _get_observation(self) -> np.ndarray:
         """Get current observation of market and account state using only past data."""
         obs = []
-        # Get historical window up to current step (exclusive of current step for features)
+        # Get historical window up to current step (exclusive of current step)
         start_idx = max(0, self.current_step - self.lookback_window)
         historical_window = self._full_data.iloc[start_idx:self.current_step]
         
-        # Only use current step data for actual prices
-        current_data = self._full_data.iloc[self.current_step:self.current_step + 1]
+        if len(historical_window) < 2:  # Minimum required for calculating features
+            # Use minimal features if not enough history
+            for symbol in self.symbols:
+                current_price = float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+                # Add basic features (price and position)
+                obs.extend([current_price, self.positions[symbol]])
+            obs.append(self.balance)
+            return np.array(obs, dtype=np.float32)
+            
+        # Calculate features using only historical data
+        features = self.feature_engineer.prepare_data(historical_window)
         
-        # Ensure no future data leakage in feature calculation
-        features = self.feature_engineer.prepare_data(historical_window, current_index=len(historical_window)-1)
+        # Add current market state and positions
+        for symbol in self.symbols:
+            current_price = float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+            symbol_features = features.get(symbol, [])
+            obs.extend([current_price] + symbol_features + [self.positions[symbol]])
+            
+        # Add account state
+        obs.append(self.balance)
         
-        # Current step data
-        data_step = historical_window.iloc[-1]
+        return np.array(obs, dtype=np.float32)
         
         for symbol in self.symbols:
             try:

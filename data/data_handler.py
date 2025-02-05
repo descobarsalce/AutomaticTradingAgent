@@ -66,9 +66,9 @@ class DataHandler:
         result = pd.concat(all_stocks_data, axis=1)
         return result
 
-    def prepare_data(self, portfolio_data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
-        """Prepare data using feature engineer"""
-        return portfolio_data #self.feature_engineer.prepare_data(portfolio_data)
+    def prepare_data(self, portfolio_data: pd.DataFrame) -> pd.DataFrame:
+        """Pass through data without feature engineering"""
+        return portfolio_data
 
     def __del__(self):
         """Cleanup database session"""

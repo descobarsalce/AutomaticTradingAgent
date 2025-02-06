@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 import logging
 import numpy as np
@@ -19,10 +20,10 @@ from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
                           DEFAULT_STOP_LOSS, MIN_TRADE_SIZE)
 
-# Suppress TF logging and CUDA warnings
+# Environment setup
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU only
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices=false'
 
 warnings.filterwarnings('ignore', category=UserWarning)
@@ -31,23 +32,29 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-
-
 class UnifiedTradingAgent:
-    """Unified trading agent combining all trading functionality."""
+    """Unified trading agent with modular components for trading functionality."""
 
     @type_check
     def __init__(self,
                  optimize_for_sharpe: bool = True,
                  tensorboard_log: str = "./tensorboard_logs/",
                  seed: Optional[int] = None) -> None:
-        """Initialize the unified trading agent."""
-        self.env: Optional[TradingEnv] = None
-        self.model: Optional[PPO] = None
-        self.portfolio_history: List[float] = []
-        self.positions_history: List[Dict[str, float]] = []
-        self.stocks_data: Dict[str, pd.DataFrame] = {}
-        self.evaluation_metrics: Dict[str, Union[float, List[float], int]] = {
+        """Initialize the unified trading agent with configuration."""
+        self._init_state()
+        self.optimize_for_sharpe = optimize_for_sharpe
+        self.tensorboard_log = tensorboard_log
+        self.seed = seed
+        self.ppo_params = DEFAULT_PPO_PARAMS.copy()
+
+    def _init_state(self) -> None:
+        """Initialize agent state variables."""
+        self.env = None
+        self.model = None
+        self.portfolio_history = []
+        self.positions_history = []
+        self.stocks_data = {}
+        self.evaluation_metrics = {
             'returns': [],
             'sharpe_ratio': 0.0,
             'sortino_ratio': 0.0,
@@ -56,32 +63,26 @@ class UnifiedTradingAgent:
             'total_trades': 0,
             'win_rate': 0.0
         }
-        self.optimize_for_sharpe = optimize_for_sharpe # not used really
-        self.tensorboard_log = tensorboard_log
-        self.seed = seed
-        self.ppo_params = DEFAULT_PPO_PARAMS.copy()
 
     @type_check
     def prepare_processed_data(self, stock_names: List, start_date: datetime,
-                               end_date: datetime) -> pd.DataFrame:
-        """Fetch and prepare data."""
+                             end_date: datetime) -> pd.DataFrame:
+        """Prepare and validate trading data."""
         self.stocks_data = st.session_state.data_handler.fetch_data(stock_names, start_date,
-                                                           end_date)
+                                                                  end_date)
         if isinstance(self.stocks_data, pd.DataFrame) and self.stocks_data.empty:
             raise ValueError("No data found in database")
         
-        # Validate data structure
         if not any(f'Close_{symbol}' in self.stocks_data.columns for symbol in stock_names):
             raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
             
-        # Now we extract the features for the model:
         prepared_data = st.session_state.data_handler.prepare_data(self.stocks_data)
         return prepared_data
 
     @type_check
     def initialize_env(self, data: pd.DataFrame,
-                       env_params: Dict[str, Any]) -> None:
-        """Initialize trading environment."""
+                      env_params: Dict[str, Any]) -> None:
+        """Initialize trading environment with parameters."""
         env_params['min_transaction_size'] = MIN_TRADE_SIZE
         self.env = TradingEnv(
             data=data,
@@ -95,18 +96,19 @@ class UnifiedTradingAgent:
         self.positions_history.clear()
 
     @type_check
-    def configure_ppo(self,
-                      ppo_params: Optional[Dict[str, Any]] = None) -> None:
+    def configure_ppo(self, ppo_params: Optional[Dict[str, Any]] = None) -> None:
         """Configure PPO model with validated parameters."""
         if not self.env:
-            raise ValueError(
-                "Environment not initialized. Call initialize_env first.")
+            raise ValueError("Environment not initialized. Call initialize_env first.")
 
         if ppo_params:
-            for k, v in ppo_params.items():
-                self.ppo_params[k] = v
+            self.ppo_params.update(ppo_params)
 
-        # Validate parameters
+        self._validate_ppo_params()
+        self._setup_ppo_model()
+
+    def _validate_ppo_params(self) -> None:
+        """Validate PPO parameters against defined ranges."""
         for param, value in self.ppo_params.items():
             if param in PARAM_RANGES and value is not None:
                 min_val, max_val = PARAM_RANGES[param]
@@ -116,7 +118,8 @@ class UnifiedTradingAgent:
                     )
                     self.ppo_params[param] = max(min_val, min(value, max_val))
 
-        # Set network architecture
+    def _setup_ppo_model(self) -> None:
+        """Set up PPO model with current configuration."""
         policy_kwargs = ({
             'net_arch': [dict(pi=[128, 128, 128], vf=[128, 128, 128])]
         } if self.optimize_for_sharpe else DEFAULT_POLICY_KWARGS.copy())
@@ -126,11 +129,11 @@ class UnifiedTradingAgent:
 
         try:
             self.model = PPO("MlpPolicy",
-                             self.env,
-                             **self.ppo_params,
-                             tensorboard_log=self.tensorboard_log,
-                             policy_kwargs=policy_kwargs,
-                             seed=self.seed)
+                           self.env,
+                           **self.ppo_params,
+                           tensorboard_log=self.tensorboard_log,
+                           policy_kwargs=policy_kwargs,
+                           seed=self.seed)
         except Exception as e:
             logger.exception("Failed to initialize PPO model")
             raise
@@ -143,62 +146,57 @@ class UnifiedTradingAgent:
               env_params: Dict[str, Any],
               ppo_params: Dict[str, Any],
               callback: Optional[BaseCallback] = None) -> Dict[str, float]:
-        """Train the agent."""
+        """Train the agent with progress logging."""
+        logger.info(f"Starting training with {len(stock_names)} stocks from {start_date} to {end_date}")
         data = self.prepare_processed_data(stock_names, start_date, end_date)
+        logger.info(f"Prepared data shape: {data.shape}")
         self.initialize_env(data, env_params)
         self.configure_ppo(ppo_params)
 
         total_timesteps = max(1, (end_date - start_date).days)
         eval_callback = EvalCallback(self.env,
-                                     best_model_save_path='./best_model/',
-                                     log_path='./eval_logs/',
-                                     eval_freq=1000,
-                                     deterministic=True,
-                                     render=False)
+                                   best_model_save_path='./best_model/',
+                                   log_path='./eval_logs/',
+                                   eval_freq=1000,
+                                   deterministic=True,
+                                   render=False)
 
         try:
             self.model.learn(total_timesteps=total_timesteps,
-                             callback=callback or eval_callback)
+                           callback=callback or eval_callback)
             self.save("trained_model.zip")
-
-            self.portfolio_history = self.env.get_portfolio_history()
-            if len(self.portfolio_history) > 1:
-                returns = MetricsCalculator.calculate_returns(
-                    self.portfolio_history)
-                return {
-                    'sharpe_ratio':
-                    MetricsCalculator.calculate_sharpe_ratio(returns),
-                    'max_drawdown':
-                    MetricsCalculator.calculate_maximum_drawdown(
-                        self.portfolio_history),
-                    'sortino_ratio':
-                    MetricsCalculator.calculate_sortino_ratio(returns),
-                    'volatility':
-                    MetricsCalculator.calculate_volatility(returns),
-                    'total_return':
-                    (self.portfolio_history[-1] - self.portfolio_history[0]) /
-                    self.portfolio_history[0],
-                    'final_value':
-                    self.portfolio_history[-1]
-                }
+            return self._calculate_training_metrics()
         except Exception as e:
             logger.exception("Error during training")
             raise
 
+    def _calculate_training_metrics(self) -> Dict[str, float]:
+        """Calculate and return training metrics."""
+        self.portfolio_history = self.env.get_portfolio_history()
+        if len(self.portfolio_history) > 1:
+            returns = MetricsCalculator.calculate_returns(self.portfolio_history)
+            return {
+                'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
+                'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(
+                    self.portfolio_history),
+                'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
+                'volatility': MetricsCalculator.calculate_volatility(returns),
+                'total_return': (self.portfolio_history[-1] - self.portfolio_history[0]) /
+                self.portfolio_history[0],
+                'final_value': self.portfolio_history[-1]
+            }
         return {}
 
     @type_check
     def predict(self,
                 observation: NDArray,
                 deterministic: bool = True) -> NDArray:
-        """Generate trading action."""
+        """Generate trading action with input validation."""
         if self.model is None:
             raise ValueError("Model not initialized")
 
-        action, _ = self.model.predict(observation,
-                                       deterministic=deterministic)
+        action, _ = self.model.predict(observation, deterministic=deterministic)
         
-        # Handle both single and multi-asset predictions
         if isinstance(action, np.ndarray):
             if action.size == 1:
                 return np.array([int(action.item())])
@@ -208,12 +206,11 @@ class UnifiedTradingAgent:
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Test trained model."""
+        """Test trained model with comprehensive metrics."""
         data = self.prepare_processed_data(stock_names, start_date, end_date)
         self.initialize_env(data, env_params)
         self.load("trained_model.zip")
 
-        # Ensure trade history is reset
         if hasattr(self.env, '_trade_history'):
             self.env._trade_history = []
 
@@ -229,39 +226,43 @@ class UnifiedTradingAgent:
             done = terminated or truncated
             info_history.append(info)
 
+        return self._prepare_test_results(info_history, data)
+
+    def _prepare_test_results(self, info_history: List[Dict], 
+                            data: pd.DataFrame) -> Dict[str, Any]:
+        """Prepare comprehensive test results."""
         portfolio_history = self.env.get_portfolio_history()
         returns = MetricsCalculator.calculate_returns(portfolio_history)
 
         return {
-            'portfolio_history':
-            portfolio_history,
-            'returns':
-            returns,
-            'info_history':
-            info_history,
-            'action_plot':
-            TradingVisualizer().plot_discrete_actions(info_history),
-            'combined_plot':
-            TradingVisualizer().plot_actions_with_price(info_history, data),
+            'portfolio_history': portfolio_history,
+            'returns': returns,
+            'info_history': info_history,
+            'action_plot': TradingVisualizer().plot_discrete_actions(info_history),
+            'combined_plot': TradingVisualizer().plot_actions_with_price(info_history, data),
             'metrics': {
-                'sharpe_ratio':
-                MetricsCalculator.calculate_sharpe_ratio(returns),
-                'sortino_ratio':
-                MetricsCalculator.calculate_sortino_ratio(returns),
-                'information_ratio':
-                MetricsCalculator.calculate_information_ratio(returns),
-                'max_drawdown':
-                MetricsCalculator.calculate_maximum_drawdown(
-                    portfolio_history),
-                'volatility':
-                MetricsCalculator.calculate_volatility(returns)
+                'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
+                'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
+                'information_ratio': MetricsCalculator.calculate_information_ratio(returns),
+                'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(portfolio_history),
+                'volatility': MetricsCalculator.calculate_volatility(returns)
             }
         }
 
     @type_check
     def update_state(self, portfolio_value: float,
                      positions: Dict[str, float]) -> None:
-        """Update portfolio state."""
+        """Update portfolio state with validation."""
+        self._validate_portfolio_update(portfolio_value, positions)
+        self._check_portfolio_consistency(portfolio_value, positions)
+        
+        self.portfolio_history.append(portfolio_value)
+        self.positions_history.append(positions)
+        self._update_metrics()
+
+    def _validate_portfolio_update(self, portfolio_value: float,
+                                 positions: Dict[str, float]) -> None:
+        """Validate portfolio update inputs."""
         if portfolio_value < 0:
             raise ValueError("Invalid portfolio value")
 
@@ -271,6 +272,9 @@ class UnifiedTradingAgent:
             if abs(size) > MAX_POSITION_SIZE:
                 raise ValueError(f"Position size exceeds limit for {symbol}")
 
+    def _check_portfolio_consistency(self, portfolio_value: float,
+                                   positions: Dict[str, float]) -> None:
+        """Check portfolio value consistency."""
         try:
             if self.env and hasattr(self.env, 'data'):
                 current_prices = {
@@ -278,7 +282,7 @@ class UnifiedTradingAgent:
                     for symbol in positions
                 }
                 calc_value = sum(size * current_prices[symbol]
-                                 for symbol, size in positions.items())
+                               for symbol, size in positions.items())
                 cash_balance = getattr(self.env, 'balance', 0.0)
                 total_calc = calc_value + cash_balance
 
@@ -289,58 +293,50 @@ class UnifiedTradingAgent:
         except Exception as e:
             logger.error(f"Error checking portfolio: {str(e)}")
 
-        self.portfolio_history.append(portfolio_value)
-        self.positions_history.append(positions)
-        self._update_metrics()
-
     def _update_metrics(self) -> None:
-        """Update performance metrics."""
+        """Update performance metrics with error handling."""
         try:
-            # Only calculate metrics if we have enough history
             if len(self.portfolio_history) > 1:
-                returns = MetricsCalculator.calculate_returns(
-                    self.portfolio_history)
-
-                # Calculate metrics with error handling
-                metrics_dict = {
-                    'returns': float(np.mean(returns)) if len(returns) > 0 else 0.0,
-                    'sharpe_ratio': 0.0,
-                    'sortino_ratio': 0.0,
-                    'information_ratio': 0.0,
-                    'max_drawdown': 0.0,
-                    'total_trades': 0,
-                    'win_rate': 0.0
-                }
-
-                # Only calculate ratios if we have valid returns
-                if len(returns) > 0:
-                    try:
-                        metrics_dict['sharpe_ratio'] = MetricsCalculator.calculate_sharpe_ratio(returns)
-                        metrics_dict['sortino_ratio'] = MetricsCalculator.calculate_sortino_ratio(returns)
-                        metrics_dict['information_ratio'] = MetricsCalculator.calculate_information_ratio(returns)
-                        metrics_dict['max_drawdown'] = MetricsCalculator.calculate_maximum_drawdown(self.portfolio_history)
-                    except Exception as e:
-                        logger.warning(f"Error calculating some metrics: {str(e)}")
-
-                # Calculate trade metrics
-                valid_positions = [p for p in self.positions_history if isinstance(p, dict) and p]
-                metrics_dict['total_trades'] = len(valid_positions)
-
-                if len(valid_positions) > 1:
-                    try:
-                        profitable_trades = sum(1 for i in range(1, len(valid_positions))
-                                              if sum(valid_positions[i].values()) > sum(valid_positions[i-1].values()))
-                        metrics_dict['win_rate'] = profitable_trades / (len(valid_positions) - 1)
-                    except Exception as e:
-                        logger.warning(f"Error calculating trade metrics: {str(e)}")
-
-                # Update the metrics
-                self.evaluation_metrics.update(metrics_dict)
-
+                returns = MetricsCalculator.calculate_returns(self.portfolio_history)
+                self._calculate_and_update_metrics(returns)
         except Exception as e:
             logger.exception("Critical error updating metrics")
-            # Keep existing metrics instead of resetting to 0
-            logger.warning("Keeping previous metrics due to update failure")
+
+    def _calculate_and_update_metrics(self, returns: List[float]) -> None:
+        """Calculate and update all metrics."""
+        metrics_dict = {
+            'returns': float(np.mean(returns)) if returns else 0.0,
+            'sharpe_ratio': 0.0,
+            'sortino_ratio': 0.0,
+            'information_ratio': 0.0,
+            'max_drawdown': 0.0,
+            'total_trades': 0,
+            'win_rate': 0.0
+        }
+
+        if returns:
+            try:
+                metrics_dict.update({
+                    'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
+                    'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
+                    'information_ratio': MetricsCalculator.calculate_information_ratio(returns),
+                    'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(self.portfolio_history)
+                })
+            except Exception as e:
+                logger.warning(f"Error calculating some metrics: {str(e)}")
+
+        valid_positions = [p for p in self.positions_history if isinstance(p, dict) and p]
+        metrics_dict['total_trades'] = len(valid_positions)
+
+        if len(valid_positions) > 1:
+            try:
+                profitable_trades = sum(1 for i in range(1, len(valid_positions))
+                                     if sum(valid_positions[i].values()) > sum(valid_positions[i-1].values()))
+                metrics_dict['win_rate'] = profitable_trades / (len(valid_positions) - 1)
+            except Exception as e:
+                logger.warning(f"Error calculating trade metrics: {str(e)}")
+
+        self.evaluation_metrics.update(metrics_dict)
 
     @type_check
     def get_metrics(self) -> Dict[str, Union[float, List[float], int]]:
@@ -349,7 +345,7 @@ class UnifiedTradingAgent:
 
     @type_check
     def save(self, path: str) -> None:
-        """Save model."""
+        """Save model with validation."""
         if not path.strip():
             raise ValueError("Empty path")
         if not self.model:
@@ -358,7 +354,7 @@ class UnifiedTradingAgent:
 
     @type_check
     def load(self, path: str) -> None:
-        """Load model."""
+        """Load model with validation."""
         if not path.strip():
             raise ValueError("Empty path")
         if not self.env:

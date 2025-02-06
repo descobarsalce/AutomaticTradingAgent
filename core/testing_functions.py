@@ -122,21 +122,26 @@ def display_metrics_grid(metrics: Dict[str, float], test_results: Dict[str, Any]
     """
     Displays metrics in a grid layout
     """
+    def safe_format(value):
+        if hasattr(value, 'item'):
+            return float(value.item())
+        return float(value)
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-        st.metric("Max Drawdown", f"{metrics['max_drawdown']:.2%}")
+        st.metric("Sharpe Ratio", f"{safe_format(metrics['sharpe_ratio']):.2f}")
+        st.metric("Max Drawdown", f"{safe_format(metrics['max_drawdown']):.2%}")
     with col2:
-        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-        st.metric("Volatility", f"{metrics['volatility']:.2%}")
+        st.metric("Sortino Ratio", f"{safe_format(metrics['sortino_ratio']):.2f}")
+        st.metric("Volatility", f"{safe_format(metrics['volatility']):.2%}")
     with col3:
         if 'information_ratio' in metrics:
-            st.metric("Information Ratio", f"{metrics['information_ratio']:.2f}")
+            st.metric("Information Ratio", f"{safe_format(metrics['information_ratio']):.2f}")
         if 'portfolio_history' in test_results:
             total_return = ((test_results['portfolio_history'][-1] -
                          test_results['portfolio_history'][0]) /
                          test_results['portfolio_history'][0])
-            st.metric("Total Return", f"{total_return:.2%}")
+            st.metric("Total Return", f"{safe_format(total_return):.2%}")
 
 def display_trading_activity(test_results: Dict[str, Any]):
     """

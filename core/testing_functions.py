@@ -5,6 +5,7 @@ Handles model evaluation and visualization of test results
 """
 import streamlit as st
 import os
+import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import pandas as pd
@@ -142,11 +143,10 @@ def display_trading_activity(test_results: Dict[str, Any]):
     Displays trading activity plots
     """
     if 'action_plot' in test_results:
-        st.plotly_chart(test_results['action_plot'],
-                       use_container_width=True)
+        st.plotly_chart(test_results['action_plot'], use_container_width=True)
 
     if 'combined_plot' in test_results:
-        st.plotly_chart(test_results['combined_plot'],
+        st.plotly_chart(test_results['combined_plot'], use_container_width=True)
 
 def perform_monte_carlo_analysis(model, data, num_simulations=100):
     """
@@ -164,7 +164,6 @@ def perform_monte_carlo_analysis(model, data, num_simulations=100):
     
     return results
 
-                       use_container_width=True)
 def perform_walk_forward_analysis(model, data, window_size=252, step_size=21):
     """
     Performs walk-forward analysis using sliding windows.

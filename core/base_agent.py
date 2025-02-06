@@ -76,7 +76,7 @@ class UnifiedTradingAgent:
         if not any(f'Close_{symbol}' in self.stocks_data.columns for symbol in stock_names):
             raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
             
-        prepared_data = st.session_state.data_handler.prepare_data(self.stocks_data)
+        prepared_data = self.stocks_data #st.session_state.data_handler.prepare_data(self.stocks_data)
         return prepared_data
 
     @type_check

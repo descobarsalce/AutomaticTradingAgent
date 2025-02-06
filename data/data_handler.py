@@ -77,10 +77,6 @@ class DataHandler:
         result = pd.concat(all_stocks_data, axis=1)
         return result
 
-    def prepare_data(self, portfolio_data: pd.DataFrame) -> pd.DataFrame:
-        """Pass through data without feature engineering"""
-        return portfolio_data
-
     def __del__(self):
         """Cleanup database session"""
         if self.session is not None:

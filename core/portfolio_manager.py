@@ -94,10 +94,11 @@ class PortfolioManager:
         self.portfolio_value_history.append(total_value)
         self.cash_history.append(self.current_balance)
         
-        # Update maximum drawdown
-        self.peak_value = max(self.peak_value, total_value)
-        current_drawdown = (self.peak_value - total_value) / self.peak_value
-        self.max_drawdown = max(self.max_drawdown, current_drawdown)
+        # Update maximum drawdown using the same method as MetricsCalculator
+        if len(self.portfolio_value_history) > 1:
+            rolling_max = max(self.portfolio_value_history)
+            current_drawdown = (rolling_max - total_value) / rolling_max
+            self.max_drawdown = max(self.max_drawdown, current_drawdown)
         
     def get_total_value(self) -> float:
         """Get total portfolio value including cash and positions."""

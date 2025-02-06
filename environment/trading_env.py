@@ -188,7 +188,8 @@ class TradingEnv(gym.Env):
         # Store previous state
         prev_net_worth = self.net_worth
         trades_executed = {symbol: False for symbol in self.symbols}
-
+        min_transaction_amount = 1000 # XXX CHECK: This is temporary 
+         
         # Process actions for each asset
         for idx, symbol in enumerate(self.symbols):
             # logger.info(f"PROCESSING SYMBOL {symbol:5}")
@@ -200,8 +201,9 @@ class TradingEnv(gym.Env):
                 # Calculate maximum affordable shares considering transaction cost
 
                 max_trade_amount = max(0, self.balance - self.transaction_cost)
-                trade_amount = min(max_trade_amount * self.position_size,
-                                   max_trade_amount)
+                trade_amount = max_trade_amount * self.position_size,
+                trade_amount = trade_amount if trade_amount < balance else balance
+                trade_amount = trade_amount if trade_amount > min_transaction_amount else 0
                 shares_to_buy = trade_amount / current_price if current_price > 0 else 0
                 total_cost = (shares_to_buy *
                               current_price) + self.transaction_cost
@@ -229,7 +231,7 @@ class TradingEnv(gym.Env):
 
             elif action == 2:  # Sell
                 if self.positions[symbol] > 0:
-                    shares_to_sell = self.positions[symbol]
+                    shares_to_sell = self.positions[symbol]/2 if self.positions[symbol]*current_price>=1000 else self.positions[symbol]                     # When selling too little we rather sell all the remainder:                    
                     sell_amount = shares_to_sell * current_price
                     net_sell_amount = sell_amount - self.transaction_cost
 
@@ -238,7 +240,7 @@ class TradingEnv(gym.Env):
                     # )
 
                     self.balance += net_sell_amount
-                    self.positions[symbol] = 0
+                    self.positions[symbol] = 
                     self.holding_periods[symbol] = 0
                     self.episode_trades[symbol] += 1
                     trades_executed[symbol] = True

@@ -199,8 +199,8 @@ class MetricsCalculator(BaseTechnicalIndicators):
             logger.exception("Error calculating maximum drawdown")
             return 0.0
 
-    @staticmethod
     def calculate_bollinger_bands(
+            self,
             data: np.ndarray,
             window: int = 20,
             num_std: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -208,52 +208,23 @@ class MetricsCalculator(BaseTechnicalIndicators):
         try:
             if len(data) < window:
                 return np.array([]), np.array([]), np.array([])
-
-            # Calculate SMA
-            middle_band = pd.Series(data).rolling(
-                window=window).mean().to_numpy()[window - 1:]
-            rolling_std = pd.Series(data).rolling(
-                window=window).std().to_numpy()[window - 1:]
-
-            upper_band = middle_band + (rolling_std * num_std)
-            lower_band = middle_band - (rolling_std * num_std)
-
-            return middle_band, upper_band, lower_band
-
+            return super().calculate_bollinger_bands(data, window, num_std)
         except Exception as e:
             logger.exception("Error calculating Bollinger Bands")
             return np.array([]), np.array([]), np.array([])
 
-    @staticmethod
-    def calculate_rsi(data: np.ndarray, period: int = 14) -> np.ndarray:
+    def calculate_rsi(self, data: np.ndarray, period: int = 14) -> np.ndarray:
         """Calculate Relative Strength Index (RSI)."""
         try:
             if len(data) < period + 1:
                 return np.array([])
-
-            deltas = np.diff(data)
-            gains = np.where(deltas > 0, deltas, 0)
-            losses = np.where(deltas < 0, -deltas, 0)
-
-            avg_gain = pd.Series(gains).rolling(
-                window=period).mean().to_numpy()
-            avg_loss = pd.Series(losses).rolling(
-                window=period).mean().to_numpy()
-
-            rs = np.divide(avg_gain,
-                           avg_loss,
-                           out=np.zeros_like(avg_gain),
-                           where=avg_loss != 0)
-            rsi = 100 - (100 / (1 + rs))
-
-            return rsi[period:]
-
+            return super().calculate_rsi(data, period)
         except Exception as e:
             logger.exception("Error calculating RSI")
             return np.array([])
 
-    @staticmethod
     def calculate_macd(
+            self,
             data: np.ndarray,
             fast_period: int = 12,
             slow_period: int = 26,
@@ -262,24 +233,7 @@ class MetricsCalculator(BaseTechnicalIndicators):
         try:
             if len(data) < slow_period + signal_period:
                 return np.array([]), np.array([])
-
-            def calculate_ema(data: np.ndarray, span: int) -> np.ndarray:
-                return pd.Series(data).ewm(span=span,
-                                           adjust=False).mean().to_numpy()
-
-            fast_ema = calculate_ema(data, span=fast_period)
-            slow_ema = calculate_ema(data, span=slow_period)
-
-            macd_line = fast_ema - slow_ema
-            signal_line = calculate_ema(macd_line, span=signal_period)
-
-            # Ensure both arrays are the same length
-            min_length = min(len(macd_line), len(signal_line))
-            macd_line = macd_line[-min_length:]
-            signal_line = signal_line[-min_length:]
-
-            return macd_line, signal_line
-
+            return super().calculate_macd(data, fast_period, slow_period, signal_period)
         except Exception as e:
             logger.exception("Error calculating MACD")
             return np.array([]), np.array([])

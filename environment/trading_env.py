@@ -76,8 +76,6 @@ class TradingEnv(gym.Env):
         return spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
 
     def _initialize_state(self) -> None:
-        self._portfolio_history = []
-        self._trade_history = []
         self.current_step = 0
         self.episode_trades = {symbol: 0 for symbol in self.symbols}
 
@@ -174,4 +172,4 @@ class TradingEnv(gym.Env):
         return self._get_observation(), info
 
     def get_portfolio_history(self) -> List[float]:
-        return self._portfolio_history
+        return self.portfolio_manager.portfolio_value_history

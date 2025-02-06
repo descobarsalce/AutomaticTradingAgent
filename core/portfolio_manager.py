@@ -130,13 +130,14 @@ class PortfolioManager:
         return pd.DataFrame(self.trades_history)
 
     def get_portfolio_metrics(self) -> Dict:
-        """Get key portfolio metrics."""
-        returns = np.diff(self.portfolio_value_history) / self.portfolio_value_history[:-1]
+        """Get key portfolio metrics using MetricsCalculator."""
+        returns = MetricsCalculator.calculate_returns(self.portfolio_value_history)
         return {
             'total_value': self.get_total_value(),
             'cash_balance': self.current_balance,
             'total_pnl': sum(self.realized_pnl.values()) + sum(self.unrealized_pnl.values()),
-            'max_drawdown': self.max_drawdown,
-            'sharpe_ratio': np.mean(returns) / np.std(returns) if len(returns) > 0 else 0,
+            'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(self.portfolio_value_history),
+            'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
+            'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
             'total_trades': len(self.trades_history)
         }

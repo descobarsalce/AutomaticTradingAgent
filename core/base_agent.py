@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from environment import TradingEnv
+from core.portfolio_manager import PortfolioManager
 import streamlit as st
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
@@ -51,9 +52,8 @@ class UnifiedTradingAgent:
         """Initialize agent state variables."""
         self.env = None
         self.model = None
-        self.portfolio_history = []
-        self.positions_history = []
         self.stocks_data = {}
+        self.portfolio_manager = None
         self.evaluation_metrics = {
             'returns': [],
             'sharpe_ratio': 0.0,
@@ -92,8 +92,11 @@ class UnifiedTradingAgent:
             use_holding_bonus=env_params.get('use_holding_bonus', False),
             use_trading_penalty=env_params.get('use_trading_penalty', False),
             training_mode=True)
-        self.portfolio_history.clear()
-        self.positions_history.clear()
+        
+        self.portfolio_manager = PortfolioManager(
+            initial_balance=env_params['initial_balance'],
+            transaction_cost=env_params['transaction_cost']
+        )
 
     @type_check
     def configure_ppo(self, ppo_params: Optional[Dict[str, Any]] = None) -> None:

@@ -94,14 +94,14 @@ def display_training_metrics(metrics: Dict[str, float]) -> None:
 
     metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
     with metrics_col1:
-        st.metric("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}")
-        st.metric("Maximum Drawdown", f"{metrics['max_drawdown']:.2%}")
+        st.metric("Sharpe Ratio", f"{float(metrics.get('sharpe_ratio', 0)):.2f}")
+        st.metric("Maximum Drawdown", f"{float(metrics.get('max_drawdown', 0)):.2%}")
     with metrics_col2:
-        st.metric("Sortino Ratio", f"{metrics['sortino_ratio']:.2f}")
-        st.metric("Volatility", f"{metrics['volatility']:.2%}")
+        st.metric("Sortino Ratio", f"{float(metrics.get('sortino_ratio', 0)):.2f}")
+        st.metric("Volatility", f"{float(metrics.get('volatility', 0)):.2%}")
     with metrics_col3:
-        st.metric("Total Return", f"{metrics['total_return']:.2%}")
-        st.metric("Final Portfolio Value", f"${metrics['final_value']:,.2f}")
+        st.metric("Total Return", f"{float(metrics.get('total_return', 0)):.2%}")
+        st.metric("Final Portfolio Value", f"${float(metrics.get('final_value', 0)):,.2f}")
 
 
 def run_training(ppo_params: Dict[str, Any]) -> None:

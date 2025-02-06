@@ -93,10 +93,8 @@ class UnifiedTradingAgent:
             use_trading_penalty=env_params.get('use_trading_penalty', False),
             training_mode=True)
         
-        self.portfolio_manager = PortfolioManager(
-            initial_balance=env_params['initial_balance'],
-            transaction_cost=env_params['transaction_cost']
-        )
+        # Use environment's portfolio manager instead of creating a new one
+        self.portfolio_manager = self.env.portfolio_manager
 
     @type_check
     def configure_ppo(self, ppo_params: Optional[Dict[str, Any]] = None) -> None:
@@ -174,21 +172,20 @@ class UnifiedTradingAgent:
             raise
 
     def _calculate_training_metrics(self) -> Dict[str, float]:
-        """Calculate and return training metrics."""
+        """Calculate and return training metrics using MetricsCalculator."""
         self.portfolio_history = self.env.get_portfolio_history()
-        if len(self.portfolio_history) > 1:
-            returns = MetricsCalculator.calculate_returns(self.portfolio_history)
-            return {
-                'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
-                'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(
-                    self.portfolio_history),
-                'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
-                'volatility': MetricsCalculator.calculate_volatility(returns),
-                'total_return': (self.portfolio_history[-1] - self.portfolio_history[0]) /
-                self.portfolio_history[0],
-                'final_value': self.portfolio_history[-1]
-            }
-        return {}
+        if len(self.portfolio_history) <= 1:
+            return {}
+            
+        returns = self.env.portfolio_manager.get_portfolio_metrics()
+        return {
+            'sharpe_ratio': returns['sharpe_ratio'],
+            'max_drawdown': returns['max_drawdown'],
+            'sortino_ratio': returns.get('sortino_ratio', 0.0),
+            'volatility': returns.get('volatility', 0.0),
+            'total_return': (self.portfolio_history[-1] - self.portfolio_history[0]) / self.portfolio_history[0],
+            'final_value': self.portfolio_history[-1]
+        }
 
     @type_check
     def predict(self,

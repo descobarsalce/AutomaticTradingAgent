@@ -41,9 +41,20 @@ class DataHandler:
         for symbol in symbols:
             try:
                 cached_data = self.get_cached_data(symbol, start_date, end_date)
-                if cached_data is not None and all(col in cached_data.columns for col in required_columns):
-                    df = cached_data
-                else:
+                
+                use_cache = False
+                if cached_data is not None:
+                    # Check for required columns
+                    if all(col in cached_data.columns for col in required_columns):
+                        # Validate date range and continuity
+                        date_range = pd.date_range(start=start_date, end=end_date, freq='B')
+                        missing_dates = date_range.difference(cached_data.index)
+                        
+                        if len(missing_dates) == 0:
+                            use_cache = True
+                            df = cached_data
+                
+                if not use_cache:
                     ticker = yf.Ticker(symbol)
                     df = ticker.history(start=start_date, end=end_date)
                     if df.empty:

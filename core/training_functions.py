@@ -93,15 +93,23 @@ def display_training_metrics(metrics: Dict[str, float]) -> None:
         return
 
     metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+
+    def safe_value(metric_value):
+        if hasattr(metric_value, 'iloc') and len(metric_value) > 0:
+            return float(metric_value.iloc[-1])
+        elif hasattr(metric_value, 'item'):
+            return float(metric_value.item())
+        return float(metric_value)
+
     with metrics_col1:
-        st.metric("Sharpe Ratio", f"{metrics.get('sharpe_ratio', 0).item() if hasattr(metrics.get('sharpe_ratio', 0), 'item') else float(metrics.get('sharpe_ratio', 0)):.2f}")
-        st.metric("Maximum Drawdown", f"{metrics.get('max_drawdown', 0).item() if hasattr(metrics.get('max_drawdown', 0), 'item') else float(metrics.get('max_drawdown', 0)):.2%}")
+        st.metric("Sharpe Ratio", f"{safe_value(metrics.get('sharpe_ratio', 0)):.2f}")
+        st.metric("Maximum Drawdown", f"{safe_value(metrics.get('max_drawdown', 0)):.2%}")
     with metrics_col2:
-        st.metric("Sortino Ratio", f"{metrics.get('sortino_ratio', 0).item() if hasattr(metrics.get('sortino_ratio', 0), 'item') else float(metrics.get('sortino_ratio', 0)):.2f}")
-        st.metric("Volatility", f"{metrics.get('volatility', 0).item() if hasattr(metrics.get('volatility', 0), 'item') else float(metrics.get('volatility', 0)):.2%}")
+        st.metric("Sortino Ratio", f"{safe_value(metrics.get('sortino_ratio', 0)):.2f}")
+        st.metric("Volatility", f"{safe_value(metrics.get('volatility', 0)):.2%}")
     with metrics_col3:
-        st.metric("Total Return", f"{metrics.get('total_return', 0).item() if hasattr(metrics.get('total_return', 0), 'item') else float(metrics.get('total_return', 0)):.2%}")
-        st.metric("Final Portfolio Value", f"${metrics.get('final_value', 0).item() if hasattr(metrics.get('final_value', 0), 'item') else float(metrics.get('final_value', 0)):,.2f}")
+        st.metric("Total Return", f"{safe_value(metrics.get('total_return', 0)):.2%}")
+        st.metric("Final Portfolio Value", f"${safe_value(metrics.get('final_value', 0)):,.2f}")
 
 
 def run_training(ppo_params: Dict[str, Any]) -> None:

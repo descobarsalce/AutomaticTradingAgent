@@ -172,20 +172,10 @@ class UnifiedTradingAgent:
             raise
 
     def _calculate_training_metrics(self) -> Dict[str, float]:
-        """Calculate and return training metrics using MetricsCalculator."""
-        self.portfolio_history = self.env.get_portfolio_history()
-        if len(self.portfolio_history) <= 1:
+        """Get training metrics directly from portfolio manager."""
+        if not self.env or not self.env.portfolio_manager:
             return {}
-            
-        returns = self.env.portfolio_manager.get_portfolio_metrics()
-        return {
-            'sharpe_ratio': returns['sharpe_ratio'],
-            'max_drawdown': returns['max_drawdown'],
-            'sortino_ratio': returns.get('sortino_ratio', 0.0),
-            'volatility': returns.get('volatility', 0.0),
-            'total_return': (self.portfolio_history[-1] - self.portfolio_history[0]) / self.portfolio_history[0],
-            'final_value': self.portfolio_history[-1]
-        }
+        return self.env.portfolio_manager.get_portfolio_metrics()
 
     @type_check
     def predict(self,

@@ -86,30 +86,21 @@ def get_training_parameters(use_optuna_params: bool = False) -> Dict[str, Any]:
 
 
 def display_training_metrics(metrics: Dict[str, float]) -> None:
-    """
-    Display training metrics in a formatted layout
-    """
+    """Display training metrics from portfolio manager."""
     if not metrics:
         return
 
     metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
 
-    def safe_value(metric_value):
-        if hasattr(metric_value, 'iloc') and len(metric_value) > 0:
-            return float(metric_value.iloc[-1])
-        elif hasattr(metric_value, 'item'):
-            return float(metric_value.item())
-        return float(metric_value)
-
     with metrics_col1:
-        st.metric("Sharpe Ratio", f"{safe_value(metrics.get('sharpe_ratio', 0)):.2f}")
-        st.metric("Maximum Drawdown", f"{safe_value(metrics.get('max_drawdown', 0)):.2%}")
+        st.metric("Sharpe Ratio", f"{metrics.get('sharpe_ratio', 0):.2f}")
+        st.metric("Maximum Drawdown", f"{metrics.get('max_drawdown', 0):.2%}")
     with metrics_col2:
-        st.metric("Sortino Ratio", f"{safe_value(metrics.get('sortino_ratio', 0)):.2f}")
-        st.metric("Volatility", f"{safe_value(metrics.get('volatility', 0)):.2%}")
+        st.metric("Return", f"{metrics.get('total_return', 0):.2%}")
+        st.metric("Total Value", f"${metrics.get('total_value', 0):,.2f}")
     with metrics_col3:
-        st.metric("Total Return", f"{safe_value(metrics.get('total_return', 0)):.2%}")
-        st.metric("Final Portfolio Value", f"${safe_value(metrics.get('final_value', 0)):,.2f}")
+        st.metric("Total Trades", metrics.get('total_trades', 0))
+        st.metric("Cash Balance", f"${metrics.get('cash_balance', 0):,.2f}")
 
 
 def run_training(ppo_params: Dict[str, Any]) -> None:

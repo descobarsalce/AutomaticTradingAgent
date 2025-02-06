@@ -4,18 +4,9 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import logging
 from utils.common import validate_numeric, round_price, MAX_POSITION_SIZE, MIN_POSITION_SIZE
+from metrics.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
-
-class MetricsCalculator:
-    @staticmethod
-    def calculate_maximum_drawdown(portfolio_value_history: List[float]) -> float:
-        if len(portfolio_value_history) <= 1:
-            return 0.0
-        rolling_max = np.maximum.accumulate(portfolio_value_history)
-        drawdowns = (rolling_max - portfolio_value_history) / rolling_max
-        return np.max(drawdowns)
-
 
 class PortfolioManager:
     def __init__(self, initial_balance: float, transaction_cost: float = 0.0):

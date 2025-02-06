@@ -239,49 +239,7 @@ class UnifiedTradingAgent:
             }
         }
 
-    @type_check
-    def update_state(self, portfolio_value: float,
-                     positions: Dict[str, float]) -> None:
-        """Update portfolio state with validation."""
-        self._validate_portfolio_update(portfolio_value, positions)
-        self._check_portfolio_consistency(portfolio_value, positions)
-        
-        self.portfolio_history.append(portfolio_value)
-        self.positions_history.append(positions)
-        self._update_metrics()
-
-    def _validate_portfolio_update(self, portfolio_value: float,
-                                 positions: Dict[str, float]) -> None:
-        """Validate portfolio update inputs."""
-        if portfolio_value < 0:
-            raise ValueError("Invalid portfolio value")
-
-        for symbol, size in positions.items():
-            if not np.isfinite(size):
-                raise ValueError(f"Invalid position size for {symbol}")
-            if abs(size) > MAX_POSITION_SIZE:
-                raise ValueError(f"Position size exceeds limit for {symbol}")
-
-    def _check_portfolio_consistency(self, portfolio_value: float,
-                                   positions: Dict[str, float]) -> None:
-        """Check portfolio value consistency."""
-        try:
-            if self.env and hasattr(self.env, 'data'):
-                current_prices = {
-                    symbol: self.env.data.loc[self.env.current_step, 'Close']
-                    for symbol in positions
-                }
-                calc_value = sum(size * current_prices[symbol]
-                               for symbol, size in positions.items())
-                cash_balance = getattr(self.env, 'balance', 0.0)
-                total_calc = calc_value + cash_balance
-
-                if not np.isclose(total_calc, portfolio_value, rtol=1e-3):
-                    logger.warning(
-                        f"Portfolio value mismatch: calculated={total_calc:.2f}, reported={portfolio_value:.2f}"
-                    )
-        except Exception as e:
-            logger.error(f"Error checking portfolio: {str(e)}")
+    
 
     def _update_metrics(self) -> None:
         """Update performance metrics with error handling."""

@@ -1,4 +1,3 @@
-
 """
 Testing Functions Module
 Handles model evaluation and visualization of test results
@@ -18,11 +17,11 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
     """
     with st.container():
         st.header("Testing Interface")
-        
+
         if model is None:
             st.error("No model initialized. Please train or load a model first.")
             return
-            
+
         test_col1, test_col2 = st.columns(2)
         with test_col1:
             test_start_date = datetime.combine(
@@ -33,7 +32,7 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
             test_end_date = datetime.combine(
                 st.date_input("Test End Date", value=datetime.now()),
                 datetime.min.time())
-            
+
         if test_end_date <= test_start_date:
             st.error("End date must be after start date")
             return
@@ -60,36 +59,33 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                 if not os.path.exists(model_path):
                     st.error("No trained model found. Please train a model first.")
                     return
-                    
+
                 if not stock_names:
                     st.error("No stock symbols provided")
                     return
-                    
+
                 st.info("Starting model testing...")
-                
+
                 if use_optuna_params and hasattr(st.session_state, 'ppo_params'):
                     ppo_params = st.session_state.ppo_params
-                
+
                 with st.spinner('Testing model...'):
                     test_results = model.test(
                         stock_names=stock_names,
                         start_date=test_start_date,
                         end_date=test_end_date,
                         env_params=env_params)
-                    
+
                     if test_results is None:
                         st.error("Testing failed - no results returned")
                         return
-                        
+
                 st.success("Testing completed successfully!")
 
                 if test_results and 'metrics' in test_results:
                     test_results_container = st.container()
                     with test_results_container:
                         st.subheader("Test Results Analysis")
-            except Exception as e:
-                st.error(f"Error during testing: {str(e)}")
-                return
 
                         # Display test trade history
                         if 'info_history' in test_results:
@@ -146,6 +142,10 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                                     st.plotly_chart(drawdown_fig,
                                                     use_container_width=True)
 
+            except Exception as e:
+                st.error(f"Error during testing: {str(e)}")
+                return
+
 def display_metrics_grid(metrics: Dict[str, float], test_results: Dict[str, Any]):
     """
     Displays metrics in a grid layout
@@ -190,11 +190,11 @@ def perform_monte_carlo_analysis(model, data, num_simulations=100):
         # Randomize initial conditions slightly
         modified_data = data.copy()
         modified_data *= (1 + np.random.normal(0, 0.001, size=data.shape))
-        
+
         # Run backtest with modified data
         simulation_result = model.test(modified_data)
         results.append(simulation_result)
-    
+
     return results
 
 def perform_walk_forward_analysis(model, data, window_size=252, step_size=21):
@@ -206,23 +206,23 @@ def perform_walk_forward_analysis(model, data, window_size=252, step_size=21):
     """
     results = []
     total_periods = len(data) - window_size
-    
+
     for i in range(0, total_periods, step_size):
         # Training period
         train_start = i
         train_end = i + window_size
-        
+
         # Testing period
         test_start = train_end
         test_end = min(test_start + step_size, len(data))
-        
+
         # Train on window
         train_data = data.iloc[train_start:train_end]
         model.train(train_data)
-        
+
         # Test on unseen data
         test_data = data.iloc[test_start:test_end]
         period_results = model.test(test_data)
         results.append(period_results)
-        
+
     return results

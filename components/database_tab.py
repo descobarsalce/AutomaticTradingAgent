@@ -1,4 +1,3 @@
-
 """
 Database Explorer Component
 Handles database exploration and visualization interface
@@ -15,18 +14,18 @@ def display_database_explorer():
     st.title("Database Explorer")
     st.header("Database Statistics")
 
-    session = st.session_state.data_handler
+    data_handler = st.session_state.data_handler
     
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols
-    unique_symbols = session.get_session().query(func.count(distinct(
+    unique_symbols = data_handler.get_session().query(func.count(distinct(
         StockData.symbol))).scalar()
     col1.metric("Total Unique Symbols", unique_symbols)
 
     # Date range
-    min_date = session.get_session().query(func.min(StockData.date)).scalar()
-    max_date = session.get_session().query(func.max(StockData.date)).scalar()
+    min_date = data_handler.get_session().query(func.min(StockData.date)).scalar()
+    max_date = data_handler.get_session().query(func.max(StockData.date)).scalar()
     if min_date and max_date:
         date_range = f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
         col2.metric("Date Range", date_range)
@@ -41,11 +40,11 @@ def display_database_explorer():
 
     # Query for stock summary information
     stock_summary = []
-    symbols = [row[0] for row in session.get_session().query(distinct(StockData.symbol)).all()]
+    symbols = [row[0] for row in data_handler.get_session().query(distinct(StockData.symbol)).all()]
 
     for symbol in symbols:
         # Get statistics for each stock
-        symbol_data = session.get_session().query(
+        symbol_data = data_handler.get_session().query(
             StockData.symbol,
             func.min(StockData.date).label('start_date'),
             func.max(StockData.date).label('end_date'),
@@ -92,42 +91,28 @@ def display_database_explorer():
     # Query Interface
     st.header("Query Interface")
 
-    # Symbol selection
-    symbols = [row[0] for row in session.get_session().query(distinct(StockData.symbol)).all()]
-    if symbols:
-        selected_symbol = st.selectbox("Select Symbol", symbols)
+    # Symbol input
+    selected_symbol = st.text_input("Enter Stock Symbol", value="AAPL")
 
-        # Date range selection
-        date_col1, date_col2 = st.columns(2)
-        start_date = date_col1.date_input("Start Date",
-                                         min_date if min_date else None)
-        end_date = date_col2.date_input("End Date",
-                                       max_date if max_date else None)
+    # Date range selection
+    date_col1, date_col2 = st.columns(2)
+    start_date = date_col1.date_input("Start Date",
+                                     min_date if min_date else None)
+    end_date = date_col2.date_input("End Date",
+                                   max_date if max_date else None)
 
-        if st.button("Query Data"):
-            # Fetch data
-            query_data = session.get_session().query(StockData).filter(
-                StockData.symbol == selected_symbol,
-                StockData.date >= start_date,
-                StockData.date <= end_date).order_by(StockData.date).all()
-
-            # Convert to DataFrame
-            df = pd.DataFrame([{
-                'Date': record.date,
-                'Open': record.open,
-                'High': record.high,
-                'Low': record.low,
-                'Close': record.close,
-                'Volume': record.volume
-            } for record in query_data])
-
+    if st.button("Query Data"):
+        try:
+            # Fetch data using DataHandler
+            df = data_handler.fetch_data(selected_symbol, start_date, end_date)
+            
             if not df.empty:
                 # Calculate basic statistics
                 stats_col1, stats_col2, stats_col3 = st.columns(3)
                 stats_col1.metric("Average Price",
-                                 f"${df['Close'].mean():.2f}")
-                stats_col2.metric("Highest Price", f"${df['High'].max():.2f}")
-                stats_col3.metric("Lowest Price", f"${df['Low'].min():.2f}")
+                                 f"${df[f'Close_{selected_symbol}'].mean():.2f}")
+                stats_col2.metric("Highest Price", f"${df[f'High_{selected_symbol}'].max():.2f}")
+                stats_col3.metric("Lowest Price", f"${df[f'Low_{selected_symbol}'].min():.2f}")
 
                 # Display table view
                 st.subheader("Table View")
@@ -136,11 +121,11 @@ def display_database_explorer():
                 # Display chart view
                 st.subheader("Chart View")
                 fig = go.Figure(data=[
-                    go.Candlestick(x=df['Date'],
-                                  open=df['Open'],
-                                  high=df['High'],
-                                  low=df['Low'],
-                                  close=df['Close'])
+                    go.Candlestick(x=df.index,
+                                  open=df[f'Open_{selected_symbol}'],
+                                  high=df[f'High_{selected_symbol}'],
+                                  low=df[f'Low_{selected_symbol}'],
+                                  close=df[f'Close_{selected_symbol}'])
                 ])
 
                 fig.update_layout(title=f'{selected_symbol} Price History',
@@ -151,3 +136,5 @@ def display_database_explorer():
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("No data available for the selected criteria.")
+        except Exception as e:
+            st.error(f"Error fetching data: {e}")

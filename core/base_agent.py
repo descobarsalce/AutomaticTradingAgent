@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 import logging
 import numpy as np
@@ -7,6 +6,7 @@ import os
 import warnings
 from datetime import datetime, timedelta
 from gymnasium import Env
+import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback, BaseCallback
 from typing import Dict, Any, Optional, List, Union, Tuple, cast
@@ -16,6 +16,7 @@ from metrics.metrics_calculator import MetricsCalculator
 from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
 import streamlit as st
+from data.data_handler import DataHandler
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
@@ -65,36 +66,46 @@ class UnifiedTradingAgent:
         }
 
     @type_check
-    def prepare_processed_data(self, stock_names: List, start_date: datetime,
-                             end_date: datetime) -> pd.DataFrame:
-        """Prepare and validate trading data."""
-        self.stocks_data = st.session_state.data_handler.fetch_data(stock_names, start_date,
-                                                                  end_date)
-        if isinstance(self.stocks_data, pd.DataFrame) and self.stocks_data.empty:
-            raise ValueError("No data found in database")
-        
-        if not any(f'Close_{symbol}' in self.stocks_data.columns for symbol in stock_names):
-            raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
-            
-        prepared_data = self.stocks_data #st.session_state.data_handler.prepare_data(self.stocks_data)
-        return prepared_data
-
-    @type_check
-    def initialize_env(self, data: pd.DataFrame,
-                      env_params: Dict[str, Any]) -> None:
+    def initialize_env(self, stock_names: List[str], start_date: datetime, 
+                      end_date: datetime, env_params: Dict[str, Any]) -> None:
         """Initialize trading environment with parameters."""
-        env_params['min_transaction_size'] = MIN_TRADE_SIZE
-        self.env = TradingEnv(
-            data=data,
-            initial_balance=env_params['initial_balance'],
-            transaction_cost=env_params['transaction_cost'],
-            use_position_profit=env_params.get('use_position_profit', False),
-            use_holding_bonus=env_params.get('use_holding_bonus', False),
-            use_trading_penalty=env_params.get('use_trading_penalty', False),
-            training_mode=True)
+        logger.info(f"Initializing environment with params: {env_params}")
         
-        # Use environment's portfolio manager instead of creating a new one
-        self.portfolio_manager = self.env.portfolio_manager
+        # Clean up env_params to remove any deprecated parameters
+        cleaned_params = {
+            'initial_balance': env_params.get('initial_balance', 10000),
+            'transaction_cost': env_params.get('transaction_cost', 0.0),
+            'max_pct_position_by_asset': env_params.get('max_pct_position_by_asset', 0.2),
+            'use_position_profit': env_params.get('use_position_profit', False),
+            'use_holding_bonus': env_params.get('use_holding_bonus', False),
+            'use_trading_penalty': env_params.get('use_trading_penalty', False),
+            'observation_days': env_params.get('history_length', 3)  # Convert history_length to observation_days
+        }
+        
+        # Remove any None values
+        cleaned_params = {k: v for k, v in cleaned_params.items() if v is not None}
+        
+        logger.info(f"Cleaned environment parameters: {cleaned_params}")
+        
+        # Log a centralized table of environment parameters
+        headers = f"{'Parameter':<25}{'Value':<15}"
+        rows = "\n".join([f"{k:<25}{v!s:<15}" for k, v in cleaned_params.items()])
+        logger.info("\nEnvironment Parameters:\n" + headers + "\n" + rows)
+        
+        try:
+            # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
+            self.env = TradingEnv(
+                stock_names=stock_names,
+                start_date=start_date,
+                end_date=end_date,
+                **cleaned_params,
+                training_mode=True
+            )
+            logger.info("Environment initialized successfully")
+            self.portfolio_manager = self.env.portfolio_manager
+        except Exception as e:
+            logger.error(f"Failed to initialize environment: {str(e)}")
+            raise
 
     @type_check
     def configure_ppo(self, ppo_params: Optional[Dict[str, Any]] = None) -> None:
@@ -121,12 +132,15 @@ class UnifiedTradingAgent:
 
     def _setup_ppo_model(self) -> None:
         """Set up PPO model with current configuration."""
-        policy_kwargs = ({
-            'net_arch': [dict(pi=[128, 128, 128], vf=[128, 128, 128])]
-        } if self.optimize_for_sharpe else DEFAULT_POLICY_KWARGS.copy())
+        policy_kwargs = ({'net_arch': [dict(pi=[128, 128, 128], vf=[128, 128, 128])]} 
+                         if self.optimize_for_sharpe 
+                         else DEFAULT_POLICY_KWARGS.copy())
 
         if 'verbose' not in self.ppo_params:
             self.ppo_params['verbose'] = 1
+
+        # Example of adding entropy regularization
+        self.ppo_params['ent_coef'] = 0.01  # Entropy coefficient
 
         try:
             self.model = PPO("MlpPolicy",
@@ -139,6 +153,29 @@ class UnifiedTradingAgent:
             logger.exception("Failed to initialize PPO model")
             raise
 
+    def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
+                            env_params: Dict[str, Any], ppo_params: Dict[str, Any]):
+        """Prepare environment and configure PPO model."""
+        self.initialize_env(stock_names, start_date, end_date, env_params)
+        # Set default action space if not provided by the environment
+        if self.env.action_space is None:
+            import gymnasium as gym
+            self.env.action_space = gym.spaces.Box(
+                low=-1,
+                high=1,
+                shape=(len(stock_names),),
+                dtype=np.float32
+            )
+        self.configure_ppo(ppo_params)
+    
+    def _calculate_training_metrics(self) -> Dict[str, float]:
+        if not self.env or not self.env.portfolio_manager:
+            return {}
+        metrics = self.env.portfolio_manager.get_portfolio_metrics()
+        # Make sure volatility is float
+        metrics['volatility'] = float(metrics.get('volatility', 0.0))
+        return metrics
+    
     @type_check
     def train(self,
               stock_names: List,
@@ -149,10 +186,7 @@ class UnifiedTradingAgent:
               callback: Optional[BaseCallback] = None) -> Dict[str, float]:
         """Train the agent with progress logging."""
         logger.info(f"Starting training with {len(stock_names)} stocks from {start_date} to {end_date}")
-        data = self.prepare_processed_data(stock_names, start_date, end_date)
-        logger.info(f"Prepared data shape: {data.shape}")
-        self.initialize_env(data, env_params)
-        self.configure_ppo(ppo_params)
+        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params)
 
         total_timesteps = max(1, (end_date - start_date).days)
         eval_callback = EvalCallback(self.env,
@@ -171,41 +205,37 @@ class UnifiedTradingAgent:
             logger.exception("Error during training")
             raise
 
-    def _calculate_training_metrics(self) -> Dict[str, float]:
-        """Get training metrics directly from portfolio manager."""
-        if not self.env or not self.env.portfolio_manager:
-            return {}
-        return self.env.portfolio_manager.get_portfolio_metrics()
-
     @type_check
-    def predict(self,
-                observation: NDArray,
-                deterministic: bool = True) -> NDArray:
-        """Generate trading action with input validation."""
-        if self.model is None:
-            raise ValueError("Model not initialized")
-
-        action, _ = self.model.predict(observation, deterministic=deterministic)
+    def predict(self, observation: NDArray, deterministic: bool = True) -> NDArray:
+        logger.info(f"\nGenerating prediction")
+        logger.info(f"Input observation: {observation}")
         
-        if isinstance(action, np.ndarray):
-            if action.size == 1:
-                return np.array([int(action.item())])
-            return action.astype(int)
-        return np.array([int(action)])
+        if self.model is None:
+            logger.error("Model not initialized")
+            raise ValueError("Model not initialized")
+            
+        action, _ = self.model.predict(observation, deterministic=deterministic)
+        action = np.array(action, dtype=np.float32)
+        logger.info(f"Generated action: {action}")
+        return action
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any]) -> Dict[str, Any]:
-        """Test trained model with comprehensive metrics."""
-        data = self.prepare_processed_data(stock_names, start_date, end_date)
-        self.initialize_env(data, env_params)
+        logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
+        logger.info(f"Stocks: {stock_names}")
+        logger.info(f"Period: {start_date} to {end_date}")
+        
+        self.initialize_env(stock_names, start_date, end_date, env_params)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):
             self.env._trade_history = []
 
         obs, info = self.env.reset()
-        logger.info(f"Observation initial test: {obs}")
+        logger.info(f"After reset - Initial balance: {self.env.portfolio_manager.current_balance}")
+        logger.info(f"After reset - Initial positions: {self.env.portfolio_manager.positions}")
+        logger.info(f"Initial observation: {obs}")
         
         done = False
         info_history = []
@@ -216,10 +246,10 @@ class UnifiedTradingAgent:
             done = terminated or truncated
             info_history.append(info)
 
-        return self._prepare_test_results(info_history, data)
+        logger.info(f"Test run completed - Final positions: {self.env.portfolio_manager.positions}")
+        return self._prepare_test_results(info_history)
 
-    def _prepare_test_results(self, info_history: List[Dict], 
-                            data: pd.DataFrame) -> Dict[str, Any]:
+    def _prepare_test_results(self, info_history: List[Dict]) -> Dict[str, Any]:
         """Prepare comprehensive test results."""
         portfolio_history = self.env.get_portfolio_history()
         returns = MetricsCalculator.calculate_returns(portfolio_history)
@@ -229,8 +259,9 @@ class UnifiedTradingAgent:
             'returns': returns,
             'info_history': info_history,
             'action_plot': TradingVisualizer().plot_discrete_actions(info_history),
-            'combined_plot': TradingVisualizer().plot_actions_with_price(info_history, data),
+            'combined_plot': TradingVisualizer().plot_actions_with_price(info_history, self.env.data),
             'metrics': {
+                'total_return': (self.env.portfolio_manager.get_total_value() - self.env.portfolio_manager.initial_balance) / self.env.portfolio_manager.initial_balance,
                 'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
                 'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
                 'information_ratio': MetricsCalculator.calculate_information_ratio(returns),

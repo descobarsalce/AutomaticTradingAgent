@@ -1,4 +1,7 @@
+from datetime import datetime
 import gymnasium as gym
+import streamlit as st
+from metrics.metrics_calculator import MetricsCalculator
 import numpy as np
 import pandas as pd
 import logging
@@ -7,169 +10,331 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                          POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
+from data.data_handler import DataHandler
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+    """Fetch trading data from the DataHandler in session_state and ensure no future data is included."""
+    if not hasattr(st.session_state, 'data_handler'):
+        raise RuntimeError("DataHandler not initialized in session state")
+    
+    data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
+    if data.empty:
+        raise ValueError("No data fetched for given stock_names and dates.")
+    if not any(f'Close_{symbol}' in data.columns for symbol in stock_names):
+        raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
+
+    # Set logging level based on session state
+    if st.session_state.get('enable_logging', False):
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.CRITICAL)
+
+    return data
+
 class TradingEnv(gym.Env):
     def __init__(self,
-                 data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
+                 stock_names: List[str],
+                 start_date: datetime,
+                 end_date: datetime,
                  initial_balance: float = 10000,
                  transaction_cost: float = 0.0,
-                 position_size: float = 0.2,
+                 max_pct_position_by_asset: float = 0.2,
                  use_position_profit: bool = False,
                  use_holding_bonus: bool = False,
                  use_trading_penalty: bool = False,
-                 training_mode: bool = True):
-        super().__init__()
-        self._validate_init_params(data, initial_balance, transaction_cost, position_size)
-
+                 training_mode: bool = True,
+                 observation_days: int = 2,
+                 burn_in_days: int = 20):  # New parameter for burn-in period.
+        # ...existing code to fetch data and validate parameters...
+        data = fetch_trading_data(stock_names, start_date, end_date)
+        # New: Preprocess data: handle missing values and normalize
+        # data = preprocess_data(data)
+        self._validate_init_params(data, initial_balance, transaction_cost, max_pct_position_by_asset)
         self._full_data = data.copy()
         self.data = data
-        self.symbols = self._extract_symbols()
-        self.position_size = position_size
+        self.max_pct_position_by_asset = max_pct_position_by_asset
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
+        self.stock_names = stock_names
 
-        # Reward shaping flags
+        # Set reward shaping flags
         self.use_position_profit = use_position_profit
         self.use_holding_bonus = use_holding_bonus
         self.use_trading_penalty = use_trading_penalty
         self.training_mode = training_mode
 
-        # Action and observation spaces
-        self.action_space = self._create_action_space()
-        self.observation_space = self._create_observation_space()
+        # Initialize portfolio manager before constructing observation space.
+        self.portfolio_manager = PortfolioManager(initial_balance, transaction_cost, price_fetcher=self._get_current_price)
 
-        # Initialize portfolio manager
-        self.portfolio_manager = PortfolioManager(initial_balance, transaction_cost)
+        # initialize state & observation space.
+        self.observation_days = observation_days  # Store the number of days to keep in the observation
+        self.burn_in_days = burn_in_days
         self._initialize_state()
+        self.observation_space = self._create_observation_space()  # Ensure observation space is created before use
+
+        # Set the action space to Box with shape (n_stocks,) and range [-1, 1]
+        self.action_space = spaces.Box(
+            low=-1,
+            high=1, 
+            shape=(len(stock_names),),
+            dtype=np.float32
+        )
 
     def _validate_init_params(self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
                             initial_balance: float, transaction_cost: float,
-                            position_size: float) -> None:
+                            max_pct_position_by_asset: float) -> None:
         if initial_balance <= 0:
             raise ValueError("Initial balance must be positive")
         if transaction_cost < 0:
             raise ValueError("Transaction cost cannot be negative")
-        if not 0 < position_size <= 1:
+        if not 0 < max_pct_position_by_asset <= 1:
             raise ValueError("Position size must be between 0 and 1")
         if isinstance(data, pd.DataFrame) and data.empty:
             raise ValueError("Empty data provided")
 
-    def _extract_symbols(self) -> List[str]:
-        try:
-            symbols = sorted(list({col.split('_')[1] for col in self.data.columns 
-                                 if '_' in col and len(col.split('_')) == 2}))
-            if not symbols:
-                raise ValueError("No valid symbols found in data columns")
-            return symbols
-        except Exception as e:
-            logger.error(f"Error extracting symbols from columns: {self.data.columns}")
-            raise ValueError(f"Failed to extract valid symbols from data columns: {e}")
-
-    def _create_action_space(self) -> gym.Space:
-        return spaces.MultiDiscrete([3] * len(self.symbols)) if len(self.symbols) > 1 else spaces.Discrete(3)
-
-    def _create_observation_space(self) -> spaces.Box:
-        obs_dim = (len(self.symbols) * 2) + 1  # prices + positions + balance
-        return spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
-
     def _initialize_state(self) -> None:
         self.current_step = 0
-        self.episode_trades = {symbol: 0 for symbol in self.symbols}
+        self.episode_trades = {symbol: 0 for symbol in self.stock_names}
+        self.observation_history: List[np.ndarray] = []  # New observation history
 
-    def _get_observation(self) -> np.ndarray:
-        obs = []
-        for symbol in self.symbols:
-            current_price = float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
-            obs.extend([current_price, self.portfolio_manager.positions.get(symbol, 0.0)])
-        obs.append(self.portfolio_manager.current_balance)
-        return np.array(obs, dtype=np.float32)
+    # --- Auxiliary functions to reduce repetition ---
+    def _get_current_price(self, symbol: str) -> float:
+        """Retrieve the current closing price for a symbol using _full_data."""
+        return float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+    
+    def _get_current_data(self) -> pd.Series:
+        """Retrieve the current data row."""
+        return self.data.iloc[self.current_step]
+    # --- End Auxiliary functions ---
 
-    def _execute_trades(self, actions: Union[int, np.ndarray]) -> Dict[str, bool]:
-        trades_executed = {symbol: False for symbol in self.symbols}
-        actions_list = [actions] if isinstance(actions, (int, np.integer)) else actions
+    def _create_observation_space(self) -> spaces.Box:
+        # Define a fixed observation space shape based on observation_days.
+        n_features = len(self.stock_names) * 2 + 1
+        obs_dim = self.observation_days * n_features
+        return spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
 
-        for idx, (symbol, action) in enumerate(zip(self.symbols, actions_list)):
-            current_price = float(self.data.iloc[self.current_step][f'Close_{symbol}'])
-            timestamp = self.data.index[self.current_step]
-
-            if action > 0:  # 1 for buy, 2 for sell
-                quantity = self._calculate_trade_quantity(action, symbol, current_price)
-                if quantity > 0:
-                    trade_executed = self.portfolio_manager.execute_trade(
-                        symbol, action, quantity, current_price, timestamp)
-                    trades_executed[symbol] = trade_executed
-                    if trade_executed:
-                        self.episode_trades[symbol] += 1
-
-        return trades_executed
-
-    def _calculate_trade_quantity(self, action: int, symbol: str, price: float) -> float:
-        is_buy = action == 1
-        if is_buy:
-            max_trade_amount = self.portfolio_manager.current_balance * self.position_size
-            return max_trade_amount / price if price > 0 else 0
+    def _construct_observation(self) -> np.ndarray:
+        """Collect current prices, positions, and balance."""
+        # Construct current observation
+        current_obs = []
+        for symbol in self.stock_names:
+            current_price = self._get_current_price(symbol)
+            position = self.portfolio_manager.positions.get(symbol, 0.0)
+            current_obs.extend([current_price, position])
+        current_obs.append(self.portfolio_manager.current_balance)
+        current_obs = np.array(current_obs, dtype=np.float32)
+        
+        # Log immediate state
+        logger.debug(f"Current step observation: {current_obs}")
+        
+        # Add to history
+        self.observation_history.append(current_obs)
+        
+        if len(self.observation_history) < self.observation_days:
+            missing = self.observation_days - len(self.observation_history)
+            pad = [self.observation_history[0]] * missing if self.observation_history else [np.zeros(self.observation_space.shape[0] // self.observation_days, dtype=np.float32)] * missing
+            history = pad + self.observation_history
         else:
-            current_position = self.portfolio_manager.positions.get(symbol, 0.0)
-            return current_position if current_position > 0 else 0
+            history = self.observation_history[-self.observation_days:]
+        combined_obs = np.concatenate(history, axis=0)
+        
+        # New: Check and replace NaNs in the observation.
+        if np.isnan(combined_obs).any():
+            logger.warning("NaN values detected in observation; replacing with zeros.")
+            combined_obs = np.nan_to_num(combined_obs)
+        
+        # Log full observation with history and current observation separately
+        logger.info(f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}")
+        logger.info(f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}")
+        
+        return combined_obs
 
     def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
-        reward = 0.0
-        total_value = self.portfolio_manager.get_total_value()
+        # Use the portfolio manager's history for incremental reward calculation.
+        history = self.portfolio_manager.portfolio_value_history
+        if len(history) > 1:
+            # Compute step-specific return based on the last two recorded portfolio values.
+            last_value = history[-2]
+            current_value = history[-1]
+            if last_value > 0:
+                step_return = (current_value - last_value) #/ last_value
+            else:
+                step_return = 0.0
+        else:
+            step_return = 0.0
 
-        if len(self._portfolio_history) > 0:
-            prev_value = self._portfolio_history[-1]
-            if prev_value > 0:
-                reward = (total_value - prev_value) / prev_value
+        reward = step_return
 
-        if self.use_trading_penalty:
-            reward -= sum(trades_executed.values()) * 0.0001
-        if not any(trades_executed.values()):
-            reward -= 0.01
+        # Risk management adjustments
+        max_drawdown = MetricsCalculator.calculate_maximum_drawdown(history)
+        reward -= max_drawdown
 
+        returns = MetricsCalculator.calculate_returns(history)
+        volatility = MetricsCalculator.calculate_volatility(returns)
+        reward -= volatility
+
+        # Transaction cost penalty
+        transaction_cost_penalty = sum(trades_executed.values()) * self.transaction_cost
+        reward -= transaction_cost_penalty
+
+        # Clip reward to prevent extreme values
+        reward = np.clip(reward, -10, 10)
+        
+        # Check for NaN values in reward
+        if np.isnan(reward):
+            logger.error(f"NaN detected in reward: {reward}")
+            raise ValueError("NaN detected in reward")
+        
+        logger.debug(f"Computed reward (step_return based): {reward}")
         return reward
 
     def step(self, action: Union[int, np.ndarray]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
-        trades_executed = self._execute_trades(action)
-        current_value = self.portfolio_manager.get_total_value()
-        self._portfolio_history.append(current_value)
+        try:
+            timestamp = self.data.index[self.current_step]
+            trades_executed = self.portfolio_manager.execute_all_trades(
+                self.stock_names,
+                np.array(action, dtype=np.float32),
+                self._get_current_price,
+                self.max_pct_position_by_asset,
+                timestamp
+            )
 
-        reward = self._compute_reward(trades_executed)
-        self.current_step += 1
-        done = self.current_step >= len(self.data) - 1
+            # Merge rejected BUY trade info into one log message.
+            actions_arr = np.array(action, dtype=np.float32)
+            rejected = [f"{symbol} (Action: {actions_arr[idx]}, Price: {self._get_current_price(symbol)})"
+                        for idx, symbol in enumerate(self.stock_names)
+                        if actions_arr[idx] > 0 and not trades_executed.get(symbol, False)]
+            if rejected:
+                logger.info(f"Rejected BUY trades for: {', '.join(rejected)}")
 
-        info = {
-            'net_worth': current_value,
-            'balance': self.portfolio_manager.current_balance,
-            'positions': self.portfolio_manager.positions.copy(),
-            'trades_executed': trades_executed,
-            'episode_trades': self.episode_trades.copy(),
-            'actions': action,
-            'date': self.data.index[self.current_step],
-            'current_data': self.data.iloc[self.current_step]
-        }
-        self._trade_history.append(info)
+            # Calculate reward and update environment state.
+            reward = self._compute_reward(trades_executed)
+            self.current_step += 1
+            obs = self._construct_observation()
+            done = self.current_step >= len(self.data) - 1
 
-        return self._get_observation(), reward, done, False, info
+            # Log one structured table summarizing the step.
+            log_table = (
+                "+-------------------------+----------------------------------------------+\n"
+                f"| {'Step':<23} | {self.current_step!s:<44} |\n"
+                f"| {'Timestamp':<23} | {timestamp!s:<44} |\n"
+                f"| {'Balance':<23} | {self.portfolio_manager.current_balance!s:<44} |\n"
+                f"| {'Positions':<23} | {str(self.portfolio_manager.positions):<44} |\n"
+                f"| {'Actions':<23} | {str(action):<44} |\n"
+                f"| {'Trades Exec':<23} | {str(trades_executed):<44} |\n"
+                f"| {'Reward':<23} | {reward!s:<44} |\n"
+                f"| {'Total Value':<23} | {self.portfolio_manager.get_total_value()!s:<44} |\n"
+                "+-------------------------+----------------------------------------------+"
+            )
+            logger.info(log_table)
+
+            info = {
+                'net_worth': self.portfolio_manager.get_total_value(),
+                'balance': self.portfolio_manager.current_balance,
+                'positions': self.portfolio_manager.positions.copy(),
+                'trades_executed': trades_executed,
+                'episode_trades': self.episode_trades.copy(),
+                'actions': action,
+                'date': timestamp,
+                'current_data': self._get_current_data(),
+                'portfolio_value': self.portfolio_manager.get_total_value(),
+                'step': self.current_step
+            }
+            return obs, reward, done, False, info
+
+        except Exception as e:
+            logger.error(f"Error in step method: {str(e)}")
+            return self._construct_observation(), 0.0, True, False, {
+                'error': str(e),
+                'net_worth': self.portfolio_manager.get_total_value(),
+                'balance': self.portfolio_manager.current_balance,
+                'positions': self.portfolio_manager.positions.copy(),
+                'trades_executed': {},
+                'episode_trades': self.episode_trades.copy(),
+                'actions': action,
+                'date': self.data.index[self.current_step-1] if self.current_step > 0 else self.data.index[0],
+                'current_data': self._get_current_data(),
+                'portfolio_value': self.portfolio_manager.get_total_value(),
+                'step': self.current_step
+            }
+
+    def _verify_observation_consistency(self) -> None:
+        """Verify observation history consistency"""
+        if len(self.observation_history) == 0:
+            raise ValueError("Observation history is empty")
+            
+        # Verify shape consistency
+        first_obs_shape = self.observation_history[0].shape
+        for idx, obs in enumerate(self.observation_history):
+            if obs.shape != first_obs_shape:
+                raise ValueError(f"Inconsistent observation shape at index {idx}")
+                
+        # Verify no NaN values
+        if any(np.isnan(obs).any() for obs in self.observation_history):
+            raise ValueError("NaN values detected in observation history")
 
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         self._initialize_state()
         self.portfolio_manager = PortfolioManager(self.initial_balance, self.transaction_cost)
-
+        self.portfolio_manager.portfolio_value_history = [self.initial_balance]
+        self.current_step = 0
+        self.observation_history.clear()
+        
+        # Burn-in period: automatically take no-op action (assumed to be action "0")
+        burn_in_counter = 0
+        while burn_in_counter < self.burn_in_days and not self._burn_in_done():
+            obs, reward, done, _, info = self.step(np.zeros(len(self.stock_names)))
+            burn_in_counter += 1
+            if done:
+                break
+            
+        combined_obs = self._construct_observation()
         info = {
             'net_worth': self.initial_balance,
             'balance': self.portfolio_manager.current_balance,
             'positions': self.portfolio_manager.positions.copy(),
-            'trades_executed': {symbol: False for symbol in self.symbols},
+            'trades_executed': {symbol: False for symbol in self.stock_names},
             'episode_trades': self.episode_trades,
             'actions': {},
             'date': self.data.index[self.current_step],
-            'current_data': self.data.iloc[self.current_step]
+            'current_data': self._get_current_data()
         }
 
-        return self._get_observation(), info
+        logger.debug(f"Reset info: {info}")
+        return combined_obs, info
+
+    def _burn_in_done(self) -> bool:
+        return len(self.observation_history) >= self.observation_days
+
+    def verify_env_state(self) -> Dict[str, Any]:
+        """Verify environment state consistency"""
+        state = {
+            'current_step': self.current_step,
+            'observation_shapes': [obs.shape for obs in self.observation_history],
+            'has_nans': any(np.isnan(obs).any() for obs in self.observation_history),
+            'portfolio_balance': self.portfolio_manager.current_balance,
+            'data_remaining': len(self._full_data) - self.current_step
+        }
+        return state
 
     def get_portfolio_history(self) -> List[float]:
         return self.portfolio_manager.portfolio_value_history
+
+    def _prepare_test_results(self, info_history: List[Dict]) -> Dict[str, Any]:
+        portfolio_history = self.portfolio_manager.portfolio_value_history
+        returns = MetricsCalculator.calculate_returns(portfolio_history)
+        # ...existing code...
+        result = {
+            # ...existing code...
+            'metrics': {
+                'sharpe_ratio': float(MetricsCalculator.calculate_sharpe_ratio(returns)),
+                'sortino_ratio': float(MetricsCalculator.calculate_sortino_ratio(returns)),
+                'information_ratio': float(MetricsCalculator.calculate_information_ratio(returns)),
+                'max_drawdown': float(MetricsCalculator.calculate_maximum_drawdown(portfolio_history)),
+                'volatility': float(MetricsCalculator.calculate_volatility(returns))
+            }
+        }
+        return result

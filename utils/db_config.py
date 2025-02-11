@@ -26,22 +26,22 @@ class DatabaseConfig:
         try:
             # Default to SQLite if no PostgreSQL connection is available
             database_url = 'sqlite:///trading_data.db'
+            engine_kwargs = {
+                'pool_pre_ping': True,
+                'pool_recycle': 300
+            }
+            
             if os.getenv('DATABASE_URL'):
                 try:
                     import psycopg2
                     database_url = os.getenv('DATABASE_URL')
                 except ImportError:
                     logger.warning("PostgreSQL driver not found, using SQLite")
-            connect_args = {}
-            if database_url.startswith('sqlite'):
-                connect_args["check_same_thread"] = False
+                    engine_kwargs['connect_args'] = {'check_same_thread': False}
+            else:
+                engine_kwargs['connect_args'] = {'check_same_thread': False}
             
-            self._engine = create_engine(
-                database_url,
-                pool_pre_ping=True,
-                pool_recycle=300,
-                connect_args=connect_args
-            )
+            self._engine = create_engine(database_url, **engine_kwargs)
             self._SessionLocal = sessionmaker(
                 autocommit=False,
                 autoflush=False,

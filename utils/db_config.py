@@ -32,11 +32,15 @@ class DatabaseConfig:
                     database_url = os.getenv('DATABASE_URL')
                 except ImportError:
                     logger.warning("PostgreSQL driver not found, using SQLite")
+            connect_args = {}
+            if database_url.startswith('sqlite'):
+                connect_args["check_same_thread"] = False
+            
             self._engine = create_engine(
                 database_url,
                 pool_pre_ping=True,
                 pool_recycle=300,
-                connect_args={"check_same_thread": False}  # For SQLite
+                connect_args=connect_args
             )
             self._SessionLocal = sessionmaker(
                 autocommit=False,

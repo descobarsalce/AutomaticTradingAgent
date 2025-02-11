@@ -24,7 +24,14 @@ class DatabaseConfig:
 
     def _initialize_db(self) -> None:
         try:
-            database_url = os.getenv('DATABASE_URL', 'sqlite:///trading_data.db')
+            # Default to SQLite if no PostgreSQL connection is available
+            database_url = 'sqlite:///trading_data.db'
+            if os.getenv('DATABASE_URL'):
+                try:
+                    import psycopg2
+                    database_url = os.getenv('DATABASE_URL')
+                except ImportError:
+                    logger.warning("PostgreSQL driver not found, using SQLite")
             self._engine = create_engine(
                 database_url,
                 pool_pre_ping=True,

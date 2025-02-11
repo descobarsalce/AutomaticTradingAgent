@@ -1,5 +1,5 @@
 run = "python -m streamlit run main.py"
-modules = ["python-3.11", "nix"]
+modules = ["python-3.11", "nix", "postgresql-16"]
 
 hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 

@@ -81,6 +81,15 @@ class DataHandler:
         """Fetch data either from cache or yfinance, suffix columns by symbol."""
         if isinstance(symbols, str):
             symbols = [symbols]
+            
+        if not symbols:
+            raise ValueError("No symbols provided")
+            
+        if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
+            raise ValueError("Invalid date format")
+            
+        if end_date <= start_date:
+            raise ValueError("End date must be after start date")
 
         all_stocks_data = pd.DataFrame()
         

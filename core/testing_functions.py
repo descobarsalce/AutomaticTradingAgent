@@ -85,6 +85,9 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
 
                 if test_results and 'metrics' in test_results:
                     test_results_container = st.container()
+            except Exception as e:
+                st.error(f"Error during testing: {str(e)}")
+                return
                     with test_results_container:
                         st.subheader("Test Results Analysis")
 

@@ -7,11 +7,13 @@ from datetime import datetime
 import streamlit as st
 import pandas as pd
 import optuna
+import logging  # added import
 from core.base_agent import UnifiedTradingAgent
 from utils.callbacks import ProgressBarCallback
 from utils.stock_utils import parse_stock_list
 from core.visualization import TradingVisualizer
 
+logger = logging.getLogger(__name__)  # added logger initialization
 
 def initialize_training(stock_names: List[str], train_start_date: datetime,
                         train_end_date: datetime,
@@ -27,6 +29,12 @@ def initialize_training(stock_names: List[str], train_start_date: datetime,
     st.session_state.train_end_date = train_end_date
     st.session_state.env_params = env_params
 
+    # Set logging level based on session state
+    if st.session_state.get('enable_logging', False):
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.CRITICAL)
+
 
 def execute_training(
         ppo_params: Dict[str, Any],
@@ -37,9 +45,11 @@ def execute_training(
     """
     progress_callback = None
     if progress_bar and status_placeholder:
+        # Correct the timestep calculation: use end_date - start_date
+        total_timesteps = (st.session_state.train_end_date - st.session_state.train_start_date).days
+        logger.info(f"Training for {total_timesteps} timesteps")  # Debug training timesteps
         progress_callback = ProgressBarCallback(
-            total_timesteps=(st.session_state.train_start_date -
-                             st.session_state.train_end_date).days,
+            total_timesteps=total_timesteps,
             progress_bar=progress_bar,
             status_placeholder=status_placeholder)
 

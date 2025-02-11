@@ -1,4 +1,3 @@
-
 """
 Training Interface Component
 Handles the model training and hyperparameter tuning interface
@@ -10,6 +9,7 @@ import pandas as pd
 import os
 import numpy as np
 from typing import Dict, Any, Optional
+import logging
 
 from utils.callbacks import ProgressBarCallback
 from core.visualization import TradingVisualizer
@@ -26,6 +26,16 @@ def display_training_tab():
     Renders the training interface tab
     """
     st.header("Trading Agent Configuration")
+
+    # Add a checkbox for enabling/disabling logging
+    enable_logging = st.checkbox("Enable Logging", value=False)
+    st.session_state.enable_logging = enable_logging
+
+    # Set the logging level based on the checkbox
+    if enable_logging:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.CRITICAL)
 
     # Input parameters
     st.subheader("Training Options")
@@ -47,6 +57,7 @@ def display_training_tab():
     st.session_state.env_params = {
         'initial_balance': initial_balance,
         'transaction_cost': transaction_cost,
+        'max_pct_position_by_asset': 0.5,  # Update parameter name here
         'use_position_profit': False,
         'use_holding_bonus': False,
         'use_trading_penalty': False
@@ -93,6 +104,7 @@ def display_training_tab():
             ppo_params = get_training_parameters(use_optuna_params)
             if st.button("Start Training"):
                 run_training(ppo_params)
+                st.info("Training completed. Check logs to see if trades were registered.")
                 
             st.write("")  # Add spacing
             model_name = st.text_input("Save model as", "model_v1.zip")
@@ -120,6 +132,6 @@ def display_training_tab():
                                 st.session_state.ppo_params,
                                 use_optuna_params=use_optuna_params)
 
-    # Display code execution interface
-    from components.execution_window_ui import display_execution_window
-    display_execution_window()
+    # # Display code execution interface
+    # from components.execution_window_ui import display_execution_window
+    # display_execution_window()

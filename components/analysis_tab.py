@@ -82,7 +82,11 @@ def display_tech_analysis_tab():
                                    options=[1, 2, 3, 4],
                                    index=1,
                                    key="num_columns")
-
+        # Add Burn-In Period control
+        burn_in_days = st.number_input("Burn-In Period (days)",
+                                       min_value=0,
+                                       value=30,
+                                       key="burn_in_days")
         # Layout Preview
         st.write("Layout Preview")
         preview_container = st.container()
@@ -111,97 +115,111 @@ def display_tech_analysis_tab():
     if st.button("Generate Analysis"):
         generate_analysis(viz_stocks, viz_start_date, viz_end_date, 
                           show_rsi, show_sma20, show_sma50, rsi_period,
-                          num_columns)
+                          num_columns, burn_in_days)
 
 
 def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                       show_rsi, show_sma20, show_sma50, rsi_period,
-                      num_columns):
-    """
-    Generates and displays technical analysis charts
-    """
-    analysis_container = st.container()
-    with analysis_container:
-        # Create dictionaries to store different types of charts
-        price_charts = {}
-        volume_charts = {}
-        rsi_charts = {}
-        ma_charts = {}
+                      num_columns, burn_in_days):
+    viz_start_date = pd.Timestamp(viz_start_date).tz_localize('America/New_York')
+    viz_end_date = pd.Timestamp(viz_end_date).tz_localize('America/New_York')
+    
+    with st.spinner('Generating analysis...'):
+        analysis_container = st.container()
+        with analysis_container:
+            price_charts = {}
+            volume_charts = {}
+            rsi_charts = {}
+            ma_charts = {}
 
-        # First collect all data and create charts
-        for stock in viz_stocks:
-            portfolio_data = st.session_state.data_handler.fetch_data([stock], viz_start_date, viz_end_date)
+            for stock in viz_stocks:
+                try:
+                    burn_in_start_date = viz_start_date - pd.Timedelta(days=burn_in_days)
+                    data = st.session_state.data_handler.fetch_data(
+                        [stock], burn_in_start_date, viz_end_date
+                    )
+                    
+                    if data.empty:
+                        st.error(f"No data available for {stock}")
+                        continue
+                        
+                    # Price Chart
+                    try:
+                        price_fig = go.Figure()
+                        price_fig.add_trace(go.Scatter(
+                            x=data.index, 
+                            y=data[f'Close_{stock}'],
+                            name=f'{stock} Price'
+                        ))
+                        price_fig.update_layout(title=f'{stock} Price Chart')
+                        price_charts[stock] = price_fig
+                    except Exception as pe:
+                        st.error(f"Price chart error for {stock}")
+                        logger.error(f"Error generating price chart for {stock}: {str(pe)}")
 
-            if portfolio_data.empty:
-                st.error(f"No data available for {stock}")
-                continue
+                    # Volume Chart
+                    try:
+                        volume_fig = go.Figure()
+                        volume_fig.add_trace(go.Bar(
+                            x=data.index,
+                            y=data[f'Volume_{stock}'],
+                            name=f'{stock} Volume'
+                        ))
+                        volume_fig.update_layout(title=f'{stock} Volume')
+                        volume_charts[stock] = volume_fig
+                    except Exception as ve:
+                        st.error(f"Volume chart error for {stock}")
+                        logger.error(f"Error generating volume chart for {stock}: {str(ve)}")
 
-            portfolio_data = st.session_state.data_handler.prepare_data(portfolio_data)
+                    # Moving Averages
+                    if show_sma20 or show_sma50:
+                        try:
+                            ma_fig = go.Figure()
+                            ma_fig.add_trace(go.Scatter(
+                                x=data.index,
+                                y=data[f'Close_{stock}'],
+                                name=f'{stock} Price'
+                            ))
+                            
+                            if show_sma20:
+                                sma20 = data[f'Close_{stock}'].rolling(window=20).mean()
+                                ma_fig.add_trace(go.Scatter(
+                                    x=data.index,
+                                    y=sma20,
+                                    name=f'SMA 20'
+                                ))
+                                
+                            if show_sma50:
+                                sma50 = data[f'Close_{stock}'].rolling(window=50).mean()
+                                ma_fig.add_trace(go.Scatter(
+                                    x=data.index,
+                                    y=sma50,
+                                    name=f'SMA 50'
+                                ))
+                                
+                            ma_fig.update_layout(title=f'{stock} Moving Averages')
+                            ma_charts[stock] = ma_fig
+                        except Exception as mae:
+                            st.error(f"Moving Averages chart error for {stock}")
+                            logger.error(f"Error generating moving averages chart for {stock}: {str(mae)}")
 
-            if stock in portfolio_data:
-                data = portfolio_data[stock]
+                except Exception as e:
+                    logger.error(f"Error processing {stock}: {str(e)}")
+                    st.error(f"Error processing {stock}")
+                    continue
 
-                # Create price chart
-                price_fig = go.Figure(data=[
-                    go.Candlestick(x=data.index,
-                                   open=data['Open'],
-                                   high=data['High'],
-                                   low=data['Low'],
-                                   close=data['Close'],
-                                   name=stock)
-                ])
-                price_fig.update_layout(title=f'{stock} Price History')
-                price_charts[stock] = price_fig
-
-                # Create volume chart
-                volume_fig = go.Figure()
-                volume_fig.add_trace(
-                    go.Bar(x=data.index,
-                           y=data['Volume'],
-                           name=f'{stock} Volume'))
-                volume_fig.update_layout(title=f'{stock} Trading Volume')
-                volume_charts[stock] = volume_fig
-
-                # Create RSI chart if enabled
-                if show_rsi and 'RSI' in data.columns:
-                    rsi_fig = go.Figure()
-                    rsi_fig.add_trace(
-                        go.Scatter(x=data.index,
-                                   y=data['RSI'] * 100,
-                                   name=f'{stock} RSI'))
-                    rsi_fig.add_hline(y=70, line_dash="dash", line_color="red")
-                    rsi_fig.add_hline(y=30,
-                                      line_dash="dash",
-                                      line_color="green")
-                    rsi_fig.update_layout(
-                        title=f'{stock} RSI ({rsi_period} periods)')
-                    rsi_charts[stock] = rsi_fig
-
-                # Create Moving Averages chart if enabled
-                if show_sma20 or show_sma50:
-                    ma_fig = go.Figure()
-                    ma_fig.add_trace(
-                        go.Scatter(x=data.index,
-                                   y=data['Close'],
-                                   name=f'{stock} Price'))
-                    if show_sma20 and 'SMA_20' in data.columns:
-                        ma_fig.add_trace(
-                            go.Scatter(x=data.index,
-                                       y=data['SMA_20'],
-                                       name=f'{stock} SMA 20'))
-                    if show_sma50 and 'SMA_50' in data.columns:
-                        ma_fig.add_trace(
-                            go.Scatter(x=data.index,
-                                       y=data['SMA_50'],
-                                       name=f'{stock} SMA 50'))
-                    ma_fig.update_layout(title=f'{stock} Moving Averages')
-                    ma_charts[stock] = ma_fig
-
-        # Display charts using the dynamic grid system
-        display_charts_grid(price_charts, "Price Analysis", num_columns)
-        display_charts_grid(volume_charts, "Volume Analysis", num_columns)
-        display_charts_grid(rsi_charts, "RSI Analysis", num_columns)
-        display_charts_grid(ma_charts, "Moving Averages Analysis", num_columns)
+            # Display charts
+            if price_charts:
+                st.subheader("Price Analysis")
+                display_charts_grid(price_charts, "Price Charts", num_columns)
+            
+            if volume_charts:
+                st.subheader("Volume Analysis")
+                display_charts_grid(volume_charts, "Volume Charts", num_columns)
+                
+            if ma_charts:
+                st.subheader("Moving Averages Analysis")
+                display_charts_grid(ma_charts, "Moving Averages", num_columns)
 
         # Portfolio Analytics Section
         if hasattr(st.session_state, 'portfolio_history') and st.session_state.portfolio_history:

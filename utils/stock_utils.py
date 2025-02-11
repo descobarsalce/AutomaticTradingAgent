@@ -2,6 +2,7 @@
 Utility functions for stock data processing and manipulation
 """
 from typing import List
+import pandas as pd
 
 def parse_stock_list(stock_string: str) -> List[str]:
     """

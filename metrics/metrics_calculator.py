@@ -1,4 +1,3 @@
-
 """Metrics calculator using shared technical indicators base class."""
 
 import numpy as np
@@ -11,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 class MetricsCalculator(BaseTechnicalIndicators):
     """Centralized metrics calculation class."""
+    
+    _cache = {}  # Added cache for heavy computations
 
     @staticmethod
     def calculate_returns(portfolio_history: List[float],
@@ -37,6 +38,9 @@ class MetricsCalculator(BaseTechnicalIndicators):
                 returns = returns[np.abs(returns - mean) <= 5 * std]
                 if round_precision is not None:
                     returns = np.round(returns, round_precision)
+
+            if np.isnan(returns).any():
+                raise ValueError("NaN detected in returns calculation")
 
             return returns
         except Exception as e:
@@ -109,13 +113,26 @@ class MetricsCalculator(BaseTechnicalIndicators):
     @staticmethod
     def calculate_maximum_drawdown(portfolio_history: List[float]) -> float:
         try:
+            key = tuple(portfolio_history)
+            if key in MetricsCalculator._cache:
+                return MetricsCalculator._cache[key]
+
             values = np.array([v for v in portfolio_history if isinstance(v, (int, float)) and v >= 0])
             if len(values) <= 1:
                 return 0.0
 
             peak = np.maximum.accumulate(values)
             drawdowns = (peak - values) / peak
-            return float(np.nanmax(drawdowns))
+            mdd = float(np.nanmax(drawdowns))
+            MetricsCalculator._cache[key] = mdd
+            return mdd
         except Exception as e:
             logger.exception("Error calculating maximum drawdown")
             return 0.0
+
+    @staticmethod
+    def calculate_volatility(returns: np.ndarray) -> float:
+        if not isinstance(returns, np.ndarray) or len(returns) == 0:
+            return 0.0
+        volatility = np.std(returns, ddof=1) * np.sqrt(252)
+        return float(np.clip(volatility, 0, 100))

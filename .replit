@@ -70,4 +70,4 @@ args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501
 
 [objectStorage]
-defaultBucketID = "replit-objstore-5f7fd173-b246-4c8b-9c22-68fb7e7f8eda"
+defaultBucketID = "replit-objstore-d8cfd369-11b3-4398-bfae-63072aa2b2c2"

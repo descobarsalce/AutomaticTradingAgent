@@ -24,22 +24,21 @@ class DatabaseConfig:
 
     def _initialize_db(self) -> None:
         try:
-            # Default to SQLite if no PostgreSQL connection is available
-            database_url = 'sqlite:///trading_data.db'
+            database_url = os.getenv('DATABASE_URL')
             engine_kwargs = {
                 'pool_pre_ping': True,
-                'pool_recycle': 300
+                'pool_recycle': 300,
+                'pool_size': 10,
+                'max_overflow': 20
             }
             
-            if os.getenv('DATABASE_URL'):
-                try:
-                    import psycopg2
-                    database_url = os.getenv('DATABASE_URL')
-                except ImportError:
-                    logger.warning("PostgreSQL driver not found, using SQLite")
-                    engine_kwargs['connect_args'] = {'check_same_thread': False}
-            else:
+            if not database_url:
+                logger.warning("No PostgreSQL connection found, falling back to SQLite")
+                database_url = 'sqlite:///trading_data.db'
                 engine_kwargs['connect_args'] = {'check_same_thread': False}
+            else:
+                # Use connection pooling for PostgreSQL
+                database_url = database_url.replace('.us-east-2', '-pooler.us-east-2')
             
             self._engine = create_engine(database_url, **engine_kwargs)
             self._SessionLocal = sessionmaker(

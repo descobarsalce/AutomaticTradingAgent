@@ -32,6 +32,7 @@ def init_db():
 def migrate_sqlite_to_postgres():
     """Migrate data from SQLite to PostgreSQL if needed"""
     if os.path.exists('trading_data.db'):
+        from sqlalchemy import text
         sqlite_engine = create_engine('sqlite:///trading_data.db')
         sqlite_base = declarative_base()
         sqlite_base.metadata.reflect(bind=sqlite_engine)
@@ -39,10 +40,15 @@ def migrate_sqlite_to_postgres():
         # Transfer data
         with sqlite_engine.connect() as sqlite_conn:
             for table in Base.metadata.sorted_tables:
-                data = sqlite_conn.execute(f'SELECT * FROM {table.name}').fetchall()
+                # Use text() for safe SQL execution
+                stmt = text(f'SELECT * FROM {table.name}')
+                result = sqlite_conn.execute(stmt)
+                data = [dict(row._mapping) for row in result]
+                
                 if data:
-                    db_config.engine.execute(table.insert(), data)
-                    
+                    with db_config.engine.begin() as pg_conn:
+                        pg_conn.execute(table.insert(), data)
+                        
         print("Data migration completed")
 
 init_db()

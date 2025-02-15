@@ -25,6 +25,24 @@ class StockData(Base):
         return f"<StockData(symbol='{self.symbol}', date='{self.date}')>"
 
 def init_db():
+    """Initialize database tables"""
     Base.metadata.create_all(db_config.engine)
+    
+def migrate_sqlite_to_postgres():
+    """Migrate data from SQLite to PostgreSQL if needed"""
+    if os.path.exists('trading_data.db'):
+        sqlite_engine = create_engine('sqlite:///trading_data.db')
+        sqlite_base = declarative_base()
+        sqlite_base.metadata.reflect(bind=sqlite_engine)
+        
+        # Transfer data
+        with sqlite_engine.connect() as sqlite_conn:
+            for table in Base.metadata.sorted_tables:
+                data = sqlite_conn.execute(f'SELECT * FROM {table.name}').fetchall()
+                if data:
+                    db_config.engine.execute(table.insert(), data)
+                    
+        print("Data migration completed")
 
 init_db()
+migrate_sqlite_to_postgres()

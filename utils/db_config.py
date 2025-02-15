@@ -28,8 +28,10 @@ class DatabaseConfig:
             engine_kwargs = {
                 'pool_pre_ping': True,
                 'pool_recycle': 300,
-                'pool_size': 10,
-                'max_overflow': 20
+                'pool_size': 20,
+                'max_overflow': 40,
+                'pool_timeout': 30,
+                'echo': False
             }
             
             if not database_url:

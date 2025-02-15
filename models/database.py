@@ -1,5 +1,6 @@
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, UniqueConstraint
+import os
+from sqlalchemy import Column, Integer, String, Float, DateTime, UniqueConstraint, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from utils.db_config import db_config

@@ -16,23 +16,29 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
-    """Fetch trading data from the DataHandler in session_state and ensure no future data is included."""
-    if not hasattr(st.session_state, 'data_handler'):
-        raise RuntimeError("DataHandler not initialized in session state")
-    
-    data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
-    if data.empty:
-        raise ValueError("No data fetched for given stock_names and dates.")
-    if not any(f'Close_{symbol}' in data.columns for symbol in stock_names):
-        raise ValueError("Data format incorrect - missing Close_SYMBOL columns")
+    """Fetch and validate trading data with improved error handling."""
+    try:
+        data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
+        if data.empty:
+            raise ValueError(f"No data available for symbols {stock_names} between {start_date} and {end_date}")
 
-    # Set logging level based on session state
-    if st.session_state.get('enable_logging', False):
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.CRITICAL)
+        # Validate that we have data for all symbols
+        symbols_with_data = set(col.split('_')[1] for col in data.columns if '_' in col)
+        missing_symbols = set(stock_names) - symbols_with_data
+        if missing_symbols:
+            raise ValueError(f"Missing data for symbols: {missing_symbols}")
 
-    return data
+        # Ensure we have all required columns for each symbol
+        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+        for symbol in stock_names:
+            missing_cols = [col for col in required_cols if f"{col}_{symbol}" not in data.columns]
+            if missing_cols:
+                raise ValueError(f"Missing columns {missing_cols} for symbol {symbol}")
+
+        return data
+    except Exception as e:
+        logger.error(f"Error fetching trading data: {str(e)}")
+        raise ValueError(f"Failed to fetch valid trading data: {str(e)}")
 
 class TradingEnv(gym.Env):
     def __init__(self,
@@ -104,7 +110,7 @@ class TradingEnv(gym.Env):
     def _get_current_price(self, symbol: str) -> float:
         """Retrieve the current closing price for a symbol using _full_data."""
         return float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
-    
+
     def _get_current_data(self) -> pd.Series:
         """Retrieve the current data row."""
         return self.data.iloc[self.current_step]
@@ -126,13 +132,13 @@ class TradingEnv(gym.Env):
             current_obs.extend([current_price, position])
         current_obs.append(self.portfolio_manager.current_balance)
         current_obs = np.array(current_obs, dtype=np.float32)
-        
+
         # Log immediate state
         logger.debug(f"Current step observation: {current_obs}")
-        
+
         # Add to history
         self.observation_history.append(current_obs)
-        
+
         if len(self.observation_history) < self.observation_days:
             missing = self.observation_days - len(self.observation_history)
             pad = [self.observation_history[0]] * missing if self.observation_history else [np.zeros(self.observation_space.shape[0] // self.observation_days, dtype=np.float32)] * missing
@@ -140,16 +146,16 @@ class TradingEnv(gym.Env):
         else:
             history = self.observation_history[-self.observation_days:]
         combined_obs = np.concatenate(history, axis=0)
-        
+
         # New: Check and replace NaNs in the observation.
         if np.isnan(combined_obs).any():
             logger.warning("NaN values detected in observation; replacing with zeros.")
             combined_obs = np.nan_to_num(combined_obs)
-        
+
         # Log full observation with history and current observation separately
         logger.info(f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}")
         logger.info(f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}")
-        
+
         return combined_obs
 
     def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
@@ -182,12 +188,12 @@ class TradingEnv(gym.Env):
 
         # Clip reward to prevent extreme values
         reward = np.clip(reward, -10, 10)
-        
+
         # Check for NaN values in reward
         if np.isnan(reward):
             logger.error(f"NaN detected in reward: {reward}")
             raise ValueError("NaN detected in reward")
-        
+
         logger.debug(f"Computed reward (step_return based): {reward}")
         return reward
 
@@ -265,13 +271,13 @@ class TradingEnv(gym.Env):
         """Verify observation history consistency"""
         if len(self.observation_history) == 0:
             raise ValueError("Observation history is empty")
-            
+
         # Verify shape consistency
         first_obs_shape = self.observation_history[0].shape
         for idx, obs in enumerate(self.observation_history):
             if obs.shape != first_obs_shape:
                 raise ValueError(f"Inconsistent observation shape at index {idx}")
-                
+
         # Verify no NaN values
         if any(np.isnan(obs).any() for obs in self.observation_history):
             raise ValueError("NaN values detected in observation history")
@@ -282,7 +288,7 @@ class TradingEnv(gym.Env):
         self.portfolio_manager.portfolio_value_history = [self.initial_balance]
         self.current_step = 0
         self.observation_history.clear()
-        
+
         # Burn-in period: automatically take no-op action (assumed to be action "0")
         burn_in_counter = 0
         while burn_in_counter < self.burn_in_days and not self._burn_in_done():
@@ -290,7 +296,7 @@ class TradingEnv(gym.Env):
             burn_in_counter += 1
             if done:
                 break
-            
+
         combined_obs = self._construct_observation()
         info = {
             'net_worth': self.initial_balance,

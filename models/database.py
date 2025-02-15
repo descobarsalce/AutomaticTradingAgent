@@ -32,7 +32,7 @@ def init_db():
 def migrate_sqlite_to_postgres():
     """Migrate data from SQLite to PostgreSQL if needed"""
     if os.path.exists('trading_data.db'):
-        from sqlalchemy import text
+        from sqlalchemy import text, select
         sqlite_engine = create_engine('sqlite:///trading_data.db')
         sqlite_base = declarative_base()
         sqlite_base.metadata.reflect(bind=sqlite_engine)
@@ -47,7 +47,15 @@ def migrate_sqlite_to_postgres():
                 
                 if data:
                     with db_config.engine.begin() as pg_conn:
-                        pg_conn.execute(table.insert(), data)
+                        # Check existing records to avoid duplicates
+                        for record in data:
+                            try:
+                                # Try inserting without the ID to let PostgreSQL auto-increment
+                                insert_data = {k: v for k, v in record.items() if k != 'id'}
+                                pg_conn.execute(table.insert(), [insert_data])
+                            except Exception as e:
+                                # Skip if record already exists
+                                continue
                         
         print("Data migration completed")
 

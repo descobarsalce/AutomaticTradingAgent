@@ -69,13 +69,24 @@ class DataHandler:
     def _fetch_data_yf(self, symbol: str, start_date, end_date) -> pd.DataFrame:
         """Fetch data from yfinance and validate columns."""
         required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
-        ticker = yf.Ticker(symbol)
-        df = ticker.history(start=start_date, end=end_date)
-        if df.empty:
-            raise ValueError(f"No data retrieved for {symbol}")
-        if not all(col in df.columns for col in required_columns):
-            raise ValueError(f"Missing required columns for {symbol}")
-        return df
+        try:
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(start=start_date, end=end_date, interval='1d')
+            
+            if df.empty:
+                logger.error(f"Empty dataset received for {symbol}")
+                return pd.DataFrame()
+                
+            if not all(col in df.columns for col in required_columns):
+                missing = [col for col in required_columns if col not in df.columns]
+                logger.error(f"Missing columns for {symbol}: {missing}")
+                return pd.DataFrame()
+                
+            return df
+            
+        except Exception as e:
+            logger.error(f"YFinance error for {symbol}: {str(e)}")
+            return pd.DataFrame()
 
     def fetch_data(self, symbols, start_date, end_date):
         """Fetch data either from cache or yfinance, suffix columns by symbol."""
@@ -98,19 +109,29 @@ class DataHandler:
                 cached_data = self._fetch_cached_data_if_valid(symbol, start_date, end_date)
                 if cached_data is not None:
                     stock_data = cached_data
+                    logger.info(f"Using cached data for {symbol}")
                 else:
+                    logger.info(f"Fetching new data for {symbol}")
                     stock_data = self._fetch_data_yf(symbol, start_date, end_date)
-                    self.cache_data(symbol, stock_data)
-                
+                    if not stock_data.empty:
+                        self.cache_data(symbol, stock_data)
+                    else:
+                        logger.warning(f"Empty data received for {symbol}")
+                        continue
+
                 # Rename columns to include symbol
                 stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
                 all_stocks_data = pd.concat([all_stocks_data, stock_data], axis=1)
+                logger.info(f"Successfully processed data for {symbol}")
                 
             except Exception as e:
-                logger.error(f"Error fetching data for {symbol}: {e}")
+                logger.error(f"Error fetching data for {symbol}: {str(e)}")
+                continue
         
         if all_stocks_data.empty:
-            raise ValueError("No valid data retrieved for any symbols")
+            error_msg = "No valid data retrieved for any symbols. Check date range and symbol names."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
             
         return all_stocks_data
 

@@ -142,9 +142,11 @@ class DataHandler:
                 logger.warning(f"Missing {len(missing_dates)} trading days for {symbol}")
                 return None  # Force refetch if data is incomplete
                 
-            newest_record = max(record.last_updated for record in cached_records)
-            if datetime.now(datetime.timezone.utc) - newest_record > timedelta(days=1):
-                return None
+            # Only check staleness for the most recent dates
+            if end_date >= (datetime.now(datetime.timezone.utc) - timedelta(days=5)).date():
+                newest_record = max(record.last_updated for record in cached_records)
+                if datetime.now(datetime.timezone.utc) - newest_record > timedelta(days=1):
+                    return None
 
             data = pd.DataFrame([{
                 'Close': record.close,
@@ -177,20 +179,27 @@ class DataHandler:
                     last_updated=datetime.utcnow()
                 )
 
-                existing = self.session.query(StockData).filter(
-                    StockData.symbol == symbol,
-                    StockData.date == date
-                ).first()
-
-                if existing:
-                    existing.open = row['Open']
-                    existing.high = row['High']
-                    existing.low = row['Low']
-                    existing.close = row['Close']
-                    existing.volume = row['Volume']
-                    existing.last_updated = datetime.utcnow()
-                else:
+                try:
                     self.session.add(stock_data)
+                    self.session.flush()
+                except IntegrityError:
+                    self.session.rollback()
+                    # Only update if data values are different
+                    existing = self.session.query(StockData).filter(
+                        StockData.symbol == symbol,
+                        StockData.date == date
+                    ).first()
+                    if (existing.open != row['Open'] or
+                        existing.high != row['High'] or
+                        existing.low != row['Low'] or
+                        existing.close != row['Close'] or
+                        existing.volume != row['Volume']):
+                        existing.open = row['Open']
+                        existing.high = row['High']
+                        existing.low = row['Low']
+                        existing.close = row['Close']
+                        existing.volume = row['Volume']
+                        existing.last_updated = datetime.utcnow()
 
             self.session.commit()
 

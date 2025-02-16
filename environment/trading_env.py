@@ -199,14 +199,7 @@ class TradingEnv(gym.Env):
 
     def step(self, action: Union[int, np.ndarray]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         try:
-            logger.info("\n" + "-"*40)
-            logger.info("🔄 Executing Environment Step")
-            logger.info("-"*40)
-            
             timestamp = self.data.index[self.current_step]
-            logger.debug(f"📅 Timestamp: {timestamp}")
-            logger.debug(f"📊 Action received: {action}")
-            
             trades_executed = self.portfolio_manager.execute_all_trades(
                 self.stock_names,
                 np.array(action, dtype=np.float32),

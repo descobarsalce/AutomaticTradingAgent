@@ -116,18 +116,12 @@ def main() -> None:
     logger.info("🚀 Starting main application")
     
     try:
-        # Initialize logging for core components
-        for name in ['core.base_agent', 'environment.trading_env', 'data.data_handler']:
-            component_logger = logging.getLogger(name)
-            component_logger.setLevel(logging.DEBUG)
-            
-        logger.info("📊 Component Loggers Initialized")
-        logger.info("🔄 Initializing session state")
+        logger.info("Initializing session state")
         init_session_state()
         
-        logger.info("🏥 Performing system health check")
+        logger.info("Performing system health check")
         if not check_system_health():
-            logger.error("❌ System health check failed")
+            logger.error("System health check failed")
             st.error("System health check failed. Please check the logs.")
             st.stop()
             return

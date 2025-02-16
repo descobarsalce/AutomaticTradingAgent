@@ -84,52 +84,54 @@ def init_session_state() -> None:
 
 
 def main() -> None:
-    logger.info("🎯 Starting main application")
+    """Main application entry point with structured error handling."""
     try:
+        logger.info("🎯 Starting main application")
+        
+        # Initialize core components
         init_session_state()
         logger.info("✅ Session state initialized")
         
         if not check_system_health():
             logger.error("❌ System health check failed")
+            st.error("System health check failed. Please check the logs.")
             st.stop()
             return
         
+        # UI Setup
         logger.info("🎨 Initializing user interface")
         st.title("Trading Analysis and Agent Platform")
-
+        
+        # Tab Creation
         logger.info("📑 Creating application tabs")
-        # Create tabs for Technical Analysis, Model Training, and Database Explorer
         tab_training, tab_analysis, tab_database = st.tabs(
             ["Model Training", "Technical Analysis", "Database Explorer"])
-    
-        logger.info("📊 Initializing Technical Analysis tab")
-    with tab_analysis:
-        try:
-            display_tech_analysis_tab()
-            logger.info("✅ Technical Analysis tab loaded successfully")
-        except Exception as e:
-            logger.error(f"❌ Error in Technical Analysis tab: {str(e)}")
-            raise
-
-    logger.info("🤖 Initializing Model Training tab")
-    with tab_training:
-        try:
-            display_training_tab()
-            logger.info("✅ Model Training tab loaded successfully")
-        except Exception as e:
-            logger.error(f"❌ Error in Model Training tab: {str(e)}")
-            raise
-
-    logger.info("🗄️ Initializing Database Explorer tab")
-    with tab_database:
-        try:
-            display_database_explorer()
-            logger.info("✅ Database Explorer tab loaded successfully")
-        except Exception as e:
-            logger.error(f"❌ Error in Database Explorer tab: {str(e)}")
-            raise
-            
-    logger.info("✨ Application initialization completed successfully")
+        
+        # Tab Initialization with error boundaries
+        def init_tab(tab_context, display_func, tab_name):
+            with tab_context:
+                try:
+                    display_func()
+                    logger.info(f"✅ {tab_name} tab loaded successfully")
+                except Exception as e:
+                    error_msg = f"Error in {tab_name} tab: {str(e)}"
+                    logger.error(f"❌ {error_msg}")
+                    st.error(error_msg)
+                    if st.session_state.get('debug_mode', False):
+                        st.exception(e)
+        
+        init_tab(tab_analysis, display_tech_analysis_tab, "Technical Analysis")
+        init_tab(tab_training, display_training_tab, "Model Training")
+        init_tab(tab_database, display_database_explorer, "Database Explorer")
+        
+        logger.info("✨ Application initialization completed successfully")
+        
+    except Exception as e:
+        error_msg = f"Critical application error: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        st.error(error_msg)
+        if st.session_state.get('debug_mode', False):
+            st.exception(e)
 
 
 if __name__ == "__main__":

@@ -40,37 +40,45 @@ class DataHandler:
         
         for retry_count in range(max_retries):
             try:
+                # Check existing session
                 if self.session is not None:
                     try:
-                        # Test if session is valid
                         self.session.execute(text("SELECT 1"))
+                        logger.info("✅ Existing session verified")
                         return self.session
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(f"Existing session invalid: {str(e)}")
                         self.session.close()
                         self.session = None
                 
                 # Create new session
                 self.session = next(get_db_session())
                 self.session.execute(text("SELECT 1"))  # Verify connection
-                logger.info(f"✅ Database session established successfully in {(datetime.now() - start_time).total_seconds():.2f}s")
+                duration = (datetime.now() - start_time).total_seconds()
+                logger.info(f"✅ New database session established in {duration:.2f}s")
                 return self.session
                 
             except Exception as e:
-                logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")
-                if self.session:
-                    self.session.close()
-                    self.session = None
-                    
-            except Exception as e:
-                logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")
+                error_msg = f"Session creation attempt {retry_count + 1} failed: {str(e)}"
+                logger.warning(error_msg)
                 logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
+                
                 if self.session:
-                    self.session.close()
-                self.session = None
-                retry_count += 1
-                if retry_count == max_retries:
+                    try:
+                        self.session.close()
+                    except Exception as close_error:
+                        logger.warning(f"Error closing session: {str(close_error)}")
+                    finally:
+                        self.session = None
+                
+                if retry_count == max_retries - 1:
                     logger.error("Failed to create database session after maximum retries")
-                    raise
+                    raise ConnectionError("Database connection failed after maximum retries") from e
+                
+                # Wait before retry with exponential backoff
+                wait_time = min(2 ** retry_count, 30)  # Max 30 seconds
+                logger.info(f"Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
         
         logger.error("Session creation failed after all retries")
         return self.session

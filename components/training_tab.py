@@ -30,6 +30,20 @@ def display_training_tab():
     logger.info("🎯 Training Tab Initialization")
     logger.info("="*50)
     
+    # Component loggers
+    training_logger = logging.getLogger('components.training')
+    agent_logger = logging.getLogger('core.base_agent')
+    env_logger = logging.getLogger('environment.trading_env')
+    data_logger = logging.getLogger('data.data_handler')
+    
+    for logger_name, logger_instance in [
+        ('Training Interface', training_logger),
+        ('Trading Agent', agent_logger),
+        ('Trading Environment', env_logger),
+        ('Data Handler', data_logger)
+    ]:
+        logger_instance.info(f"Initializing {logger_name} component")
+    
     # Set up component specific logging
     training_logger = logging.getLogger('components.training')
     training_logger.setLevel(logging.DEBUG)

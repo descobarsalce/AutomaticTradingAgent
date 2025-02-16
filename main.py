@@ -13,46 +13,45 @@ logger.setLevel(logging.DEBUG)
 
 
 def init_session_state() -> None:
-    """
-    Initialize Streamlit session state variables for persistent storage across reruns.
-
-    Initializes:
-        - log_messages: List[str] - Chronological log messages
-        - ppo_params: Dict[str, Union[float, int, bool]] - PPO algorithm configuration
-        - model: UnifiedTradingAgent - Trading agent model instance
-
-    Implementation:
-        The function checks for each required key in st.session_state and
-        initializes it if missing. This ensures persistence across Streamlit reruns
-        while avoiding reinitializing existing state.
-
-    Example:
-        ```python
-        # Initialize state at app startup
-        init_session_state()
-
-        # Access state variables
-        model = st.session_state.model
-        logs = st.session_state.log_messages
-        ```
-    """
-    if 'log_messages' not in st.session_state:
-        st.session_state.log_messages = []
-    if 'ppo_params' not in st.session_state:
-        st.session_state.ppo_params = None
-    if 'model' not in st.session_state:
-        st.session_state.model = UnifiedTradingAgent()
-    if 'stock_list' not in st.session_state:
-        st.session_state.stock_list = ['APPL', 'MSFT']
-    if 'data_handler' not in st.session_state:
-        data_handler = DataHandler()
-        data_handler.get_session()  # Ensure database session is initialized
-        st.session_state.data_handler = data_handler
+    """Initialize Streamlit session state variables."""
+    try:
+        # Core components
+        if 'log_messages' not in st.session_state:
+            st.session_state.log_messages = []
+        if 'ppo_params' not in st.session_state:
+            st.session_state.ppo_params = None
+        
+        # Data handling
+        if 'data_handler' not in st.session_state:
+            data_handler = DataHandler()
+            st.session_state.data_handler = data_handler
+            
+        # Ensure database connection
+        if hasattr(st.session_state, 'data_handler'):
+            if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
+                st.session_state.data_handler.get_session()
+        
+        # Model and stock data
+        if 'model' not in st.session_state:
+            st.session_state.model = UnifiedTradingAgent()
+        if 'stock_list' not in st.session_state:
+            st.session_state.stock_list = ['AAPL', 'MSFT']  # Fixed typo in AAPL
+            
+        # Training state
+        if 'training_in_progress' not in st.session_state:
+            st.session_state.training_in_progress = False
+            
+    except Exception as e:
+        st.error(f"Initialization error: {str(e)}")
+        logging.error(f"Session state initialization failed: {str(e)}")
 
 
 def main() -> None:
     init_session_state()
-
+    
+    if not check_system_health():
+        st.stop()
+        
     st.title("Trading Analysis and Agent Platform")
 
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
@@ -71,3 +70,21 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+def check_system_health():
+    """Verify core system components are functioning."""
+    try:
+        # Check data handler
+        if not st.session_state.data_handler or not st.session_state.data_handler.session:
+            st.warning("⚠️ Database connection not initialized")
+            return False
+            
+        # Check model
+        if not st.session_state.model:
+            st.warning("⚠️ Trading model not initialized")
+            return False
+            
+        return True
+        
+    except Exception as e:
+        st.error(f"System health check failed: {str(e)}")
+        return False

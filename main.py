@@ -14,13 +14,17 @@ logger.setLevel(logging.DEBUG)
 
 def init_session_state() -> None:
     """Initialize Streamlit session state variables."""
+    if 'initialized' in st.session_state:
+        return
+        
     start_time = datetime.now()
     logger.info("🚀 Starting session state initialization...")
     
     try:
+        st.session_state.initialized = True
         logger.info("📊 Setting up logging configuration...")
         logging.basicConfig(
-            level=logging.DEBUG,
+            level=logging.INFO,  # Reduced logging level
             format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
             datefmt='%H:%M:%S'
         )

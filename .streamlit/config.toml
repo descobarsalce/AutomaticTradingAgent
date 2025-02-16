@@ -1,6 +1,18 @@
 [server]
 port = 5000
 address = "0.0.0.0"
+maxUploadSize = 200
+enableXsrfProtection = false
+enableCORS = false
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+fastReruns = true
+
+[theme]
+base = "light"
 headless = true
 enableCORS = true
 

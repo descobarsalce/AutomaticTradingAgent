@@ -1,25 +1,19 @@
+
 [server]
-port = 5000
+port = 8501
 address = "0.0.0.0"
 maxUploadSize = 200
+enableCORS = true
 enableXsrfProtection = false
-enableCORS = false
+headless = true
 
 [browser]
 gatherUsageStats = false
+serverAddress = "0.0.0.0"
+serverPort = 8501
 
 [runner]
 fastReruns = true
-
-[theme]
-base = "light"
-headless = true
-enableCORS = true
-
-[browser]
-serverAddress = "0.0.0.0"
-serverPort = 8501
-gatherUsageStats = false
 
 [theme]
 primaryColor = "#FF4B4B"

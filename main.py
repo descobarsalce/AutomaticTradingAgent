@@ -15,9 +15,17 @@ logger.setLevel(logging.DEBUG)
 def init_session_state() -> None:
     """Initialize Streamlit session state variables."""
     start_time = datetime.now()
-    logger.info("Starting session state initialization...")
+    logger.info("🚀 Starting session state initialization...")
+    
     try:
-        # Core components
+        logger.info("📊 Setting up logging configuration...")
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            datefmt='%H:%M:%S'
+        )
+        
+        logger.info("🔄 Initializing core components...")
         if 'log_messages' not in st.session_state:
             st.session_state.log_messages = []
             

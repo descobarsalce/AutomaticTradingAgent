@@ -18,10 +18,18 @@ logger = logging.getLogger(__name__)
 class DataHandler:
 
     def __init__(self):
+        logger.info("📈 Initializing DataHandler...")
+        start_time = datetime.now()
+        
+        logger.info("🛠 Setting up FeatureEngineer...")
         self.feature_engineer = FeatureEngineer()
         self.session = None
+        
+        logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
 
     def get_session(self, max_retries=3):
+        start_time = datetime.now()
+        logger.info(f"🔌 Attempting to establish database session (max retries: {max_retries})...")
         """Get a database session using context management with retries"""
         start_time = datetime.now()
         logger.info("Initializing database session...")

@@ -23,8 +23,11 @@ class DatabaseConfig:
             self._initialize_db()
 
     def _initialize_db(self) -> None:
+        start_time = datetime.now()
+        logger.info("🔄 Starting database initialization...")
         try:
             database_url = os.getenv('DATABASE_URL')
+            logger.info("🔑 Configuring database connection parameters...")
             engine_kwargs = {
                 'pool_pre_ping': True,
                 'pool_recycle': 300,

@@ -97,7 +97,7 @@ def main() -> None:
         logger.info("🎨 Initializing user interface")
         st.title("Trading Analysis and Agent Platform")
 
-    logger.info("📑 Creating application tabs")
+        logger.info("📑 Creating application tabs")
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
     tab_training, tab_analysis, tab_database = st.tabs(
         ["Model Training", "Technical Analysis", "Database Explorer"])

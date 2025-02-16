@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/__main__.py", line 20, in <module>
+    main(prog_name="streamlit")
+  File "/nix/store/4flhri1nwh8n0d8a4bx2yjnyigpz00bg-python3.11-click-8.1.7/lib/python3.11/site-packages/click/core.py", line 1157, in __call__
+    return self.main(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/4flhri1nwh8n0d8a4bx2yjnyigpz00bg-python3.11-click-8.1.7/lib/python3.11/site-packages/click/core.py", line 1078, in main
+    rv = self.invoke(ctx)
+         ^^^^^^^^^^^^^^^^
+  File "/nix/store/4flhri1nwh8n0d8a4bx2yjnyigpz00bg-python3.11-click-8.1.7/lib/python3.11/site-packages/click/core.py", line 1688, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/4flhri1nwh8n0d8a4bx2yjnyigpz00bg-python3.11-click-8.1.7/lib/python3.11/site-packages/click/core.py", line 1434, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/4flhri1nwh8n0d8a4bx2yjnyigpz00bg-python3.11-click-8.1.7/lib/python3.11/site-packages/click/core.py", line 783, in invoke
+    return __callback(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/web/cli.py", line 204, in main_run
+    bootstrap.load_config_options(flag_options=kwargs)
+  File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/web/bootstrap.py", line 343, in load_config_options
+    config.get_config_options(force_reparse=True, options_from_flags=options_from_flags)
+  File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/config.py", line 1322, in get_config_options
+    _update_config_with_toml(file_contents, filename)
+  File "/nix/store/rv55xcjw63fcfb8p9qd85s8hfxjry3w5-python3.11-streamlit-1.34.0/lib/python3.11/site-packages/streamlit/config.py", line 1200, in _update_config_with_toml
+    parsed_config_file = toml.loads(raw_toml)
+                         ^^^^^^^^^^^^^^^^^^^^
+  File "/nix/store/s1h0gcqqx056h1nkdhl5sipx7qr5c0f5-python3.11-toml-0.10.2/lib/python3.11/site-packages/toml/decoder.py", line 478, in loads
+    raise TomlDecodeError("What? " + group +
+toml.decoder.TomlDecodeError: What? browser already exists?{'server': {'port': 5000, 'address': '0.0.0.0', 'maxUploadSize': 200, 'enableXsrfProtection': False, 'enableCORS': False}, 'browser': {'gatherUsageStats': False}, 'runner': {'fastReruns': True}, 'theme': {'base': 'light', 'headless': True, 'enableCORS': True}} (line 19 column 1 char 232)

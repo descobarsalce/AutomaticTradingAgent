@@ -73,18 +73,26 @@ if __name__ == "__main__":
 def check_system_health():
     """Verify core system components are functioning."""
     try:
-        # Check data handler
-        if not st.session_state.data_handler or not st.session_state.data_handler.session:
-            st.warning("⚠️ Database connection not initialized")
+        # Initialize components if missing
+        if 'data_handler' not in st.session_state:
+            st.session_state.data_handler = DataHandler()
+            
+        # Ensure active database connection
+        if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
+            st.session_state.data_handler.get_session()
+            
+        # Verify database connection
+        if not st.session_state.data_handler.session.is_active:
+            st.error("⚠️ Unable to establish database connection")
             return False
             
-        # Check model
-        if not st.session_state.model:
-            st.warning("⚠️ Trading model not initialized")
-            return False
+        # Check model initialization
+        if not getattr(st.session_state, 'model', None):
+            st.session_state.model = UnifiedTradingAgent()
             
         return True
         
     except Exception as e:
-        st.error(f"System health check failed: {str(e)}")
+        st.error(f"System initialization failed: {str(e)}")
+        logger.exception("Critical system initialization error")
         return False

@@ -21,14 +21,24 @@ class DataHandler:
         self.feature_engineer = FeatureEngineer()
         self.session = None
 
-    def get_session(self):
-        """Get a database session using context management"""
-        if self.session is None or not self.session.is_active:
+    def get_session(self, max_retries=3):
+        """Get a database session using context management with retries"""
+        retry_count = 0
+        while retry_count < max_retries:
             try:
-                self.session = next(get_db_session())
+                if self.session is None or not self.session.is_active:
+                    self.session = next(get_db_session())
+                if self.session and self.session.is_active:
+                    return self.session
             except Exception as e:
-                logger.error(f"Failed to create database session: {str(e)}")
-                raise
+                logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")
+                if self.session:
+                    self.session.close()
+                self.session = None
+                retry_count += 1
+                if retry_count == max_retries:
+                    logger.error("Failed to create database session after maximum retries")
+                    raise
         return self.session
 
     def prepare_data(self, data):

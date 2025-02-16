@@ -1,3 +1,4 @@
+
 import streamlit as st
 from core.base_agent import UnifiedTradingAgent
 from components.analysis_tab import display_tech_analysis_tab
@@ -19,41 +20,25 @@ logger = logging.getLogger(__name__)
 
 def init_session_state() -> None:
     """Initialize Streamlit session state variables with detailed logging."""
-    logger.info("\n" + "="*50)
-    logger.info("🌟 Application Initialization")
-    logger.info("="*50)
-
+    logger.info("🔄 Starting session state initialization")
+    
     if 'initialized' in st.session_state:
-        logger.info("🔄 Session already initialized, skipping initialization")
+        logger.info("Session already initialized, skipping initialization")
         return
-
-    # Component-specific loggers
-    core_logger = logging.getLogger('core.base_agent')
-    env_logger = logging.getLogger('environment.trading_env')
-    data_logger = logging.getLogger('data.data_handler')
-
-    for component_logger in [core_logger, env_logger, data_logger]:
-        component_logger.setLevel(logging.DEBUG)
-        if not component_logger.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            ))
-            component_logger.addHandler(handler)
-
+        
     try:
         logger.info("Setting session state initialized flag")
         st.session_state.initialized = True
-
+        
         logger.info("Initializing log messages array")
         if 'log_messages' not in st.session_state:
             st.session_state.log_messages = []
-
+            
         logger.info("Checking PPO parameters")
         if 'ppo_params' not in st.session_state:
             logger.info("Initializing PPO parameters to None")
             st.session_state.ppo_params = None
-
+        
         logger.info("Initializing DataHandler")
         if 'data_handler' not in st.session_state:
             try:
@@ -64,7 +49,7 @@ def init_session_state() -> None:
             except Exception as e:
                 logger.error(f"DataHandler initialization failed: {str(e)}")
                 raise
-
+            
         logger.info("Checking database connection")
         if hasattr(st.session_state, 'data_handler'):
             if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
@@ -75,22 +60,22 @@ def init_session_state() -> None:
                 except Exception as e:
                     logger.error(f"Database reconnection failed: {str(e)}")
                     raise
-
+        
         logger.info("Initializing trading model")
         if 'model' not in st.session_state:
             logger.info("Creating new UnifiedTradingAgent")
             st.session_state.model = UnifiedTradingAgent()
-
+            
         logger.info("Setting default stock list")
         if 'stock_list' not in st.session_state:
             st.session_state.stock_list = ['AAPL', 'MSFT']
-
+            
         logger.info("Initializing training state")
         if 'training_in_progress' not in st.session_state:
             st.session_state.training_in_progress = False
-
+            
         logger.info("✅ Session state initialization completed successfully")
-
+        
     except Exception as e:
         logger.error(f"❌ Session state initialization failed: {str(e)}")
         raise
@@ -98,29 +83,29 @@ def init_session_state() -> None:
 def check_system_health() -> bool:
     """Verify core system components are functioning."""
     logger.info("🔍 Starting system health check")
-
+    
     try:
         if 'data_handler' not in st.session_state:
             logger.info("Initializing missing DataHandler")
             st.session_state.data_handler = DataHandler()
-
+            
         logger.info("Verifying database connection")
         if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
             logger.warning("Database session inactive, attempting reconnection")
             st.session_state.data_handler.get_session()
-
+            
         if not st.session_state.data_handler.session.is_active:
             logger.error("Database session is not active after reconnection attempt")
             return False
-
+            
         logger.info("Checking trading agent initialization")
         if not getattr(st.session_state, 'model', None):
             logger.info("Initializing missing trading agent")
             st.session_state.model = UnifiedTradingAgent()
-
+            
         logger.info("✅ System health check completed successfully")
         return True
-
+        
     except Exception as e:
         logger.error(f"❌ System health check failed: {str(e)}")
         return False
@@ -129,24 +114,24 @@ def main() -> None:
     """Main application entry point with comprehensive logging."""
     start_time = datetime.now()
     logger.info("🚀 Starting main application")
-
+    
     try:
         # Initialize logging for core components
-        for name in ['core.base_agent', 'environment.trading_env', 'data.data_handler', 'components.training_tab']:
+        for name in ['core.base_agent', 'environment.trading_env', 'data.data_handler']:
             component_logger = logging.getLogger(name)
             component_logger.setLevel(logging.DEBUG)
-
+            
         logger.info("📊 Component Loggers Initialized")
         logger.info("🔄 Initializing session state")
         init_session_state()
-
+        
         logger.info("🏥 Performing system health check")
         if not check_system_health():
             logger.error("❌ System health check failed")
             st.error("System health check failed. Please check the logs.")
             st.stop()
             return
-
+        
         logger.info("Setting up main UI")
         st.title("Trading Analysis and Agent Platform")
 
@@ -183,7 +168,7 @@ def main() -> None:
 
         execution_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"✨ Application initialization completed in {execution_time:.2f} seconds")
-
+        
     except Exception as e:
         logger.error(f"❌ Critical application error: {str(e)}")
         st.error(f"A critical error occurred: {str(e)}")

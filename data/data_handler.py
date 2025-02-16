@@ -146,15 +146,6 @@ class DataHandler:
         logger.info("📊 Data Fetch Operation")
         logger.info("="*50)
         
-        component_logger = logging.getLogger('data.data_handler')
-        component_logger.info(f"Data request - Symbols: {symbols}")
-        component_logger.info(f"Date range: {start_date} to {end_date}")
-        
-        # Track component state
-        component_logger.debug("Component state:")
-        component_logger.debug(f"- Session active: {bool(self.session)}")
-        component_logger.debug(f"- Feature engineer initialized: {bool(self.feature_engineer)}")
-        
         if isinstance(symbols, str):
             symbols = [symbols]
             

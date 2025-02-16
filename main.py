@@ -5,169 +5,167 @@ from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
 from components.database_tab import display_database_explorer
 from data.data_handler import DataHandler
-
+from datetime import datetime
 import logging
+from utils.logging_utils import StreamlitLogHandler
+
+# Configure root logger
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 def init_session_state() -> None:
     """Initialize Streamlit session state variables with detailed logging."""
+    logger.info("🔄 Starting session state initialization")
+    
     if 'initialized' in st.session_state:
-        logger.info("🔄 Session already initialized, skipping initialization")
+        logger.info("Session already initialized, skipping initialization")
         return
-
-    start_time = datetime.now()
-    logger.info("🚀 Starting session state initialization...")
-    
-    # Configure logging with more detail
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    
-    try:
-        st.session_state.initialized = True
-        logger.info("📊 Setting up logging configuration...")
-        logging.basicConfig(
-            level=logging.INFO,  # Reduced logging level
-            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            datefmt='%H:%M:%S'
-        )
         
-        logger.info("🔄 Initializing core components...")
+    try:
+        logger.info("Setting session state initialized flag")
+        st.session_state.initialized = True
+        
+        logger.info("Initializing log messages array")
         if 'log_messages' not in st.session_state:
             st.session_state.log_messages = []
             
-        logger.info(f"Session initialization time: {(datetime.now() - start_time).total_seconds():.2f}s")
+        logger.info("Checking PPO parameters")
         if 'ppo_params' not in st.session_state:
+            logger.info("Initializing PPO parameters to None")
             st.session_state.ppo_params = None
         
-        # Data handling with enhanced logging
+        logger.info("Initializing DataHandler")
         if 'data_handler' not in st.session_state:
-            logger.info("📊 Initializing DataHandler...")
             try:
+                logger.info("Creating new DataHandler instance")
                 data_handler = DataHandler()
                 st.session_state.data_handler = data_handler
-                logger.info("✅ DataHandler initialized successfully")
+                logger.info("DataHandler initialized successfully")
             except Exception as e:
-                logger.error(f"❌ DataHandler initialization failed: {str(e)}")
+                logger.error(f"DataHandler initialization failed: {str(e)}")
                 raise
             
-        # Ensure database connection with detailed logging
+        logger.info("Checking database connection")
         if hasattr(st.session_state, 'data_handler'):
-            logger.info("🔍 Checking database connection...")
             if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
-                logger.warning("⚠️ Database session inactive or missing, attempting to reconnect...")
+                logger.warning("Database session inactive, attempting reconnection")
                 try:
                     st.session_state.data_handler.get_session()
-                    logger.info("✅ Database connection re-established")
+                    logger.info("Database connection re-established")
                 except Exception as e:
-                    logger.error(f"❌ Database reconnection failed: {str(e)}")
+                    logger.error(f"Database reconnection failed: {str(e)}")
                     raise
         
-        # Model and stock data
+        logger.info("Initializing trading model")
         if 'model' not in st.session_state:
+            logger.info("Creating new UnifiedTradingAgent")
             st.session_state.model = UnifiedTradingAgent()
-        if 'stock_list' not in st.session_state:
-            st.session_state.stock_list = ['AAPL', 'MSFT']  # Fixed typo in AAPL
             
-        # Training state
+        logger.info("Setting default stock list")
+        if 'stock_list' not in st.session_state:
+            st.session_state.stock_list = ['AAPL', 'MSFT']
+            
+        logger.info("Initializing training state")
         if 'training_in_progress' not in st.session_state:
             st.session_state.training_in_progress = False
             
+        logger.info("✅ Session state initialization completed successfully")
+        
     except Exception as e:
-        st.error(f"Initialization error: {str(e)}")
-        logging.error(f"Session state initialization failed: {str(e)}")
+        logger.error(f"❌ Session state initialization failed: {str(e)}")
+        raise
 
+def check_system_health() -> bool:
+    """Verify core system components are functioning."""
+    logger.info("🔍 Starting system health check")
+    
+    try:
+        if 'data_handler' not in st.session_state:
+            logger.info("Initializing missing DataHandler")
+            st.session_state.data_handler = DataHandler()
+            
+        logger.info("Verifying database connection")
+        if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
+            logger.warning("Database session inactive, attempting reconnection")
+            st.session_state.data_handler.get_session()
+            
+        if not st.session_state.data_handler.session.is_active:
+            logger.error("Database session is not active after reconnection attempt")
+            return False
+            
+        logger.info("Checking trading agent initialization")
+        if not getattr(st.session_state, 'model', None):
+            logger.info("Initializing missing trading agent")
+            st.session_state.model = UnifiedTradingAgent()
+            
+        logger.info("✅ System health check completed successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ System health check failed: {str(e)}")
+        return False
 
 def main() -> None:
-    """Main application entry point with structured error handling."""
+    """Main application entry point with comprehensive logging."""
+    start_time = datetime.now()
+    logger.info("🚀 Starting main application")
+    
     try:
-        logger.info("🎯 Starting main application")
-        
-        # Initialize core components
+        logger.info("Initializing session state")
         init_session_state()
-        logger.info("✅ Session state initialized")
         
+        logger.info("Performing system health check")
         if not check_system_health():
-            logger.error("❌ System health check failed")
+            logger.error("System health check failed")
             st.error("System health check failed. Please check the logs.")
             st.stop()
             return
         
-        # UI Setup
-        logger.info("🎨 Initializing user interface")
+        logger.info("Setting up main UI")
         st.title("Trading Analysis and Agent Platform")
-        
-        # Tab Creation
-        logger.info("📑 Creating application tabs")
+
+        logger.info("Creating application tabs")
         tab_training, tab_analysis, tab_database = st.tabs(
             ["Model Training", "Technical Analysis", "Database Explorer"])
-        
-        # Tab Initialization with error boundaries
-        def init_tab(tab_context, display_func, tab_name):
-            with tab_context:
-                try:
-                    display_func()
-                    logger.info(f"✅ {tab_name} tab loaded successfully")
-                except Exception as e:
-                    error_msg = f"Error in {tab_name} tab: {str(e)}"
-                    logger.error(f"❌ {error_msg}")
-                    st.error(error_msg)
-                    if st.session_state.get('debug_mode', False):
-                        st.exception(e)
-        
-        init_tab(tab_analysis, display_tech_analysis_tab, "Technical Analysis")
-        init_tab(tab_training, display_training_tab, "Model Training")
-        init_tab(tab_database, display_database_explorer, "Database Explorer")
-        
-        logger.info("✨ Application initialization completed successfully")
+
+        logger.info("Initializing Technical Analysis tab")
+        with tab_analysis:
+            try:
+                display_tech_analysis_tab()
+                logger.info("Technical Analysis tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Technical Analysis tab: {str(e)}")
+                st.error(f"Error loading Technical Analysis tab: {str(e)}")
+
+        logger.info("Initializing Model Training tab")
+        with tab_training:
+            try:
+                display_training_tab()
+                logger.info("Model Training tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Model Training tab: {str(e)}")
+                st.error(f"Error loading Model Training tab: {str(e)}")
+
+        logger.info("Initializing Database Explorer tab")
+        with tab_database:
+            try:
+                display_database_explorer()
+                logger.info("Database Explorer tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Database Explorer tab: {str(e)}")
+                st.error(f"Error loading Database Explorer tab: {str(e)}")
+
+        execution_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"✨ Application initialization completed in {execution_time:.2f} seconds")
         
     except Exception as e:
-        error_msg = f"Critical application error: {str(e)}"
-        logger.error(f"❌ {error_msg}")
-        st.error(error_msg)
-        if st.session_state.get('debug_mode', False):
-            st.exception(e)
-
+        logger.error(f"❌ Critical application error: {str(e)}")
+        st.error(f"A critical error occurred: {str(e)}")
 
 if __name__ == "__main__":
     main()
-def check_system_health():
-    """Verify core system components are functioning."""
-    try:
-        logger.info("🔍 Starting system health check...")
-        
-        # Initialize components if missing
-        if 'data_handler' not in st.session_state:
-            logger.info("📊 Initializing DataHandler...")
-            st.session_state.data_handler = DataHandler()
-            logger.info("✅ DataHandler initialized")
-            
-        # Ensure active database connection
-        if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
-            logger.info("🔌 Establishing database session...")
-            st.session_state.data_handler.get_session()
-            
-        # Verify database connection
-        if not st.session_state.data_handler.session.is_active:
-            logger.error("❌ Database session is not active")
-            st.error("⚠️ Unable to establish database connection")
-            return False
-            
-        # Check model initialization
-        if not getattr(st.session_state, 'model', None):
-            logger.info("🤖 Initializing trading agent...")
-            st.session_state.model = UnifiedTradingAgent()
-            logger.info("✅ Trading agent initialized")
-            
-        logger.info("✨ System health check completed successfully")
-        return True
-        
-    except Exception as e:
-        st.error(f"System initialization failed: {str(e)}")
-        logger.exception("Critical system initialization error")
-        return False

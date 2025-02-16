@@ -34,23 +34,32 @@ class DataHandler:
         logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
 
     def get_session(self, max_retries=3):
+        """Get a database session using context management with retries"""
         start_time = datetime.now()
         logger.info(f"🔌 Attempting to establish database session (max retries: {max_retries})...")
-        """Get a database session using context management with retries"""
-        retry_count = 0
-        while retry_count < max_retries:
+        
+        for retry_count in range(max_retries):
             try:
-                logger.debug(f"Attempt {retry_count + 1} of {max_retries}")
-                if self.session is None or not self.session.is_active:
-                    logger.debug("Creating new database session")
-                    self.session = next(get_db_session())
-                    logger.debug(f"Session created: {self.session is not None}")
+                if self.session is not None:
+                    try:
+                        # Test if session is valid
+                        self.session.execute(text("SELECT 1"))
+                        return self.session
+                    except Exception:
+                        self.session.close()
+                        self.session = None
                 
-                if self.session and self.session.is_active:
-                    logger.info(f"✅ Database session established successfully in {(datetime.now() - start_time).total_seconds():.2f}s")
-                    return self.session
-                else:
-                    logger.warning("Session created but not active")
+                # Create new session
+                self.session = next(get_db_session())
+                self.session.execute(text("SELECT 1"))  # Verify connection
+                logger.info(f"✅ Database session established successfully in {(datetime.now() - start_time).total_seconds():.2f}s")
+                return self.session
+                
+            except Exception as e:
+                logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")
+                if self.session:
+                    self.session.close()
+                    self.session = None
                     
             except Exception as e:
                 logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")

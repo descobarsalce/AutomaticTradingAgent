@@ -31,17 +31,24 @@ class DataHandler:
         start_time = datetime.now()
         logger.info(f"🔌 Attempting to establish database session (max retries: {max_retries})...")
         """Get a database session using context management with retries"""
-        start_time = datetime.now()
-        logger.info("Initializing database session...")
         retry_count = 0
         while retry_count < max_retries:
             try:
+                logger.debug(f"Attempt {retry_count + 1} of {max_retries}")
                 if self.session is None or not self.session.is_active:
+                    logger.debug("Creating new database session")
                     self.session = next(get_db_session())
+                    logger.debug(f"Session created: {self.session is not None}")
+                
                 if self.session and self.session.is_active:
+                    logger.info(f"✅ Database session established successfully in {(datetime.now() - start_time).total_seconds():.2f}s")
                     return self.session
+                else:
+                    logger.warning("Session created but not active")
+                    
             except Exception as e:
                 logger.warning(f"Session creation attempt {retry_count + 1} failed: {str(e)}")
+                logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
                 if self.session:
                     self.session.close()
                 self.session = None
@@ -49,6 +56,8 @@ class DataHandler:
                 if retry_count == max_retries:
                     logger.error("Failed to create database session after maximum retries")
                     raise
+        
+        logger.error("Session creation failed after all retries")
         return self.session
 
     def prepare_data(self, data):

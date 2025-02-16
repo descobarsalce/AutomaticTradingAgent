@@ -85,23 +85,32 @@ if __name__ == "__main__":
 def check_system_health():
     """Verify core system components are functioning."""
     try:
+        logger.info("🔍 Starting system health check...")
+        
         # Initialize components if missing
         if 'data_handler' not in st.session_state:
+            logger.info("📊 Initializing DataHandler...")
             st.session_state.data_handler = DataHandler()
+            logger.info("✅ DataHandler initialized")
             
         # Ensure active database connection
         if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
+            logger.info("🔌 Establishing database session...")
             st.session_state.data_handler.get_session()
             
         # Verify database connection
         if not st.session_state.data_handler.session.is_active:
+            logger.error("❌ Database session is not active")
             st.error("⚠️ Unable to establish database connection")
             return False
             
         # Check model initialization
         if not getattr(st.session_state, 'model', None):
+            logger.info("🤖 Initializing trading agent...")
             st.session_state.model = UnifiedTradingAgent()
+            logger.info("✅ Trading agent initialized")
             
+        logger.info("✨ System health check completed successfully")
         return True
         
     except Exception as e:

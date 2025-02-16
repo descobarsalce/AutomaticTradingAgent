@@ -25,6 +25,12 @@ class DataHandler:
         self.feature_engineer = FeatureEngineer()
         self.session = None
         
+        # Initialize session immediately
+        try:
+            self.get_session(max_retries=1)
+        except Exception as e:
+            logger.warning(f"Initial session creation failed: {e}")
+            
         logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
 
     def get_session(self, max_retries=3):

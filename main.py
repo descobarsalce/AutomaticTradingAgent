@@ -13,12 +13,20 @@ logger.setLevel(logging.DEBUG)
 
 
 def init_session_state() -> None:
-    """Initialize Streamlit session state variables."""
+    """Initialize Streamlit session state variables with detailed logging."""
     if 'initialized' in st.session_state:
+        logger.info("🔄 Session already initialized, skipping initialization")
         return
-        
+
     start_time = datetime.now()
     logger.info("🚀 Starting session state initialization...")
+    
+    # Configure logging with more detail
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
     
     try:
         st.session_state.initialized = True
@@ -37,15 +45,28 @@ def init_session_state() -> None:
         if 'ppo_params' not in st.session_state:
             st.session_state.ppo_params = None
         
-        # Data handling
+        # Data handling with enhanced logging
         if 'data_handler' not in st.session_state:
-            data_handler = DataHandler()
-            st.session_state.data_handler = data_handler
+            logger.info("📊 Initializing DataHandler...")
+            try:
+                data_handler = DataHandler()
+                st.session_state.data_handler = data_handler
+                logger.info("✅ DataHandler initialized successfully")
+            except Exception as e:
+                logger.error(f"❌ DataHandler initialization failed: {str(e)}")
+                raise
             
-        # Ensure database connection
+        # Ensure database connection with detailed logging
         if hasattr(st.session_state, 'data_handler'):
+            logger.info("🔍 Checking database connection...")
             if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
-                st.session_state.data_handler.get_session()
+                logger.warning("⚠️ Database session inactive or missing, attempting to reconnect...")
+                try:
+                    st.session_state.data_handler.get_session()
+                    logger.info("✅ Database connection re-established")
+                except Exception as e:
+                    logger.error(f"❌ Database reconnection failed: {str(e)}")
+                    raise
         
         # Model and stock data
         if 'model' not in st.session_state:
@@ -63,25 +84,52 @@ def init_session_state() -> None:
 
 
 def main() -> None:
-    init_session_state()
-    
-    if not check_system_health():
-        st.stop()
+    logger.info("🎯 Starting main application")
+    try:
+        init_session_state()
+        logger.info("✅ Session state initialized")
         
-    st.title("Trading Analysis and Agent Platform")
+        if not check_system_health():
+            logger.error("❌ System health check failed")
+            st.stop()
+            return
+        
+        logger.info("🎨 Initializing user interface")
+        st.title("Trading Analysis and Agent Platform")
 
+    logger.info("📑 Creating application tabs")
     # Create tabs for Technical Analysis, Model Training, and Database Explorer
     tab_training, tab_analysis, tab_database = st.tabs(
         ["Model Training", "Technical Analysis", "Database Explorer"])
 
+    logger.info("📊 Initializing Technical Analysis tab")
     with tab_analysis:
-        display_tech_analysis_tab()
+        try:
+            display_tech_analysis_tab()
+            logger.info("✅ Technical Analysis tab loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Error in Technical Analysis tab: {str(e)}")
+            raise
 
+    logger.info("🤖 Initializing Model Training tab")
     with tab_training:
-        display_training_tab()
+        try:
+            display_training_tab()
+            logger.info("✅ Model Training tab loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Error in Model Training tab: {str(e)}")
+            raise
 
+    logger.info("🗄️ Initializing Database Explorer tab")
     with tab_database:
-        display_database_explorer()
+        try:
+            display_database_explorer()
+            logger.info("✅ Database Explorer tab loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Error in Database Explorer tab: {str(e)}")
+            raise
+            
+    logger.info("✨ Application initialization completed successfully")
 
 
 if __name__ == "__main__":

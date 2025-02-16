@@ -51,8 +51,11 @@ class UnifiedTradingAgent:
 
     def _init_state(self) -> None:
         """Initialize agent state variables."""
+        start_time = datetime.now()
+        logger.info("Initializing agent state...")
         self.env = None
         self.model = None
+        logger.info(f"Agent state initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
         self.stocks_data = {}
         self.portfolio_manager = None
         self.evaluation_metrics = {

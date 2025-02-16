@@ -25,6 +25,8 @@ def display_training_tab():
     """
     Renders the training interface tab
     """
+    start_time = datetime.now()
+    logger.info("Initializing training tab...")
     st.header("Trading Agent Configuration")
 
     # Add a checkbox for enabling/disabling logging

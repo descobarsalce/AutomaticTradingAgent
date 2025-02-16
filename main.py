@@ -14,10 +14,14 @@ logger.setLevel(logging.DEBUG)
 
 def init_session_state() -> None:
     """Initialize Streamlit session state variables."""
+    start_time = datetime.now()
+    logger.info("Starting session state initialization...")
     try:
         # Core components
         if 'log_messages' not in st.session_state:
             st.session_state.log_messages = []
+            
+        logger.info(f"Session initialization time: {(datetime.now() - start_time).total_seconds():.2f}s")
         if 'ppo_params' not in st.session_state:
             st.session_state.ppo_params = None
         

@@ -23,6 +23,8 @@ class DataHandler:
 
     def get_session(self, max_retries=3):
         """Get a database session using context management with retries"""
+        start_time = datetime.now()
+        logger.info("Initializing database session...")
         retry_count = 0
         while retry_count < max_retries:
             try:

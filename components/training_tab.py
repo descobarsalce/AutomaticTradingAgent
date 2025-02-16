@@ -23,10 +23,20 @@ from core.testing_functions import display_testing_interface
 
 def display_training_tab():
     """
-    Renders the training interface tab
+    Renders the training interface tab with comprehensive logging
     """
     start_time = datetime.now()
-    logger.info("Initializing training tab...")
+    logger.info("\n" + "="*50)
+    logger.info("🎯 Training Tab Initialization")
+    logger.info("="*50)
+    
+    # Set up component specific logging
+    training_logger = logging.getLogger('components.training')
+    training_logger.setLevel(logging.DEBUG)
+    trading_env_logger = logging.getLogger('environment.trading_env')
+    trading_env_logger.setLevel(logging.DEBUG)
+    
+    training_logger.info("💫 Starting training interface initialization")
     st.header("Trading Agent Configuration")
 
     # Add a checkbox for enabling/disabling logging

@@ -142,8 +142,15 @@ class DataHandler:
 
     def fetch_data(self, symbols, start_date, end_date):
         """Fetch data either from cache or yfinance, suffix columns by symbol."""
+        logger.info("\n" + "="*50)
+        logger.info("📊 Data Fetch Operation")
+        logger.info("="*50)
+        
         if isinstance(symbols, str):
             symbols = [symbols]
+            
+        logger.info(f"🎯 Fetching data for symbols: {symbols}")
+        logger.info(f"📅 Date range: {start_date} to {end_date}")
             
         if not symbols:
             raise ValueError("No symbols provided")

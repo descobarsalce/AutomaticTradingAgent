@@ -10,6 +10,7 @@ from datetime import timedelta, datetime
 from data.data_feature_engineer import FeatureEngineer
 from utils.db_config import get_db_session
 import logging
+import time
 from typing import Dict, Optional
 from models.database import StockData
 

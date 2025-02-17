@@ -16,10 +16,11 @@ from core.visualization import TradingVisualizer
 from utils.stock_utils import parse_stock_list
 from core.base_agent import UnifiedTradingAgent
 from core.training_functions import (initialize_training, execute_training,
-                                   get_training_parameters, 
-                                   display_training_metrics, run_training)
+                                     get_training_parameters,
+                                     display_training_metrics, run_training)
 from core.hyperparameter_search import hyperparameter_tuning
 from core.testing_functions import display_testing_interface
+
 
 def display_training_tab():
     """
@@ -42,7 +43,7 @@ def display_training_tab():
     # Input parameters
     st.subheader("Training Options")
     stock_names = st.text_input("Training Stock Symbol",
-                               value="AAPL,MSFT,TSLA,GOOG,NVDA")
+                                value="AAPL,MSFT,TSLA,GOOG,NVDA")
     st.session_state.stock_names = parse_stock_list(stock_names)
 
     # Environment parameters
@@ -53,8 +54,8 @@ def display_training_tab():
 
     with col2:
         transaction_cost = st.number_input("Transaction Cost",
-                                         value=0.01,
-                                         step=0.001)
+                                           value=0.01,
+                                           step=0.001)
 
     st.session_state.env_params = {
         'initial_balance': initial_balance,
@@ -71,12 +72,12 @@ def display_training_tab():
     with train_col1:
         train_start_date = datetime.combine(
             st.date_input("Training Start Date",
-                         value=datetime.now() - timedelta(days=365 * 5)),
+                          value=datetime.now() - timedelta(days=365 * 5)),
             datetime.min.time())
     with train_col2:
         train_end_date = datetime.combine(
             st.date_input("Training End Date",
-                         value=datetime.now() - timedelta(days=365 + 1)),
+                          value=datetime.now() - timedelta(days=365 + 1)),
             datetime.min.time())
 
     st.session_state.train_start_date = train_start_date
@@ -88,12 +89,15 @@ def display_training_tab():
         st.header("Agent Parameters")
         col1, col2 = st.columns(2)
         with col1:
-            use_optuna_params = st.checkbox("Use Optuna Optimized Parameters", value=False)
+            use_optuna_params = st.checkbox("Use Optuna Optimized Parameters",
+                                            value=False)
         with col2:
             use_saved_model = st.checkbox("Load Saved Model", value=False)
 
         if use_saved_model:
-            saved_models = [f for f in os.listdir("saved_models") if f.endswith('.zip')]
+            saved_models = [
+                f for f in os.listdir("saved_models") if f.endswith('.zip')
+            ]
             if saved_models:
                 selected_model = st.selectbox("Select Model", saved_models)
                 if st.button("Load Model"):
@@ -106,8 +110,10 @@ def display_training_tab():
             ppo_params = get_training_parameters(use_optuna_params)
             if st.button("Start Training"):
                 run_training(ppo_params)
-                st.info("Training completed. Check logs to see if trades were registered.")
-                
+                st.info(
+                    "Training completed. Check logs to see if trades were registered."
+                )
+
             st.write("")  # Add spacing
             model_name = st.text_input("Save model as", "model_v1.zip")
             if st.button("Save Model", use_container_width=True):
@@ -122,17 +128,19 @@ def display_training_tab():
                 if st.button("Start Training"):
                     run_training(st.session_state.ppo_params)
             else:
-                st.warning("No optimized parameters found. Please run hyperparameter tuning first.")
+                st.warning(
+                    "No optimized parameters found. Please run hyperparameter tuning first."
+                )
 
     with tab2:
         hyperparameter_tuning()
 
     if st.session_state.ppo_params is not None:
         display_testing_interface(st.session_state.model,
-                                st.session_state.stock_names,
-                                st.session_state.env_params,
-                                st.session_state.ppo_params,
-                                use_optuna_params=use_optuna_params)
+                                  st.session_state.stock_names,
+                                  st.session_state.env_params,
+                                  st.session_state.ppo_params,
+                                  use_optuna_params=use_optuna_params)
 
     # # Display code execution interface
     # from components.execution_window_ui import display_execution_window

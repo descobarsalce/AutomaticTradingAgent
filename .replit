@@ -26,6 +26,7 @@ externalPort = 80
 localPort = 8501
 
 [workflows]
+runButton = "Streamlit Server"
 
 [[workflows.workflow]]
 name = "Project"

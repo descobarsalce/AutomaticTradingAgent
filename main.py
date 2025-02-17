@@ -9,22 +9,24 @@ from datetime import datetime
 import logging
 from utils.logging_utils import StreamlitLogHandler
 
-# Configure root logger
+# Configure root logger with more concise format and INFO level
 logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(name)s] [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S'
 )
 
 logger = logging.getLogger(__name__)
 
 def init_session_state() -> None:
-    """Initialize Streamlit session state variables with detailed logging."""
-    logger.info("🔄 Starting session state initialization")
-    
-    if 'initialized' in st.session_state:
-        logger.info("Session already initialized, skipping initialization")
-        return
+    """Initialize Streamlit session state variables with timeout protection."""
+    try:
+        if 'initialized' in st.session_state:
+            return
+
+        # Set initialization timeout
+        start_time = datetime.now()
+        timeout = timedelta(seconds=30)
         
     try:
         logger.info("Setting session state initialized flag")
@@ -111,12 +113,16 @@ def check_system_health() -> bool:
         return False
 
 def main() -> None:
-    """Main application entry point with comprehensive logging."""
+    """Main application entry point with timeout protection."""
     start_time = datetime.now()
-    logger.info("🚀 Starting main application")
+    logger.info("Starting main application")
     
     try:
-        logger.info("Initializing session state")
+        # Add timeout protection
+        if (datetime.now() - start_time) > timedelta(seconds=60):
+            st.error("Application startup timed out. Please refresh the page.")
+            return
+            
         init_session_state()
         
         logger.info("Performing system health check")

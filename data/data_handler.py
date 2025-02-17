@@ -37,9 +37,10 @@ class DataHandler:
         logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
 
     def get_session(self, max_retries=3):
-        """Get a database session using context management with retries"""
+        """Get a database session with connection timeout"""
         start_time = datetime.now()
-        logger.info(f"🔌 Attempting to establish database session (max retries: {max_retries})...")
+        connection_timeout = 10  # seconds
+        logger.info(f"Attempting database connection (timeout: {connection_timeout}s)")
         
         for retry_count in range(max_retries):
             try:

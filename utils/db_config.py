@@ -28,14 +28,21 @@ class DatabaseConfig:
         logger.info("🔄 Starting database initialization...")
         try:
             database_url = os.getenv('DATABASE_URL')
+            if not database_url:
+                raise ValueError("DATABASE_URL environment variable is not set")
+                
             logger.info("🔑 Configuring database connection parameters...")
             engine_kwargs = {
                 'pool_pre_ping': True,
                 'pool_recycle': 300,
-                'pool_size': 20,
-                'max_overflow': 40,
+                'pool_size': 5,  # Reduced pool size
+                'max_overflow': 10,  # Reduced overflow
                 'pool_timeout': 30,
-                'echo': False
+                'echo': True,  # Enable SQL logging
+                'connect_args': {
+                    'connect_timeout': 10,
+                    'application_name': 'trading_app'
+                }
             }
             
             if not database_url:

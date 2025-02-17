@@ -76,10 +76,16 @@ class DataHandler:
                     logger.error("Failed to create database session after maximum retries")
                     raise ConnectionError("Database connection failed after maximum retries") from e
                 
-                # Wait before retry with exponential backoff
-                wait_time = min(2 ** retry_count, 30)  # Max 30 seconds
-                logger.info(f"Waiting {wait_time} seconds before retry...")
+                # Wait before retry with shorter exponential backoff
+                wait_time = min(2 ** retry_count, 10)  # Max 10 seconds
+                logger.info(f"Waiting {wait_time} seconds before retry {retry_count + 1}/{max_retries}...")
                 time.sleep(wait_time)
+                
+                # Try to reconnect to database
+                logger.info("Attempting to re-establish database connection...")
+                database_url = os.getenv('DATABASE_URL')
+                if not database_url:
+                    raise ValueError("DATABASE_URL not found in environment")
         
         logger.error("Session creation failed after all retries")
         return self.session

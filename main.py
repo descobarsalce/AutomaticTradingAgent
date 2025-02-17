@@ -28,8 +28,15 @@ def init_session_state() -> None:
         start_time = datetime.now()
         timeout = timedelta(seconds=30)
         
-    try:
         logger.info("Setting session state initialized flag")
+        st.session_state.initialized = True
+        
+        if (datetime.now() - start_time) > timeout:
+            raise TimeoutError("Session state initialization timed out")
+            
+    except Exception as e:
+        logger.error(f"Session state initialization error: {str(e)}")
+        raise
         st.session_state.initialized = True
         
         logger.info("Initializing log messages array")

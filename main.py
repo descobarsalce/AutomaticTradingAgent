@@ -5,7 +5,7 @@ from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
 from components.database_tab import display_database_explorer
 from data.data_handler import DataHandler
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from utils.logging_utils import StreamlitLogHandler
 

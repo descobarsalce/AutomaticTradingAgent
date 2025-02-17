@@ -6,7 +6,8 @@ import os
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from sqlalchemy import and_, distinct, text, IntegrityError
+from sqlalchemy import and_, distinct, text
+from sqlalchemy.exc import IntegrityError
 from datetime import timedelta, datetime
 from data.data_feature_engineer import FeatureEngineer
 from utils.db_config import get_db_session

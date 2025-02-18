@@ -3,6 +3,9 @@ Training Interface Component
 Handles the model training and hyperparameter tuning interface
 """
 import streamlit as st
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timedelta
 import optuna
 import pandas as pd

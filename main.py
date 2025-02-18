@@ -89,10 +89,6 @@ def init_session_state() -> None:
 
         logger.info("✅ Session state initialization completed successfully")
 
-    except Exception as e:
-        logger.error(f"❌ Session state initialization failed: {str(e)}")
-        raise
-
 
 def check_system_health() -> bool:
     """Verify core system components are functioning."""

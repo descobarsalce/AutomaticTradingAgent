@@ -23,17 +23,17 @@ class DataHandler:
     def __init__(self):
         logger.info("📈 Initializing DataHandler...")
         start_time = datetime.now()
-        
+
         logger.info("🛠 Setting up FeatureEngineer...")
         self.feature_engineer = FeatureEngineer()
         self.session = None
-        
+
         # Initialize session immediately
         try:
             self.get_session(max_retries=1)
         except Exception as e:
             logger.warning(f"Initial session creation failed: {e}")
-            
+
         logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
 
     def get_session(self, max_retries=3):
@@ -41,7 +41,7 @@ class DataHandler:
         start_time = datetime.now()
         connection_timeout = 10  # seconds
         logger.info(f"Attempting database connection (timeout: {connection_timeout}s)")
-        
+
         for retry_count in range(max_retries):
             try:
                 # Check existing session
@@ -54,19 +54,19 @@ class DataHandler:
                         logger.warning(f"Existing session invalid: {str(e)}")
                         self.session.close()
                         self.session = None
-                
+
                 # Create new session
                 self.session = next(get_db_session())
                 self.session.execute(text("SELECT 1"))  # Verify connection
                 duration = (datetime.now() - start_time).total_seconds()
                 logger.info(f"✅ New database session established in {duration:.2f}s")
                 return self.session
-                
+
             except Exception as e:
                 error_msg = f"Session creation attempt {retry_count + 1} failed: {str(e)}"
                 logger.warning(error_msg)
                 logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
-                
+
                 if self.session:
                     try:
                         self.session.close()
@@ -74,22 +74,22 @@ class DataHandler:
                         logger.warning(f"Error closing session: {str(close_error)}")
                     finally:
                         self.session = None
-                
+
                 if retry_count == max_retries - 1:
                     logger.error("Failed to create database session after maximum retries")
                     raise ConnectionError("Database connection failed after maximum retries") from e
-                
+
                 # Wait before retry with shorter exponential backoff
                 wait_time = min(2 ** retry_count, 10)  # Max 10 seconds
                 logger.info(f"Waiting {wait_time} seconds before retry {retry_count + 1}/{max_retries}...")
                 time.sleep(wait_time)
-                
+
                 # Try to reconnect to database
                 logger.info("Attempting to re-establish database connection...")
                 database_url = os.getenv('DATABASE_URL')
                 if not database_url:
                     raise ValueError("DATABASE_URL not found in environment")
-        
+
         logger.error("Session creation failed after all retries")
         return self.session
 
@@ -134,18 +134,18 @@ class DataHandler:
         try:
             ticker = yf.Ticker(symbol)
             df = ticker.history(start=start_date, end=end_date, interval='1d')
-            
+
             if df.empty:
                 logger.error(f"Empty dataset received for {symbol}")
                 return pd.DataFrame()
-                
+
             if not all(col in df.columns for col in required_columns):
                 missing = [col for col in required_columns if col not in df.columns]
                 logger.error(f"Missing columns for {symbol}: {missing}")
                 return pd.DataFrame()
-                
+
             return df
-            
+
         except Exception as e:
             logger.error(f"YFinance error for {symbol}: {str(e)}")
             return pd.DataFrame()
@@ -155,21 +155,21 @@ class DataHandler:
         try:
             if isinstance(symbols, str):
                 symbols = [symbols]
-            
+
             if not self.session or not self.session.is_active:
                 self.get_session()
-            
+
             if not symbols:
                 raise ValueError("No symbols provided")
-                
+
             if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
                 raise ValueError("Invalid date format")
-            
+
             if end_date <= start_date:
                 raise ValueError("End date must be after start date")
 
             all_stocks_data = pd.DataFrame()
-        
+
             for symbol in symbols:
                 try:
                     cached_data = self._fetch_cached_data_if_valid(symbol, start_date, end_date)
@@ -189,20 +189,16 @@ class DataHandler:
                     stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
                     all_stocks_data = pd.concat([all_stocks_data, stock_data], axis=1)
                     logger.info(f"Successfully processed data for {symbol}")
-                
+
                 except Exception as e:
                     logger.error(f"Error fetching data for {symbol}: {str(e)}")
                     continue
-                
-            except Exception as e:
-                logger.error(f"Error fetching data for {symbol}: {str(e)}")
-                continue
-        
+
         if all_stocks_data.empty:
             error_msg = "No valid data retrieved for any symbols. Check date range and symbol names."
             logger.error(error_msg)
             raise ValueError(error_msg)
-            
+
         return all_stocks_data
 
     def __del__(self):
@@ -228,11 +224,11 @@ class DataHandler:
             dates = pd.date_range(start=start_date, end=end_date, freq='B')  # Business days
             available_dates = set(record.date.date() for record in cached_records)
             missing_dates = [d for d in dates if d.date() not in available_dates]
-            
+
             if len(missing_dates) > 0:
                 logger.warning(f"Missing {len(missing_dates)} trading days for {symbol}")
                 return None  # Force refetch if data is incomplete
-                
+
             # Only check staleness for the most recent dates
             if end_date >= (datetime.now(datetime.timezone.utc) - timedelta(days=5)).date():
                 newest_record = max(record.last_updated for record in cached_records)

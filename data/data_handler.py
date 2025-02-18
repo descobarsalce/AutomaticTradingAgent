@@ -165,8 +165,8 @@ class DataHandler:
             if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
                 raise ValueError("Invalid date format")
             
-        if end_date <= start_date:
-            raise ValueError("End date must be after start date")
+            if end_date <= start_date:
+                raise ValueError("End date must be after start date")
 
         all_stocks_data = pd.DataFrame()
         

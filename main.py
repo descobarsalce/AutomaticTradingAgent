@@ -86,7 +86,10 @@ def init_session_state() -> None:
         logger.info("Initializing training state")
         if 'training_in_progress' not in st.session_state:
             st.session_state.training_in_progress = False
-
+            
+        if 'ppo_params' not in st.session_state:
+            st.session_state.ppo_params = None
+            
         logger.info("✅ Session state initialization completed successfully")
 
 

@@ -100,12 +100,12 @@ def check_system_health() -> bool:
             st.session_state.data_handler = DataHandler()
 
         logger.info("Verifying database connection")
-        if not st.session_state.data_handler.session or not st.session_state.data_handler.session.is_active:
+        if not st.session_state.data_handler._sql_handler.session.is_active:
             logger.warning(
                 "Database session inactive, attempting reconnection")
-            st.session_state.data_handler.get_session()
+            st.session_state.data_handler._sql_handler.session
 
-        if not st.session_state.data_handler.session.is_active:
+        if not st.session_state.data_handler._sql_handler.session.is_active:
             logger.error(
                 "Database session is not active after reconnection attempt")
             return False

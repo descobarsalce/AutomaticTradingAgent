@@ -130,7 +130,6 @@ def main() -> None:
         logger.info("Starting main application")
         st.set_page_config(page_title="Trading Analysis Platform", layout="wide")
 
-    try:
         # Add timeout protection
         if (datetime.now() - start_time) > timedelta(seconds=60):
             st.error("Application startup timed out. Please refresh the page.")

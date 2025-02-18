@@ -24,6 +24,7 @@ externalPort = 80
 
 [[ports]]
 localPort = 8501
+externalPort = 8501
 
 [workflows]
 runButton = "Streamlit Server"

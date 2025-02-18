@@ -22,9 +22,9 @@ REPLIT_DISABLE_PACKAGE_LAYER = "1"
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 8501
-externalPort = 8501
+# [[ports]]
+# localPort = 8501
+# externalPort = 8501
 
 [workflows]
 runButton = "Streamlit Server"

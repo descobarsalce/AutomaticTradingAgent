@@ -152,8 +152,12 @@ class DataHandler:
 
     def fetch_data(self, symbols, start_date, end_date):
         """Fetch data either from cache or yfinance, suffix columns by symbol."""
-        if isinstance(symbols, str):
-            symbols = [symbols]
+        try:
+            if isinstance(symbols, str):
+                symbols = [symbols]
+            
+            if not self.session or not self.session.is_active:
+                self.get_session()
             
         if not symbols:
             raise ValueError("No symbols provided")

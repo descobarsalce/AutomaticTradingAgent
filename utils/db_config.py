@@ -29,7 +29,8 @@ class DatabaseConfig:
         try:
             database_url = os.getenv('DATABASE_URL')
             if not database_url:
-                raise ValueError("DATABASE_URL environment variable is not set")
+                logger.warning("DATABASE_URL not set, using SQLite fallback")
+                database_url = 'sqlite:///trading_data.db'
                 
             logger.info("🔑 Configuring database connection parameters...")
             engine_kwargs = {

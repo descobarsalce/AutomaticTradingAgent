@@ -129,8 +129,10 @@ def check_system_health() -> bool:
 
 def main() -> None:
     """Main application entry point with timeout protection."""
-    start_time = datetime.now()
-    logger.info("Starting main application")
+    try:
+        start_time = datetime.now()
+        logger.info("Starting main application")
+        st.set_page_config(page_title="Trading Analysis Platform", layout="wide")
 
     try:
         # Add timeout protection

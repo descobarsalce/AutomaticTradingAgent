@@ -134,6 +134,7 @@ def main() -> None:
         if (datetime.now() - start_time) > timedelta(seconds=60):
             st.error("Application startup timed out. Please refresh the page.")
             return
+            return
 
         init_session_state()
 

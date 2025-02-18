@@ -159,11 +159,11 @@ class DataHandler:
             if not self.session or not self.session.is_active:
                 self.get_session()
             
-        if not symbols:
-            raise ValueError("No symbols provided")
-            
-        if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
-            raise ValueError("Invalid date format")
+            if not symbols:
+                raise ValueError("No symbols provided")
+                
+            if not isinstance(start_date, datetime) or not isinstance(end_date, datetime):
+                raise ValueError("Invalid date format")
             
         if end_date <= start_date:
             raise ValueError("End date must be after start date")

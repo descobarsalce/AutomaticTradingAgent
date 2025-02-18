@@ -22,10 +22,6 @@ REPLIT_DISABLE_PACKAGE_LAYER = "1"
 localPort = 5000
 externalPort = 80
 
-# [[ports]]
-# localPort = 8501
-# externalPort = 8501
-
 [workflows]
 runButton = "Streamlit Server"
 
@@ -68,7 +64,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
+args = "streamlit run main.py --server.address 0.0.0.0 --server.port 5000"
 waitForPort = 8501
 
 [objectStorage]

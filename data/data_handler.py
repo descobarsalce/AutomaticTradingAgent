@@ -22,8 +22,15 @@ class DataHandler:
 
     def __init__(self):
         self._feature_engineer = None
-        self.session = None
+        self._session = None
+        self._cached_data = {}  # In-memory cache
         logger.info("📈 DataHandler instance created")
+
+    @property 
+    def session(self):
+        if self._session is None or not self._session.is_active:
+            self._session = next(get_db_session())
+        return self._session
 
     @property
     def feature_engineer(self):
@@ -115,12 +122,17 @@ class DataHandler:
 
     def _fetch_cached_data_if_valid(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
         """Return valid cached data if present and complete, else None."""
+        cache_key = f"{symbol}_{start_date}_{end_date}"
+        if cache_key in self._cached_data:
+            return self._cached_data[cache_key]
+            
         cached_data = self.get_cached_data(symbol, start_date, end_date)
         if cached_data is not None:
             required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
             date_range = pd.date_range(start=start_date, end=end_date, freq='B')
             if all(col in cached_data.columns for col in required_columns) \
                     and len(date_range.difference(cached_data.index)) == 0:
+                self._cached_data[cache_key] = cached_data
                 return cached_data
         return None
 

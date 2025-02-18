@@ -24,6 +24,7 @@ class DataHandler:
         self._feature_engineer = None
         self._session = None
         self._cached_data = {}  # In-memory cache
+        self._initialized = False
         logger.info("📈 DataHandler instance created")
 
     @property 
@@ -160,6 +161,9 @@ class DataHandler:
 
     def fetch_data(self, symbols, start_date, end_date):
         """Fetch data either from cache or yfinance, suffix columns by symbol."""
+        if not self._initialized:
+            self._initialized = True
+            
         try:
             if isinstance(symbols, str):
                 symbols = [symbols]
@@ -220,6 +224,9 @@ class DataHandler:
 
     def get_cached_data(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
         """Check if we have fresh data in the cache and validate continuity"""
+        if not self._initialized:
+            return None
+            
         try:
             cached_records = self.session.query(StockData).filter(
                 and_(

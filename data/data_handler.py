@@ -194,13 +194,17 @@ class DataHandler:
                     logger.error(f"Error fetching data for {symbol}: {str(e)}")
                     continue
 
-        if all_stocks_data.empty:
-            error_msg = "No valid data retrieved for any symbols. Check date range and symbol names."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+                    if all_stocks_data.empty:
+                        error_msg = "No valid data retrieved for any symbols. Check date range and symbol names."
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+            
+            return all_stocks_data
 
-        return all_stocks_data
-
+        except Exception as e:
+            print(f"Error fetching data: {str(e)}")
+            logger.error(f"Error fetching data: {str(e)}")
+            
     def __del__(self):
         """Cleanup database session"""
         if self.session is not None:

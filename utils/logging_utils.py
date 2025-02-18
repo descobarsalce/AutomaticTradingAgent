@@ -9,7 +9,7 @@ class StreamlitLogHandler(logging.Handler):
     """
     Custom logging handler that redirects log messages to Streamlit's interface.
     """
-    MAX_LOGS: int = 100
+    MAX_LOGS: int = 1000
 
     def emit(self, record: logging.LogRecord) -> None:
         """

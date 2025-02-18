@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 import logging
 from utils.logging_utils import StreamlitLogHandler
 
-# Configure root logger with more concise format and INFO level
+# Configure root logger with detailed debug format
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S'
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,6 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                          POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
-from data.data_handler import DataHandler
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

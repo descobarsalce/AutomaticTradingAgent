@@ -171,19 +171,19 @@ class DataHandler:
             all_stocks_data = pd.DataFrame()
         
             for symbol in symbols:
-            try:
-                cached_data = self._fetch_cached_data_if_valid(symbol, start_date, end_date)
-                if cached_data is not None:
-                    stock_data = cached_data
-                    logger.info(f"Using cached data for {symbol}")
-                else:
-                    logger.info(f"Fetching new data for {symbol}")
-                    stock_data = self._fetch_data_yf(symbol, start_date, end_date)
-                    if not stock_data.empty:
-                        self.cache_data(symbol, stock_data)
+                try:
+                    cached_data = self._fetch_cached_data_if_valid(symbol, start_date, end_date)
+                    if cached_data is not None:
+                        stock_data = cached_data
+                        logger.info(f"Using cached data for {symbol}")
                     else:
-                        logger.warning(f"Empty data received for {symbol}")
-                        continue
+                        logger.info(f"Fetching new data for {symbol}")
+                        stock_data = self._fetch_data_yf(symbol, start_date, end_date)
+                        if not stock_data.empty:
+                            self.cache_data(symbol, stock_data)
+                        else:
+                            logger.warning(f"Empty data received for {symbol}")
+                            continue
 
                 # Rename columns to include symbol
                 stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]

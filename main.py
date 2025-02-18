@@ -36,8 +36,6 @@ def init_session_state() -> None:
             
     except Exception as e:
         logger.error(f"Session state initialization error: {str(e)}")
-        # raise
-        # st.session_state.initialized = True
         
         logger.info("Initializing log messages array")
         if 'log_messages' not in st.session_state:
@@ -143,8 +141,9 @@ def main() -> None:
         st.title("Trading Analysis and Agent Platform")
 
         logger.info("Creating application tabs")
-        tab_training, tab_analysis, tab_database = st.tabs(
-            ["Model Training", "Technical Analysis", "Database Explorer"])
+        tab_training, tab_analysis, tab_database = st.tabs([
+            "Model Training", "Technical Analysis", "Database Explorer"
+        ])
 
         logger.info("Initializing Technical Analysis tab")
         with tab_analysis:

@@ -168,9 +168,9 @@ class DataHandler:
             if end_date <= start_date:
                 raise ValueError("End date must be after start date")
 
-        all_stocks_data = pd.DataFrame()
+            all_stocks_data = pd.DataFrame()
         
-        for symbol in symbols:
+            for symbol in symbols:
             try:
                 cached_data = self._fetch_cached_data_if_valid(symbol, start_date, end_date)
                 if cached_data is not None:

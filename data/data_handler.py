@@ -185,10 +185,14 @@ class DataHandler:
                             logger.warning(f"Empty data received for {symbol}")
                             continue
 
-                # Rename columns to include symbol
-                stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
-                all_stocks_data = pd.concat([all_stocks_data, stock_data], axis=1)
-                logger.info(f"Successfully processed data for {symbol}")
+                    # Rename columns to include symbol
+                    stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
+                    all_stocks_data = pd.concat([all_stocks_data, stock_data], axis=1)
+                    logger.info(f"Successfully processed data for {symbol}")
+                
+                except Exception as e:
+                    logger.error(f"Error fetching data for {symbol}: {str(e)}")
+                    continue
                 
             except Exception as e:
                 logger.error(f"Error fetching data for {symbol}: {str(e)}")

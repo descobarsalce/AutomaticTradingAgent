@@ -21,20 +21,16 @@ logger = logging.getLogger(__name__)
 class DataHandler:
 
     def __init__(self):
-        logger.info("📈 Initializing DataHandler...")
-        start_time = datetime.now()
-
-        logger.info("🛠 Setting up FeatureEngineer...")
-        self.feature_engineer = FeatureEngineer()
+        self._feature_engineer = None
         self.session = None
+        logger.info("📈 DataHandler instance created")
 
-        # Initialize session immediately
-        try:
-            self.get_session(max_retries=1)
-        except Exception as e:
-            logger.warning(f"Initial session creation failed: {e}")
-
-        logger.info(f"✅ DataHandler initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
+    @property
+    def feature_engineer(self):
+        if self._feature_engineer is None:
+            logger.info("🛠 Setting up FeatureEngineer...")
+            self._feature_engineer = FeatureEngineer()
+        return self._feature_engineer
 
     def get_session(self, max_retries=3):
         """Get a database session with connection timeout"""

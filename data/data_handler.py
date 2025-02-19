@@ -30,6 +30,11 @@ class DataHandler:
             self._feature_engineer = FeatureEngineer()
         return self._feature_engineer
 
+    @property
+    def session(self):
+        """Access SQLHandler's session"""
+        return self._sql_handler.session
+
     def prepare_data(self, data):
         """Prepare data using the feature engineer"""
         return self.feature_engineer.prepare_data(data)

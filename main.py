@@ -35,6 +35,26 @@ def init_session_state() -> None:
 
         logger.info("Setting session state initialized flag")
         st.session_state.initialized = True
+        
+        # Initialize required session state variables
+        logger.info("Initializing session state variables...")
+        if 'log_messages' not in st.session_state:
+            st.session_state.log_messages = []
+            
+        if 'ppo_params' not in st.session_state:
+            st.session_state.ppo_params = None
+            
+        if 'data_handler' not in st.session_state:
+            st.session_state.data_handler = DataHandler()
+            
+        if 'model' not in st.session_state:
+            st.session_state.model = UnifiedTradingAgent()
+            
+        if 'stock_list' not in st.session_state:
+            st.session_state.stock_list = ['AAPL', 'MSFT']
+            
+        if 'training_in_progress' not in st.session_state:
+            st.session_state.training_in_progress = False
 
         if (datetime.now() - start_time) > timeout:
             raise TimeoutError("Session state initialization timed out")

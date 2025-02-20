@@ -17,27 +17,44 @@ class DataSource(ABC):
         pass
 
 class YFinanceSource(DataSource):
-    """YFinance implementation of data source."""
+    """YFinance implementation of data source with improved reliability."""
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(start=start_date, end=end_date, interval='1d')
+        max_retries = 3
+        base_delay = 2
+        required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
 
-            if df.empty:
-                logger.error(f"Empty dataset received for {symbol}")
+        for attempt in range(max_retries):
+            try:
+                ticker = yf.Ticker(symbol)
+                # First try to get max period data for better reliability
+                df = ticker.history(period="max", interval='1d')
+                
+                # Then filter to our date range
+                if not df.empty:
+                    df = df[(df.index >= pd.Timestamp(start_date)) & 
+                           (df.index <= pd.Timestamp(end_date))]
+                
+                if df.empty:
+                    logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (attempt + 1))
+                        continue
+                    return pd.DataFrame()
+
+                if not all(col in df.columns for col in required_columns):
+                    missing = [col for col in required_columns if col not in df.columns]
+                    logger.error(f"Missing columns for {symbol}: {missing}")
+                    return pd.DataFrame()
+
+                logger.info(f"Successfully fetched {len(df)} rows for {symbol}")
+                return df
+
+            except Exception as e:
+                logger.warning(f"YFinance error for {symbol} (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(base_delay * (attempt + 1))
+                    continue
                 return pd.DataFrame()
-
-            required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
-            if not all(col in df.columns for col in required_columns):
-                missing = [col for col in required_columns if col not in df.columns]
-                logger.error(f"Missing columns for {symbol}: {missing}")
-                return pd.DataFrame()
-
-            return df
-
-        except Exception as e:
-            logger.error(f"YFinance error for {symbol}: {str(e)}")
-            return pd.DataFrame()
 
 class DataHandler:
     def __init__(self):

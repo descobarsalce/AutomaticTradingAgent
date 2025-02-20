@@ -148,12 +148,12 @@ class UnifiedTradingAgent:
 
         try:
             # Suppress torch warning about class registration
-        import warnings
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning)
-            self.model = PPO("MlpPolicy",
-                           self.env,
-                           **self.ppo_params,
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning)
+                self.model = PPO("MlpPolicy",
+                               self.env,
+                               **self.ppo_params,
                            tensorboard_log=self.tensorboard_log,
                            policy_kwargs=policy_kwargs,
                            seed=self.seed)

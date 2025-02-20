@@ -147,6 +147,10 @@ class UnifiedTradingAgent:
         self.ppo_params['ent_coef'] = 0.01  # Entropy coefficient
 
         try:
+            # Suppress torch warning about class registration
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning)
             self.model = PPO("MlpPolicy",
                            self.env,
                            **self.ppo_params,

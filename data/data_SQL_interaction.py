@@ -1,11 +1,10 @@
 
-"""SQL interaction handler with improved structure and performance optimizations."""
+"""SQL interaction handler with improved caching and validation."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
-import time
-from typing import Dict, Optional, List, Any
-from sqlalchemy import and_, distinct, text
+from typing import Optional, Dict, Tuple
+from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from models.database import StockData
@@ -16,45 +15,52 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 logger = logging.getLogger(__name__)
 
 class SQLHandler:
-    """Handles SQL database operations with connection pooling and retries."""
+    """Handles SQL database operations with improved caching."""
     
     BATCH_SIZE = 1000
     MAX_RETRIES = 3
     
     def __init__(self):
         self._session = None
+        self._cache_status: Dict[Tuple[str, datetime, datetime], bool] = {}
         logger.info("📊 SQLHandler instance created")
     
     @property
     def session(self) -> Session:
-        """Get or create a database session."""
         if self._session is None or not self._session.is_active:
             self._session = next(get_db_session())
         return self._session
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def _execute_with_retry(self, operation: callable, *args, **kwargs) -> Any:
-        """Execute database operation with retry logic."""
-        try:
-            return operation(*args, **kwargs)
-        except SQLAlchemyError as e:
-            logger.error(f"Database operation failed: {str(e)}")
-            self._cleanup_session()
-            raise
+    def _get_cache_key(self, symbol: str, start_date: datetime, end_date: datetime) -> Tuple[str, datetime, datetime]:
+        return (symbol, start_date, end_date)
 
-    def _cleanup_session(self) -> None:
-        """Clean up the current session."""
-        if self._session:
-            try:
-                self._session.close()
-            except Exception as e:
-                logger.warning(f"Error closing session: {str(e)}")
-            finally:
-                self._session = None
+    def is_data_cached(self, symbol: str, start_date: datetime, end_date: datetime) -> bool:
+        """Check if data is fully cached for the given symbol and date range."""
+        cache_key = self._get_cache_key(symbol, start_date, end_date)
+        
+        if cache_key in self._cache_status:
+            return self._cache_status[cache_key]
+            
+        count = self.session.query(func.count(StockData.id)).filter(
+            and_(
+                StockData.symbol == symbol,
+                StockData.date >= start_date,
+                StockData.date <= end_date
+            )
+        ).scalar()
+        
+        # Calculate expected number of trading days
+        expected_days = len(pd.date_range(start=start_date, end=end_date, freq='B'))
+        is_cached = count == expected_days
+        
+        self._cache_status[cache_key] = is_cached
+        return is_cached
 
-    def get_cached_data(self, symbol: str, start_date: datetime, 
-                       end_date: datetime) -> Optional[pd.DataFrame]:
-        """Retrieve cached data from database with error handling."""
+    def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Retrieve cached data with validation."""
+        if not self.is_data_cached(symbol, start_date, end_date):
+            return None
+            
         try:
             query = self.session.query(StockData).filter(
                 and_(
@@ -64,29 +70,26 @@ class SQLHandler:
                 )
             ).order_by(StockData.date)
             
-            records = self._execute_with_retry(query.all)
+            records = query.all()
             
             if not records:
                 return None
 
-            data = pd.DataFrame([{
+            return pd.DataFrame([{
                 'Close': record.close,
                 'Open': record.open,
                 'High': record.high,
                 'Low': record.low,
                 'Volume': record.volume,
                 'Date': record.date
-            } for record in records])
+            } for record in records]).set_index('Date')
 
-            data.set_index('Date', inplace=True)
-            return data
-
-        except Exception as e:
-            logger.error(f"Error retrieving cached data: {str(e)}")
+        except SQLAlchemyError as e:
+            logger.error(f"Database error: {str(e)}")
             return None
 
-    def cache_data(self, symbol: str, data: pd.DataFrame) -> None:
-        """Cache data in batches with optimized performance."""
+    def cache_data(self, symbol: str, data: pd.DataFrame, start_date: datetime, end_date: datetime) -> None:
+        """Cache data with improved batching and validation."""
         try:
             records = []
             for date, row in data.iterrows():
@@ -102,10 +105,13 @@ class SQLHandler:
                 }
                 records.append(stock_data)
 
-            # Process in batches
             for i in range(0, len(records), self.BATCH_SIZE):
                 batch = records[i:i + self.BATCH_SIZE]
                 self._process_batch(batch)
+
+            # Update cache status
+            cache_key = self._get_cache_key(symbol, start_date, end_date)
+            self._cache_status[cache_key] = True
 
         except Exception as e:
             logger.error(f"Error caching data: {str(e)}")
@@ -113,7 +119,7 @@ class SQLHandler:
                 self.session.rollback()
             raise
 
-    def _process_batch(self, batch: List[Dict]) -> None:
+    def _process_batch(self, batch: list) -> None:
         """Process a batch of records with conflict resolution."""
         for record in batch:
             try:
@@ -122,33 +128,33 @@ class SQLHandler:
                 self.session.flush()
             except IntegrityError:
                 self.session.rollback()
-                existing = self.session.query(StockData).filter(
-                    StockData.symbol == record['symbol'],
-                    StockData.date == record['date']
-                ).first()
-                
-                if self._should_update_record(existing, record):
-                    self._update_existing_record(existing, record)
+                self._update_existing_record(record)
             
         self.session.commit()
 
-    def _should_update_record(self, existing: StockData, new_data: Dict) -> bool:
-        """Determine if an existing record should be updated."""
-        return (existing.open != new_data['open'] or
-                existing.high != new_data['high'] or
-                existing.low != new_data['low'] or
-                existing.close != new_data['close'] or
-                existing.volume != new_data['volume'])
-
-    def _update_existing_record(self, existing: StockData, new_data: Dict) -> None:
-        """Update an existing record with new data."""
-        existing.open = new_data['open']
-        existing.high = new_data['high']
-        existing.low = new_data['low']
-        existing.close = new_data['close']
-        existing.volume = new_data['volume']
-        existing.last_updated = new_data['last_updated']
+    def _update_existing_record(self, record: Dict) -> None:
+        """Update existing record with new data."""
+        existing = self.session.query(StockData).filter(
+            StockData.symbol == record['symbol'],
+            StockData.date == record['date']
+        ).first()
+        
+        if existing:
+            existing.open = record['open']
+            existing.high = record['high']
+            existing.low = record['low']
+            existing.close = record['close']
+            existing.volume = record['volume']
+            existing.last_updated = record['last_updated']
 
     def __del__(self):
-        """Cleanup database session on object destruction."""
         self._cleanup_session()
+
+    def _cleanup_session(self):
+        if self._session:
+            try:
+                self._session.close()
+            except Exception as e:
+                logger.warning(f"Error closing session: {str(e)}")
+            finally:
+                self._session = None

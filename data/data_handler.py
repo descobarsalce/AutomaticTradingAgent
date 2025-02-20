@@ -74,10 +74,16 @@ class DataHandler:
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """Fetch data with improved caching, validation and rate limiting."""
         if isinstance(symbols, str):
-            symbols = [symbols]
-
+            symbols = [s.strip() for s in symbols.split(',') if s.strip()]
+        elif isinstance(symbols, list):
+            symbols = [s.strip() for s in symbols if s.strip()]
+            
         if not symbols:
             raise ValueError("No symbols provided")
+            
+        # Validate symbols
+        if not all(isinstance(s, str) and s for s in symbols):
+            raise ValueError("Invalid symbol format")
 
         all_stocks_data = pd.DataFrame()
         failed_symbols = []

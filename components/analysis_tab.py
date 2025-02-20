@@ -35,9 +35,9 @@ def display_tech_analysis_tab():
     st.header("Technical Analysis Dashboard")
 
     # Use session's data handler
-    data_handler = st.session_state.data_handler 
-    if not data_handler.session or not data_handler.session.is_active:
-        data_handler.get_session()  # Ensure database session is initialized
+    data_handler = st.session_state.data_handler
+    if not data_handler._sql_handler.session or not data_handler._sql_handler.session.is_active:
+        data_handler._sql_handler.session  # Ensure database session is initialized
 
     # Visualization stock selection (separate from training)
     viz_stock_input = st.text_input("Stocks to Visualize (comma-separated)",
@@ -123,7 +123,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                       num_columns, burn_in_days):
     viz_start_date = pd.Timestamp(viz_start_date).tz_localize('America/New_York')
     viz_end_date = pd.Timestamp(viz_end_date).tz_localize('America/New_York')
-    
+
     with st.spinner('Generating analysis...'):
         analysis_container = st.container()
         with analysis_container:
@@ -138,11 +138,11 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                     data = st.session_state.data_handler.fetch_data(
                         [stock], burn_in_start_date, viz_end_date
                     )
-                    
+
                     if data.empty:
                         st.error(f"No data available for {stock}")
                         continue
-                        
+
                     # Price Chart
                     try:
                         price_fig = go.Figure()
@@ -180,7 +180,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                                 y=data[f'Close_{stock}'],
                                 name=f'{stock} Price'
                             ))
-                            
+
                             if show_sma20:
                                 sma20 = data[f'Close_{stock}'].rolling(window=20).mean()
                                 ma_fig.add_trace(go.Scatter(
@@ -188,7 +188,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                                     y=sma20,
                                     name=f'SMA 20'
                                 ))
-                                
+
                             if show_sma50:
                                 sma50 = data[f'Close_{stock}'].rolling(window=50).mean()
                                 ma_fig.add_trace(go.Scatter(
@@ -196,7 +196,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                                     y=sma50,
                                     name=f'SMA 50'
                                 ))
-                                
+
                             ma_fig.update_layout(title=f'{stock} Moving Averages')
                             ma_charts[stock] = ma_fig
                         except Exception as mae:
@@ -212,11 +212,11 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
             if price_charts:
                 st.subheader("Price Analysis")
                 display_charts_grid(price_charts, "Price Charts", num_columns)
-            
+
             if volume_charts:
                 st.subheader("Volume Analysis")
                 display_charts_grid(volume_charts, "Volume Charts", num_columns)
-                
+
             if ma_charts:
                 st.subheader("Moving Averages Analysis")
                 display_charts_grid(ma_charts, "Moving Averages", num_columns)

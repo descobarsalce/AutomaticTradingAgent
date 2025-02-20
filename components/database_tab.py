@@ -19,7 +19,7 @@ def display_database_explorer():
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols
-    unique_symbols = data_handler.get_session().query(func.count(distinct(
+    unique_symbols = data_handler._sql_handler.session.query(func.count(distinct(
         StockData.symbol))).scalar()
     col1.metric("Total Unique Symbols", unique_symbols)
 

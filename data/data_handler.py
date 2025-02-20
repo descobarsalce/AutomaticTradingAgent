@@ -45,6 +45,14 @@ class DataHandler:
         self._data_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
+        
+    def execute_query(self, query):
+        """Execute a database query through SQLHandler"""
+        return self._sql_handler.session.execute(query)
+        
+    def query(self, *args, **kwargs):
+        """Execute a database query through SQLHandler"""
+        return self._sql_handler.session.query(*args, **kwargs)
 
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
         """Fetch data with improved caching and validation."""

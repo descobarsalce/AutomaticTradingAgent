@@ -15,17 +15,17 @@ def display_database_explorer():
     st.header("Database Statistics")
 
     data_handler = st.session_state.data_handler
-    
+
     col1, col2, col3 = st.columns(3)
 
     # Total unique symbols
-    unique_symbols = data_handler._sql_handler.session.query(func.count(distinct(
+    unique_symbols = data_handler.query(func.count(distinct(
         StockData.symbol))).scalar()
     col1.metric("Total Unique Symbols", unique_symbols)
 
     # Date range
-    min_date = data_handler.get_session().query(func.min(StockData.date)).scalar()
-    max_date = data_handler.get_session().query(func.max(StockData.date)).scalar()
+    min_date = data_handler.query(func.min(StockData.date)).scalar()
+    max_date = data_handler.query(func.max(StockData.date)).scalar()
     if min_date and max_date:
         date_range = f"{min_date.strftime('%Y-%m-%d')} to {max_date.strftime('%Y-%m-%d')}"
         col2.metric("Date Range", date_range)
@@ -40,11 +40,11 @@ def display_database_explorer():
 
     # Query for stock summary information
     stock_summary = []
-    symbols = [row[0] for row in data_handler.get_session().query(distinct(StockData.symbol)).all()]
+    symbols = [row[0] for row in data_handler.query(distinct(StockData.symbol)).all()]
 
     for symbol in symbols:
         # Get statistics for each stock
-        symbol_data = data_handler.get_session().query(
+        symbol_data = data_handler.query(
             StockData.symbol,
             func.min(StockData.date).label('start_date'),
             func.max(StockData.date).label('end_date'),
@@ -105,7 +105,7 @@ def display_database_explorer():
         try:
             # Fetch data using DataHandler
             df = data_handler.fetch_data(selected_symbol, start_date, end_date)
-            
+
             if not df.empty:
                 # Calculate basic statistics
                 stats_col1, stats_col2, stats_col3 = st.columns(3)

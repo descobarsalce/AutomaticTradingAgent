@@ -72,7 +72,7 @@ class DataHandler:
         return self._sql_handler.session.query(*args, **kwargs)
 
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Fetch data with improved caching and validation."""
+        """Fetch data with improved caching, validation and rate limiting."""
         if isinstance(symbols, str):
             symbols = [symbols]
 
@@ -80,24 +80,40 @@ class DataHandler:
             raise ValueError("No symbols provided")
 
         all_stocks_data = pd.DataFrame()
-
+        failed_symbols = []
+        
         for symbol in symbols:
             try:
+                # Add delay between requests to avoid rate limiting
+                time.sleep(1)
+                
                 # Check cache first
                 cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
 
-                if cached_data is not None:
+                if cached_data is not None and not cached_data.empty:
                     stock_data = cached_data
                     logger.info(f"Using cached data for {symbol}")
                 else:
                     logger.info(f"Fetching new data for {symbol}")
-                    stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
-
+                    for attempt in range(3):  # Try up to 3 times
+                        stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
+                        if not stock_data.empty:
+                            break
+                        time.sleep(2 * (attempt + 1))  # Exponential backoff
+                    
                     if not stock_data.empty:
                         self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)
                     else:
-                        logger.warning(f"Empty data received for {symbol}")
+                        logger.warning(f"Empty data received for {symbol} after retries")
+                        failed_symbols.append(symbol)
                         continue
+
+                # Validate data
+                required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+                if not all(col in stock_data.columns for col in required_cols):
+                    logger.error(f"Missing required columns for {symbol}")
+                    failed_symbols.append(symbol)
+                    continue
 
                 # Suffix columns with symbol
                 stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
@@ -106,10 +122,13 @@ class DataHandler:
 
             except Exception as e:
                 logger.error(f"Error fetching data for {symbol}: {str(e)}")
+                failed_symbols.append(symbol)
                 continue
 
         if all_stocks_data.empty:
-            raise ValueError("No valid data retrieved for any symbols")
+            raise ValueError(f"No valid data retrieved for any symbols. Failed symbols: {failed_symbols}")
+        elif failed_symbols:
+            logger.warning(f"Data retrieval failed for symbols: {failed_symbols}")
 
         return all_stocks_data
 

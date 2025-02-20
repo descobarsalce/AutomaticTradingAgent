@@ -37,24 +37,7 @@ class DataHandler:
 
     def prepare_data(self, data):
         """Prepare data using the feature engineer"""
-        return self.feature_engineer.prepare_data(data)
-
-    def prepare_data_with_extra_features(self, data):
-        """Prepare data with extra features using the feature engineer"""
-        prepared_data = self.feature_engineer.prepare_data(data)
-        symbols = sorted(list(set(col.split('_')[1] for col in prepared_data.columns if '_' in col)))
-
-        for symbol in symbols:
-            close_col = f'Close_{symbol}'
-            if close_col in prepared_data.columns:
-                prepared_data = self.feature_engineer.add_lagged_features(prepared_data, [close_col], lags=5)
-                prepared_data = self.feature_engineer.add_rolling_features(prepared_data, close_col, [7, 14, 30])
-                fft_features = self.feature_engineer.add_fourier_transform(prepared_data[close_col])
-                if not fft_features.empty:
-                    for col in fft_features.columns:
-                        prepared_data[f'{col}_{symbol}'] = fft_features[col]
-
-        return prepared_data
+        return data #self.feature_engineer.prepare_data(data)
 
     def _fetch_cached_data_if_valid(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
         """Return valid cached data if present and complete, else None."""
@@ -154,11 +137,3 @@ class DataHandler:
             self._sql_handler.close_session()
 
 
-    def get_cached_data(self, symbol: str, start_date, end_date) -> Optional[pd.DataFrame]:
-        """Check if we have fresh data in the cache and validate continuity"""
-        return None #This method is now handled by SQLHandler
-
-
-    def cache_data(self, symbol: str, data: pd.DataFrame) -> None:
-        """Cache the fetched data in the database"""
-        return None #This method is now handled by SQLHandler

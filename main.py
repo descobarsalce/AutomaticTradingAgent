@@ -93,37 +93,37 @@ def init_session_state() -> None:
         logger.info("✅ Session state initialization completed successfully")
 
 
-def check_system_health() -> bool:
-    """Verify core system components are functioning."""
-    logger.info("🔍 Starting system health check")
+# def check_system_health() -> bool:
+#     """Verify core system components are functioning."""
+#     logger.info("🔍 Starting system health check")
 
-    try:
-        if 'data_handler' not in st.session_state:
-            logger.info("Initializing missing DataHandler")
-            st.session_state.data_handler = DataHandler()
+#     try:
+#         if 'data_handler' not in st.session_state:
+#             logger.info("Initializing missing DataHandler")
+#             st.session_state.data_handler = DataHandler()
 
-        logger.info("Verifying database connection")
-        if not st.session_state.data_handler._sql_handler.session.is_active:
-            logger.warning(
-                "Database session inactive, attempting reconnection")
-            st.session_state.data_handler._sql_handler.session
+#         logger.info("Verifying database connection")
+#         if not st.session_state.data_handler._sql_handler.session.is_active:
+#             logger.warning(
+#                 "Database session inactive, attempting reconnection")
+#             st.session_state.data_handler._sql_handler.session
 
-        if not st.session_state.data_handler._sql_handler.session.is_active:
-            logger.error(
-                "Database session is not active after reconnection attempt")
-            return False
+#         if not st.session_state.data_handler._sql_handler.session.is_active:
+#             logger.error(
+#                 "Database session is not active after reconnection attempt")
+#             return False
 
-        logger.info("Checking trading agent initialization")
-        if not getattr(st.session_state, 'model', None):
-            logger.info("Initializing missing trading agent")
-            st.session_state.model = UnifiedTradingAgent()
+#         logger.info("Checking trading agent initialization")
+#         if not getattr(st.session_state, 'model', None):
+#             logger.info("Initializing missing trading agent")
+#             st.session_state.model = UnifiedTradingAgent()
 
-        logger.info("✅ System health check completed successfully")
-        return True
+#         logger.info("✅ System health check completed successfully")
+#         return True
 
-    except Exception as e:
-        logger.error(f"❌ System health check failed: {str(e)}")
-        return False
+#     except Exception as e:
+#         logger.error(f"❌ System health check failed: {str(e)}")
+#         return False
 
 
 def main() -> None:
@@ -141,12 +141,12 @@ def main() -> None:
 
         init_session_state()
 
-        logger.info("Performing system health check")
-        if not check_system_health():
-            logger.error("System health check failed")
-            st.error("System health check failed. Please check the logs.")
-            st.stop()
-            return
+        # logger.info("Performing system health check")
+        # if not check_system_health():
+        #     logger.error("System health check failed")
+        #     st.error("System health check failed. Please check the logs.")
+        #     st.stop()
+        #     return
 
         logger.info("Setting up main UI")
         st.title("Trading Analysis and Agent Platform")

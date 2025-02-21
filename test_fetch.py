@@ -10,9 +10,9 @@ handler = DataHandler()
 start_date = datetime(2024, 1, 1)
 end_date = datetime(2024, 2, 20)
 
-# Fetch TSLA data
+# Fetch TSLA data - passing as a list
 try:
-    df = handler.fetch_data('TSLA', start_date, end_date)
+    df = handler.fetch_data(['TSLA'], start_date, end_date)
     print("\nData Shape:", df.shape)
     print("\nFirst 5 rows:")
     print(df.head())

@@ -2,7 +2,8 @@
 
 import yfinance as yf
 import pandas as pd
-import time
+from time import sleep
+from datetime import datetime, timedelta
 from datetime import datetime
 from data.data_SQL_interaction import SQLHandler
 import logging
@@ -92,7 +93,7 @@ class DataHandler:
         for symbol in symbols:
             try:
                 # Add delay between requests to avoid rate limiting
-                time.sleep(1)
+                sleep(1)
                 
                 # Check cache first
                 cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
@@ -106,7 +107,7 @@ class DataHandler:
                         stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
                         if not stock_data.empty:
                             break
-                        time.sleep(2 * (attempt + 1))  # Exponential backoff
+                        sleep(2 * (attempt + 1))  # Exponential backoff
                     
                     if not stock_data.empty:
                         self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)

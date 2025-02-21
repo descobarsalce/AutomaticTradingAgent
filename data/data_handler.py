@@ -2,6 +2,7 @@
 
 import yfinance as yf
 import pandas as pd
+import time
 from datetime import datetime
 from data.data_SQL_interaction import SQLHandler
 import logging

@@ -11,14 +11,20 @@ class StockData(Base):
     __tablename__ = 'stock_data'
 
     id = Column(Integer, primary_key=True)
-    symbol = Column(String, nullable=False)
-    date = Column(DateTime, nullable=False)
-    open = Column(Float)
-    high = Column(Float)
-    low = Column(Float)
-    close = Column(Float)
-    volume = Column(Float)
-    last_updated = Column(DateTime, default=datetime.utcnow)
+    symbol = Column(String(10), nullable=False, index=True)
+    date = Column(DateTime, nullable=False, index=True)
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Float, nullable=False)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if value is None and key not in ['id', 'last_updated']:
+                raise ValueError(f"Column {key} cannot be null")
+            setattr(self, key, value)
 
     __table_args__ = (UniqueConstraint('symbol',
                                        'date',

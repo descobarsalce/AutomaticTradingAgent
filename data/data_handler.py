@@ -29,9 +29,14 @@ class YFinanceSource(DataSource):
 
         for attempt in range(max_retries):
             try:
-                ticker = yf.Ticker(symbol)
-                # Get data directly for the specified date range
-                df = ticker.history(start=start_date, end=end_date, interval='1d')
+                # Force download to bypass cache
+                df = yf.download(
+                    symbol,
+                    start=start_date,
+                    end=end_date,
+                    progress=False,
+                    show_errors=False
+                )
                 
                 if df.empty:
                     logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
@@ -39,12 +44,11 @@ class YFinanceSource(DataSource):
                         time.sleep(base_delay * (attempt + 1))
                         continue
                     return pd.DataFrame()
-                
-                if df.empty:
-                    logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
-                    if attempt < max_retries - 1:
-                        time.sleep(base_delay * (attempt + 1))
-                        continue
+
+                # Ensure all required columns exist
+                if not all(col in df.columns for col in required_columns):
+                    missing = [col for col in required_columns if col not in df.columns]
+                    logger.error(f"Missing columns for {symbol}: {missing}")
                     return pd.DataFrame()
 
                 if not all(col in df.columns for col in required_columns):

@@ -58,9 +58,6 @@ class SQLHandler:
 
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
         """Retrieve cached data with validation."""
-        if not self.is_data_cached(symbol, start_date, end_date):
-            return None
-            
         try:
             query = self.session.query(StockData).filter(
                 and_(
@@ -69,6 +66,29 @@ class SQLHandler:
                     StockData.date <= end_date
                 )
             ).order_by(StockData.date)
+            
+            records = query.all()
+            
+            if not records:
+                logger.info(f"No cached data found for {symbol}")
+                return None
+
+            df = pd.DataFrame([{
+                'Close': record.close,
+                'Open': record.open,
+                'High': record.high,
+                'Low': record.low,
+                'Volume': record.volume,
+                'Date': record.date
+            } for record in records]).set_index('Date')
+
+            # Validate data completeness
+            expected_dates = pd.date_range(start=start_date, end=end_date, freq='B')
+            if len(df) < len(expected_dates) * 0.9:  # Allow 10% missing days
+                logger.warning(f"Incomplete cached data for {symbol}")
+                return None
+
+            return df
             
             records = query.all()
             

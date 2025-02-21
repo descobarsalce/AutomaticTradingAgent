@@ -18,6 +18,8 @@ class DataSource(ABC):
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         pass
 
+import time
+
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
@@ -28,13 +30,15 @@ class YFinanceSource(DataSource):
         for attempt in range(max_retries):
             try:
                 ticker = yf.Ticker(symbol)
-                # First try to get max period data for better reliability
-                df = ticker.history(period="max", interval='1d')
+                # Get data directly for the specified date range
+                df = ticker.history(start=start_date, end=end_date, interval='1d')
                 
-                # Then filter to our date range
-                if not df.empty:
-                    df = df[(df.index >= pd.Timestamp(start_date)) & 
-                           (df.index <= pd.Timestamp(end_date))]
+                if df.empty:
+                    logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (attempt + 1))
+                        continue
+                    return pd.DataFrame()
                 
                 if df.empty:
                     logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")

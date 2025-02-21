@@ -31,7 +31,7 @@ def main():
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365*10)
 
-    symbol = 'MSFT'
+    symbol = 'AMD'
     logger.info(f"Starting data collection for {symbol}")
 
     try:

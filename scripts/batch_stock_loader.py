@@ -41,6 +41,13 @@ def main():
             logger.info(f"Successfully downloaded and validated data for {symbol}")
             logger.info(f"Data shape: {data.shape}")
             logger.info(f"Date range: {data.index.min()} to {data.index.max()}")
+            
+            # Verify database storage
+            cached_data = data_handler._sql_handler.get_cached_data(symbol, start_date, end_date)
+            if cached_data is not None and not cached_data.empty:
+                logger.info(f"✅ Data successfully stored in database for {symbol}")
+            else:
+                logger.error(f"❌ Failed to verify database storage for {symbol}")
         else:
             logger.error(f"Invalid data received for {symbol}")
 

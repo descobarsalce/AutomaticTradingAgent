@@ -59,6 +59,9 @@ class SQLHandler:
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
         """Retrieve cached data with validation."""
         try:
+            if self.session.in_transaction():
+                self.session.rollback()
+                
             query = self.session.query(StockData).filter(
                 and_(
                     StockData.symbol == symbol,
@@ -105,6 +108,8 @@ class SQLHandler:
             } for record in records]).set_index('Date')
 
         except SQLAlchemyError as e:
+            if self.session.in_transaction():
+                self.session.rollback()
             logger.error(f"Database error: {str(e)}")
             return None
 

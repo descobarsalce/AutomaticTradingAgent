@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 import time
 import os
 from alpha_vantage.timeseries import TimeSeries
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class AlphaVantageSource(DataSource):
             raise ValueError("ALPHA_VANTAGE_API_KEY not found in environment variables")
         self.ts = TimeSeries(key=self.api_key, output_format='pandas')
 
-    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+    async def fetch_intraday_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         try:
             data, _ = self.ts.get_intraday(symbol=symbol, interval='60min', outputsize='full')
             if data.empty:
@@ -48,6 +49,7 @@ class AlphaVantageSource(DataSource):
         except Exception as e:
             logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
             return pd.DataFrame()
+
 
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
@@ -99,11 +101,11 @@ class DataHandler:
     def __init__(self):
         self._sql_handler = SQLHandler()
         try:
-            self._primary_source = AlphaVantageSource()
+            self._data_source = AlphaVantageSource()
             logger.info("📈 Alpha Vantage source initialized")
         except Exception as e:
             logger.warning(f"Failed to initialize Alpha Vantage: {e}")
-            self._primary_source = None
+            self._data_source = None
         self._fallback_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
@@ -116,8 +118,8 @@ class DataHandler:
         """Execute a database query through SQLHandler"""
         return self._sql_handler.session.query(*args, **kwargs)
 
-    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Fetch data with improved caching, validation and rate limiting."""
+    async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """Fetch data with improved async processing and caching."""
         if isinstance(symbols, str):
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):
@@ -135,9 +137,6 @@ class DataHandler:
 
         for symbol in symbols:
             try:
-                # Add delay between requests to avoid rate limiting
-                sleep(1)
-
                 # Check cache first
                 cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
 
@@ -146,8 +145,8 @@ class DataHandler:
                     logger.info(f"Using cached data for {symbol}")
                 else:
                     logger.info(f"Fetching new data for {symbol}")
-                    if self._primary_source:
-                        stock_data = self._primary_source.fetch_data(symbol, start_date, end_date)
+                    if self._data_source:
+                        stock_data = await self._data_source.fetch_intraday_data(symbol, start_date, end_date)
                     if stock_data.empty and self._fallback_source:
                         logger.warning(f"Falling back to YFinance for {symbol}")
                         for attempt in range(3):  # Try up to 3 times

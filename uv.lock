@@ -2752,6 +2752,7 @@ name = "repl-nix-tradeai-sim"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "alpha-vantage" },
     { name = "gym" },
     { name = "gymnasium" },
@@ -2783,6 +2784,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.11.12" },
     { name = "alpha-vantage", specifier = ">=3.0.0" },
     { name = "gym", specifier = ">=0.26.2" },
     { name = "gymnasium", specifier = ">=0.29.1" },

@@ -8,7 +8,7 @@ handler = DataHandler()
 
 # Set date range for last 30 days
 end_date = datetime.now()
-start_date = end_date - timedelta(days=30)
+start_date = end_date - timedelta(days=5000)
 
 # Fetch MSFT data
 try:

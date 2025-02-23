@@ -53,8 +53,9 @@ class TradingEnv(gym.Env):
                  training_mode: bool = True,
                  observation_days: int = 2,
                  burn_in_days: int = 20):  # New parameter for burn-in period.
+        import asyncio
         # ...existing code to fetch data and validate parameters...
-        data = fetch_trading_data(stock_names, start_date, end_date)
+        data = asyncio.run(fetch_trading_data(stock_names, start_date, end_date))
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)
         self._validate_init_params(data, initial_balance, transaction_cost, max_pct_position_by_asset)

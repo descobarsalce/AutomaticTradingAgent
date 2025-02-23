@@ -128,6 +128,37 @@ class DataHandler:
         if not symbols:
             raise ValueError("No symbols provided")
 
+        result_df = pd.DataFrame()
+        for symbol in symbols:
+            try:
+                if self._data_source:
+                    data = await self._data_source.fetch_intraday_data(symbol, start_date, end_date)
+                    if data is not None and not data.empty:
+                        # Rename columns with symbol suffix
+                        data.columns = [f'{col}_{symbol}' for col in data.columns]
+                        result_df = pd.concat([result_df, data], axis=1)
+                    else:
+                        # Fallback to YFinance
+                        data = self._fallback_source.fetch_data(symbol, start_date, end_date)
+                        if not data.empty:
+                            data.columns = [f'{col}_{symbol}' for col in data.columns]
+                            result_df = pd.concat([result_df, data], axis=1)
+            except Exception as e:
+                logger.error(f"Error fetching {symbol}: {str(e)}")
+                continue
+
+        if result_df.empty:
+            raise ValueError("No data retrieved for any symbols")
+
+        return result_df.copy()
+        if isinstance(symbols, str):
+            symbols = [s.strip() for s in symbols.split(',') if s.strip()]
+        elif isinstance(symbols, list):
+            symbols = [s.strip() for s in symbols if s.strip()]
+
+        if not symbols:
+            raise ValueError("No symbols provided")
+
         # Validate symbols
         if not all(isinstance(s, str) and s for s in symbols):
             raise ValueError("Invalid symbol format")

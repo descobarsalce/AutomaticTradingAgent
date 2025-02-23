@@ -17,9 +17,6 @@ def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetim
 
     for symbol in symbols:
         try:
-            # Add delay between requests to avoid rate limiting
-            sleep(1)
-
             # Check cache first
             cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
 
@@ -28,11 +25,9 @@ def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetim
                 logger.info(f"Using cached data for {symbol}")
             else:
                 logger.info(f"Fetching new data for {symbol}")
-                for attempt in range(3):  # Try up to 3 times
-                    stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
+                stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
                     if not stock_data.empty:
                         break
-                    sleep(2 * (attempt + 1))  # Exponential backoff
 
                 if not stock_data.empty:
                     self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)

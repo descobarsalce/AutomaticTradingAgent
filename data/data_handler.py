@@ -9,6 +9,7 @@ from data.data_SQL_interaction import SQLHandler
 import logging
 from typing import Dict, Optional, List, Protocol
 from abc import ABC, abstractmethod
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -18,13 +19,11 @@ class DataSource(ABC):
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         pass
 
-import time
-
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        max_retries = 3
-        base_delay = 2
+        max_retries = 1
+        base_delay = 1
         required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
 
         for attempt in range(max_retries):

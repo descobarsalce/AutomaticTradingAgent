@@ -1,22 +1,39 @@
 
-from data.data_handler import DataHandler
-from datetime import datetime, timedelta
-import pandas as pd
+class YFinanceSource(DataSource):
+    """YFinance implementation of data source with improved reliability."""
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        max_retries = 1
+        base_delay = 1
+        required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
 
-# Initialize data handler
-handler = DataHandler()
+        for attempt in range(max_retries):
+            try:
+                # Force download to bypass cache
+                df = yf.download(
+                    symbol,
+                    start=start_date,
+                    end=end_date,
+                    progress=False,
+                    show_errors=False
+                )
 
-# Set date range for last 30 days
-end_date = datetime.now()
-start_date = end_date - timedelta(days=5000)
+                if df.empty:
+                    logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (attempt + 1))
+                        continue
+                    return pd.DataFrame()
 
-# Fetch MSFT data
-try:
-    df = handler.fetch_data(['MSFT'], start_date, end_date)
-    print("\nMSFT Data Shape:", df.shape)
-    print("\nFirst 5 rows:")
-    print(df.head())
-    print("\nColumns:", df.columns.tolist())
-    print("\nDate Range:", df.index.min(), "to", df.index.max())
-except Exception as e:
-    print(f"Error: {str(e)}")
+                # Ensure all required columns exist
+                if not all(col in df.columns for col in required_columns):
+                    missing = [col for col in required_columns if col not in df.columns]
+                    logger.error(f"Missing columns for {symbol}: {missing}")
+                    return pd.DataFrame()
+
+                if not all(col in df.columns for col in required_columns):
+                    missing = [col for col in required_columns if col not in df.columns]
+                    logger.error(f"Missing columns for {symbol}: {missing}")
+                    return pd.DataFrame()
+
+                logger.info(f"Successfully fetched {len(df)} rows for {symbol}")
+                return df

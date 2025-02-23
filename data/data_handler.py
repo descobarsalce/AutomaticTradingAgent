@@ -3,8 +3,7 @@
 import yfinance as yf
 import pandas as pd
 from time import sleep
-from datetime import datetime, timedelta
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from data.data_SQL_interaction import SQLHandler
 import logging
 from typing import Dict, Optional, List, Protocol

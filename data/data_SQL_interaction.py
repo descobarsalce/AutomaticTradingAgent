@@ -7,7 +7,7 @@ from typing import Optional, Dict, Tuple
 from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from models.database import StockData
+from data.database import StockData
 from utils.db_config import get_db_session
 import pandas as pd
 from tenacity import retry, stop_after_attempt, wait_exponential

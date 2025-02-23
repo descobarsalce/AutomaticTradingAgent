@@ -118,8 +118,8 @@ class DataHandler:
         """Execute a database query through SQLHandler"""
         return self._sql_handler.session.query(*args, **kwargs)
 
-    async def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Fetch data with improved async processing and caching."""
+    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """Fetch data with simple processing and caching."""
         if isinstance(symbols, str):
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):

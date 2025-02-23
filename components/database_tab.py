@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
-from models.database import StockData
+from data.database import StockData
 import os
 
 def display_database_explorer():

@@ -1,58 +1,49 @@
-"""Script to load historical stock data for MSFT with validation."""
 
-import yfinance as yf
-from datetime import datetime, timedelta
+"""Script to load historical stock data with validation."""
+
 from data.data_handler import DataHandler
-import pandas as pd
-import time
+from datetime import datetime, timedelta
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def validate_stock_data(data: pd.DataFrame, symbol: str) -> bool:
-    """Validate downloaded stock data."""
-    if data.empty:
-        return False
-
-    required_cols = [f'{col}_{symbol}' for col in ['Open', 'High', 'Low', 'Close', 'Volume']]
-    if not all(col in data.columns for col in required_cols):
-        return False
-
-    # Check for missing values and suspicious values
-    if data[required_cols].isnull().sum().sum() > 0:
-        return False
-
-    return True
-
 def main():
-    data_handler = DataHandler()
+    # Initialize data handler
+    handler = DataHandler()
+    
+    # Set date range for last 5 years
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365*10)
-
-    symbol = 'AMD'
-    logger.info(f"Starting data collection for {symbol}")
-
+    start_date = end_date - timedelta(days=365*5)
+    
+    # Stock symbols to download
+    symbols = ['MRVL', 'DPZ', 'ASML', 'CRM']
+    
+    logger.info(f"Starting data download for {len(symbols)} stocks")
+    
     try:
-        data = data_handler.fetch_data([symbol], start_date, end_date)
-
-        if validate_stock_data(data, symbol):
-            logger.info(f"Successfully downloaded and validated data for {symbol}")
-            logger.info(f"Data shape: {data.shape}")
-            logger.info(f"Date range: {data.index.min()} to {data.index.max()}")
+        df = handler.fetch_data(symbols, start_date, end_date)
+        
+        if not df.empty:
+            logger.info("\nDownload Summary:")
+            logger.info(f"Data Shape: {df.shape}")
+            logger.info(f"Date Range: {df.index.min()} to {df.index.max()}")
+            logger.info(f"Available Columns: {df.columns.tolist()}")
+            logger.info("\nFirst few rows of data:")
+            logger.info(df.head())
             
-            # Verify database storage
-            cached_data = data_handler._sql_handler.get_cached_data(symbol, start_date, end_date)
-            if cached_data is not None and not cached_data.empty:
-                logger.info(f"✅ Data successfully stored in database for {symbol}")
-            else:
-                logger.error(f"❌ Failed to verify database storage for {symbol}")
+            # Verify we have data for all symbols
+            for symbol in symbols:
+                if f'Close_{symbol}' in df.columns:
+                    logger.info(f"✅ Successfully downloaded data for {symbol}")
+                else:
+                    logger.warning(f"❌ Failed to download data for {symbol}")
         else:
-            logger.error(f"Invalid data received for {symbol}")
-
+            logger.error("No data was downloaded")
+            
     except Exception as e:
-        logger.error(f"Error processing {symbol}: {e}")
+        logger.error(f"Error during data download: {str(e)}")
 
 if __name__ == "__main__":
     main()

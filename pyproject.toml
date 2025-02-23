@@ -29,6 +29,7 @@ dependencies = [
     "openai>=1.60.2",
     "trafilatura>=2.0.0",
     "psycopg2-binary>=2.9.10",
+    "alpha-vantage>=3.0.0",
 ]
 
 [[tool.uv.index]]

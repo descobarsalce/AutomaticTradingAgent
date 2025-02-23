@@ -18,6 +18,19 @@ class DataSource(ABC):
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         pass
 
+class AlphaVantageSource(DataSource):
+    """Alpha Vantage implementation of data source."""
+    def __init__(self):
+        from data.alpha_vantage_source import AlphaVantageAPI
+        self.api = AlphaVantageAPI()
+        
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        data = self.api.fetch_intraday_data(symbol, start_date, end_date)
+        if data is None or data.empty:
+            logger.warning(f"No data retrieved from Alpha Vantage for {symbol}")
+            return pd.DataFrame()
+        return data
+
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
@@ -65,9 +78,9 @@ class YFinanceSource(DataSource):
                 return pd.DataFrame()
 
 class DataHandler:
-    def __init__(self):
+    def __init__(self, use_alpha_vantage: bool = True):
         self._sql_handler = SQLHandler()
-        self._data_source = YFinanceSource()
+        self._data_source = AlphaVantageSource() if use_alpha_vantage else YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
 

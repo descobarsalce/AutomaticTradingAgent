@@ -37,7 +37,7 @@ class YFinanceSource(DataSource):
                     progress=False,
                     show_errors=False
                 )
-                
+
                 if df.empty:
                     logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
                     if attempt < max_retries - 1:
@@ -72,11 +72,11 @@ class DataHandler:
         self._data_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
-        
+
     def execute_query(self, query):
         """Execute a database query through SQLHandler"""
         return self._sql_handler.session.execute(query)
-        
+
     def query(self, *args, **kwargs):
         """Execute a database query through SQLHandler"""
         return self._sql_handler.session.query(*args, **kwargs)
@@ -87,22 +87,22 @@ class DataHandler:
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):
             symbols = [s.strip() for s in symbols if s.strip()]
-            
+
         if not symbols:
             raise ValueError("No symbols provided")
-            
+
         # Validate symbols
         if not all(isinstance(s, str) and s for s in symbols):
             raise ValueError("Invalid symbol format")
 
         all_stocks_data = pd.DataFrame()
         failed_symbols = []
-        
+
         for symbol in symbols:
             try:
                 # Add delay between requests to avoid rate limiting
                 sleep(1)
-                
+
                 # Check cache first
                 cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
 
@@ -116,7 +116,7 @@ class DataHandler:
                         if not stock_data.empty:
                             break
                         sleep(2 * (attempt + 1))  # Exponential backoff
-                    
+
                     if not stock_data.empty:
                         self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)
                     else:

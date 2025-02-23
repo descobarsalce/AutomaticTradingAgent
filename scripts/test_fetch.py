@@ -14,12 +14,12 @@ def test_tesla_fetch():
         symbol = "TSLA"
         ticker = yf.Ticker(symbol)
         
-        # Try up to 3 times with increasing periods
-        periods = ["2mo", "3mo", "6mo"]
+        # Try shorter periods for hourly data with actions=False
+        periods = ["7d", "14d", "1mo"]
         
         for period in periods:
             time.sleep(1)  # Respect rate limits
-            df = ticker.history(period=period, interval="1h")
+            df = ticker.history(period=period, interval="1h", actions=False)
             
             if not df.empty:
                 logger.info(f"Successfully fetched {len(df)} rows of {symbol} data using period={period}")

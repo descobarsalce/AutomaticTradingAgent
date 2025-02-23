@@ -9,6 +9,8 @@ import logging
 from typing import Dict, Optional, List, Protocol
 from abc import ABC, abstractmethod
 import time
+import os
+from alpha_vantage.timeseries import TimeSeries
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +23,31 @@ class DataSource(ABC):
 class AlphaVantageSource(DataSource):
     """Alpha Vantage implementation of data source."""
     def __init__(self):
-        from data.alpha_vantage_source import AlphaVantageAPI
-        self.api = AlphaVantageAPI()
-        
+        self.api_key = os.environ.get('ALPHA_VANTAGE_API_KEY')
+        if not self.api_key:
+            raise ValueError("ALPHA_VANTAGE_API_KEY not found in environment variables")
+        self.ts = TimeSeries(key=self.api_key, output_format='pandas')
+
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        data = self.api.fetch_intraday_data(symbol, start_date, end_date)
-        if data is None or data.empty:
-            logger.warning(f"No data retrieved from Alpha Vantage for {symbol}")
+        try:
+            data, _ = self.ts.get_intraday(symbol=symbol, interval='60min', outputsize='full')
+            if data.empty:
+                raise ValueError(f"Empty dataset received for {symbol}")
+
+            # Rename columns to match format
+            data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+
+            # Filter date range
+            data = data[(data.index >= start_date) & (data.index <= end_date)]
+
+            if data.empty:
+                raise ValueError(f"No data in specified date range for {symbol}")
+
+            return data.round(2)
+
+        except Exception as e:
+            logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
             return pd.DataFrame()
-        return data
 
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
@@ -78,9 +96,15 @@ class YFinanceSource(DataSource):
                 return pd.DataFrame()
 
 class DataHandler:
-    def __init__(self, use_alpha_vantage: bool = True):
+    def __init__(self):
         self._sql_handler = SQLHandler()
-        self._data_source = AlphaVantageSource() if use_alpha_vantage else YFinanceSource()
+        try:
+            self._primary_source = AlphaVantageSource()
+            logger.info("📈 Alpha Vantage source initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Alpha Vantage: {e}")
+            self._primary_source = None
+        self._fallback_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
 
@@ -122,11 +146,15 @@ class DataHandler:
                     logger.info(f"Using cached data for {symbol}")
                 else:
                     logger.info(f"Fetching new data for {symbol}")
-                    for attempt in range(3):  # Try up to 3 times
-                        stock_data = self._data_source.fetch_data(symbol, start_date, end_date)
-                        if not stock_data.empty:
-                            break
-                        sleep(2 * (attempt + 1))  # Exponential backoff
+                    if self._primary_source:
+                        stock_data = self._primary_source.fetch_data(symbol, start_date, end_date)
+                    if stock_data.empty and self._fallback_source:
+                        logger.warning(f"Falling back to YFinance for {symbol}")
+                        for attempt in range(3):  # Try up to 3 times
+                            stock_data = self._fallback_source.fetch_data(symbol, start_date, end_date)
+                            if not stock_data.empty:
+                                break
+                            sleep(2 * (attempt + 1))  # Exponential backoff
 
                     if not stock_data.empty:
                         self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)

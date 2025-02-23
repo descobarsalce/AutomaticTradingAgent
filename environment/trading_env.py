@@ -14,10 +14,10 @@ from core.portfolio_manager import PortfolioManager
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+async def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling."""
     try:
-        data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
+        data = await st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
         if data.empty:
             raise ValueError(f"No data available for symbols {stock_names} between {start_date} and {end_date}")
 

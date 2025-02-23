@@ -4,6 +4,7 @@
 from data.data_handler import DataHandler
 from datetime import datetime, timedelta
 import logging
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,30 +21,22 @@ def main():
     # Stock symbols to download
     symbols = ['MRVL', 'DPZ', 'ASML', 'CRM']
     
-    logger.info(f"Starting data download for {len(symbols)} stocks")
+    logger.info(f"Starting data download for: {', '.join(symbols)}")
+    logger.info(f"Date range: {start_date.date()} to {end_date.date()}")
     
-    try:
-        df = handler.fetch_data(symbols, start_date, end_date)
-        
-        if not df.empty:
-            logger.info("\nDownload Summary:")
-            logger.info(f"Data Shape: {df.shape}")
-            logger.info(f"Date Range: {df.index.min()} to {df.index.max()}")
-            logger.info(f"Available Columns: {df.columns.tolist()}")
-            logger.info("\nFirst few rows of data:")
-            logger.info(df.head())
+    for symbol in symbols:
+        try:
+            # Download data for single symbol
+            df = handler.fetch_data([symbol], start_date, end_date)
             
-            # Verify we have data for all symbols
-            for symbol in symbols:
-                if f'Close_{symbol}' in df.columns:
-                    logger.info(f"✅ Successfully downloaded data for {symbol}")
-                else:
-                    logger.warning(f"❌ Failed to download data for {symbol}")
-        else:
-            logger.error("No data was downloaded")
-            
-    except Exception as e:
-        logger.error(f"Error during data download: {str(e)}")
+            if not df.empty and f'Close_{symbol}' in df.columns:
+                logger.info(f"✅ {symbol}: Successfully downloaded {len(df)} rows")
+                logger.info(f"   Date range: {df.index.min().date()} to {df.index.max().date()}")
+            else:
+                logger.error(f"❌ {symbol}: Failed to download data")
+                
+        except Exception as e:
+            logger.error(f"❌ {symbol}: Error during download - {str(e)}")
 
 if __name__ == "__main__":
     main()

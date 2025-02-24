@@ -46,34 +46,30 @@ class DataHandler:
         result_df = pd.DataFrame()
         for symbol in symbols:
             df = None
+            
+            # Try SQL first if not explicitly requesting other sources
             if source != "Yahoo Finance" and source != "Alpha Vantage":
-                # Try SQL first
                 try:
                     df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
                     if df is not None and not df.empty:
                         logger.info(f"Retrieved {symbol} data from SQL cache")
                 except SQLAlchemyError as e:
                     logger.warning(f"SQL error for {symbol}: {e}")
-    
-            # Try Alpha Vantage if SQL failed
-            if (df is None or df.empty) and self._alpha_vantage:
-                try:
-                    df = self._alpha_vantage.fetch_data(symbol, start_date, end_date)
-                    if not df.empty:
-                        logger.info(f"Retrieved {symbol} data from Alpha Vantage")
-                        self._sql_handler.cache_data(symbol, df, start_date, end_date)
-                except Exception as e:
-                    logger.warning(f"Alpha Vantage error for {symbol}: {e}")
 
-            # Try YFinance as last resort
+            # Use StockDownloader if SQL cache misses
             if df is None or df.empty:
                 try:
-                    df = self._yfinance.fetch_data(symbol, start_date, end_date)
+                    downloader = StockDownloader(
+                        start_date=start_date.date(),
+                        end_date=end_date.date(),
+                        source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo'
+                    )
+                    df = downloader.download_stock_data(symbol)
                     if not df.empty:
-                        logger.info(f"Retrieved {symbol} data from YFinance")
+                        logger.info(f"Retrieved {symbol} data from {source}")
                         self._sql_handler.cache_data(symbol, df)
                 except Exception as e:
-                    logger.error(f"YFinance error for {symbol}: {e}")
+                    logger.error(f"Download error for {symbol}: {str(e)}")
 
             if df is not None and not df.empty:
                 df.columns = [f'{col}_{symbol}' for col in df.columns]

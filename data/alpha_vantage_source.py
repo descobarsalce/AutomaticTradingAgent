@@ -1,63 +1,37 @@
-import os
-import pandas as pd
 import logging
+import pandas as pd
 from datetime import datetime
-import requests
-import time
+import streamlit as st
+from alpha_vantage.timeseries import TimeSeries
+from data.base_sources import DataSource
 
 logger = logging.getLogger(__name__)
 
-class AlphaVantageSource:
+class AlphaVantageSource(DataSource):
+    """Alpha Vantage implementation of data source."""
     def __init__(self):
-        import streamlit as st
         self.api_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
         if not self.api_key:
             raise ValueError("ALPHA_VANTAGE_API_KEY not found in secrets")
-        self.base_url = "https://www.alphavantage.co/query"
+        self.ts = TimeSeries(key=self.api_key, output_format='pandas')
 
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Fetch daily data for a given symbol."""
         try:
-            params = {
-                "function": "TIME_SERIES_DAILY",
-                "symbol": symbol,
-                "outputsize": "full",
-                "apikey": self.api_key
-            }
+            data, _ = self.ts.get_daily(symbol=symbol, outputsize='full')
+            if data.empty:
+                raise ValueError(f"Empty dataset received for {symbol}")
 
-            response = requests.get(self.base_url, params=params)
-            if response.status_code != 200:
-                logger.error(f"Error fetching data: {response.status_code}")
-                return pd.DataFrame()
-
-            data = response.json()
-            if "Time Series (Daily)" not in data:
-                logger.error("No time series data in response")
-                return pd.DataFrame()
-
-            df = pd.DataFrame.from_dict(data["Time Series (Daily)"], orient="index")
-            df.index = pd.to_datetime(df.index)
-            df.columns = ["Open", "High", "Low", "Close", "Volume"]
-
-            # Convert columns to numeric
-            for col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            # Rename columns to match format
+            data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
 
             # Filter date range
-            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            data = data[(data.index >= start_date) & (data.index <= end_date)]
 
-            if df.empty:
-                logger.warning(f"No data in specified date range for {symbol}")
-                return pd.DataFrame()
+            if data.empty:
+                raise ValueError(f"No data in specified date range for {symbol}")
 
-            # Handle missing values
-            df = df.fillna(method='ffill').fillna(method='bfill')
-
-            # Add rate limiting
-            time.sleep(12)  # Alpha Vantage free tier allows 5 calls per minute
-
-            return df.round(2)
+            return data.round(2)
 
         except Exception as e:
-            logger.error(f"Error processing data for {symbol}: {str(e)}")
+            logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
             return pd.DataFrame()

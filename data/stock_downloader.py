@@ -55,8 +55,11 @@ class StockDownloader:
     def _download_alpha_vantage(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download and format data from Alpha Vantage."""
         try:
+            logger.info(f"Attempting Alpha Vantage download for {symbol} with API key: {self.av_api_key[:5]}...")
             ts = TimeSeries(key=self.av_api_key, output_format='pandas')
-            data, _ = ts.get_daily(symbol=symbol, outputsize='full')
+            logger.info(f"Executing: ts.get_daily(symbol={symbol}, outputsize='full')")
+            data, meta = ts.get_daily(symbol=symbol, outputsize='full')
+            logger.info(f"Alpha Vantage response metadata: {meta}")
             
             # Filter date range
             data.index = pd.to_datetime(data.index)

@@ -108,14 +108,8 @@ def display_database_explorer():
     
     if st.button("Add Stock Data"):
         try:
-            if source == "Alpha Vantage":
-                data_source = AlphaVantageSource()
-            else:
-                data_source = YFinanceSource()
-                
-            data = data_source.fetch_data(symbol, start_date, end_date)
+            data = data_handler.fetch_data([symbol], start_date, end_date)
             if not data.empty:
-                data_handler._sql_handler.cache_data(symbol, data, start_date, end_date)
                 st.success(f"Successfully added data for {symbol}")
             else:
                 st.error(f"No data found for {symbol}")

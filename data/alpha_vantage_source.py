@@ -10,9 +10,23 @@ logger = logging.getLogger(__name__)
 class AlphaVantageSource(DataSource):
     """Alpha Vantage implementation of data source."""
     def __init__(self):
-        self.api_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
+        # Try getting key from Replit secrets first
+        try:
+            import os
+            self.api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+        except:
+            self.api_key = None
+            
+        # Fallback to Streamlit secrets if not found
+        if not self.api_key:
+            try:
+                self.api_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
+            except:
+                self.api_key = None
+                
         if not self.api_key:
             raise ValueError("ALPHA_VANTAGE_API_KEY not found in secrets")
+            
         self.ts = TimeSeries(key=self.api_key, output_format='pandas')
 
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:

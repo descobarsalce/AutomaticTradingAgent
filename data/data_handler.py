@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class DataHandler:
     def __init__(self):
         self._sql_handler = SQLHandler()
-        self.data_downloader = StockDownloader()
+        self.data_downloader = None
         try:
             logger.info("📈 Alpha Vantage source initialized")
         except Exception as e:
@@ -33,13 +33,14 @@ class DataHandler:
         """Execute a database query through SQLHandler"""
         return self._sql_handler.session.query(*args, **kwargs)
 
+    
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Yahoo Finance") -> pd.DataFrame:
+        
         """Fetch data using source hierarchy: SQL -> Alpha Vantage -> YFinance"""
         if isinstance(symbols, str):
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):
             symbols = [s.strip() for s in symbols if s.strip()]
-
         if not symbols:
             raise ValueError("No symbols provided")
 
@@ -48,23 +49,18 @@ class DataHandler:
             df = None
             
             # Try SQL first if not explicitly requesting other sources
-            if source != "Yahoo Finance" and source != "Alpha Vantage":
-                try:
-                    df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
-                    if df is not None and not df.empty:
-                        logger.info(f"Retrieved {symbol} data from SQL cache")
-                except SQLAlchemyError as e:
-                    logger.warning(f"SQL error for {symbol}: {e}")
+            try:
+                df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
+                if df is not None and not df.empty:
+                    logger.info(f"Retrieved {symbol} data from SQL cache")
+            except SQLAlchemyError as e:
+                logger.warning(f"SQL error for {symbol}: {e}")
 
             # Use StockDownloader if SQL cache misses
             if df is None or df.empty:
                 try:
-                    downloader = StockDownloader(
-                        start_date=start_date.date(),
-                        end_date=end_date.date(),
-                        source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo'
-                    )
-                    df = downloader.download_stock_data(symbol)
+                    downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
+                    df = downloader.download_stock_data(symbol, start_date, end_date)
                     if not df.empty:
                         logger.info(f"Retrieved {symbol} data from {source}")
                         self._sql_handler.cache_data(symbol, df)

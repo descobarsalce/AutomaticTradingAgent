@@ -13,12 +13,14 @@ logging.basicConfig(level=logging.DEBUG)
 streamlit_logger = logging.getLogger("streamlit")
 streamlit_logger.setLevel(logging.DEBUG)
 
-# Configure root logger with detailed debug format
+# Configure root logger with less verbose output
 logging.basicConfig(
-    level=logging.DEBUG,
-    format=
-    '%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s',
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
+
+# Reduce SQLAlchemy logging
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 

@@ -63,7 +63,9 @@ class StockDownloader:
             
             # Filter date range
             data.index = pd.to_datetime(data.index)
-            mask = (data.index >= start_date) & (data.index <= end_date)
+            start_dt = pd.Timestamp(start_date)
+            end_dt = pd.Timestamp(end_date)
+            mask = (data.index >= start_dt) & (data.index <= end_dt)
             df = data[mask]
             
             if df.empty:

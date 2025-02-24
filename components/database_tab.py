@@ -7,6 +7,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
 from data.database import StockData
+from data.data_handler import AlphaVantageSource, YFinanceSource
+from datetime import datetime, timedelta
 import os
 
 def display_database_explorer():
@@ -88,11 +90,43 @@ def display_database_explorer():
     else:
         st.info("No stock data available in the database.")
 
+    # Data Source Selection
+    st.header("Add New Stock Data")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        symbol = st.text_input("Enter Stock Symbol", value="AAPL")
+    
+    with col2:
+        start_date = st.date_input("Start Date", datetime.now() - timedelta(days=365))
+    
+    with col3:
+        end_date = st.date_input("End Date", datetime.now())
+        
+    source = st.radio("Select Data Source", ["Yahoo Finance", "Alpha Vantage"])
+    
+    if st.button("Add Stock Data"):
+        try:
+            if source == "Alpha Vantage":
+                data_source = AlphaVantageSource()
+            else:
+                data_source = YFinanceSource()
+                
+            data = data_source.fetch_data(symbol, start_date, end_date)
+            if not data.empty:
+                data_handler._sql_handler.cache_data(symbol, data, start_date, end_date)
+                st.success(f"Successfully added data for {symbol}")
+            else:
+                st.error(f"No data found for {symbol}")
+        except Exception as e:
+            st.error(f"Error fetching data: {str(e)}")
+
     # Query Interface
     st.header("Query Interface")
 
     # Symbol input
-    selected_symbol = st.text_input("Enter Stock Symbol", value="AAPL")
+    selected_symbol = st.text_input("Query Stock Symbol", value="AAPL")
 
     # Date range selection
     date_col1, date_col2 = st.columns(2)

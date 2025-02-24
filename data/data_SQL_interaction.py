@@ -4,11 +4,15 @@ import logging
 import yfinance as yf
 import pandas as pd
 import time
+import os
 from datetime import datetime
+from alpha_vantage.timeseries import TimeSeries
 from typing import Dict, Optional, List, Protocol, Tuple
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod
+from tenacity import retry, stop_after_attempt, wait_exponential
+from sqlalchemy.exc import IntegrityError
 
 from data.database import StockData
 from utils.db_config import get_db_session
@@ -18,6 +22,35 @@ class DataSource(ABC):
     @abstractmethod
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         pass
+
+class AlphaVantageSource(DataSource):
+    """Alpha Vantage implementation of data source."""
+    def __init__(self):
+        self.api_key = os.environ.get('ALPHA_VANTAGE_API_KEY')
+        if not self.api_key:
+            raise ValueError("ALPHA_VANTAGE_API_KEY not found in environment variables")
+        self.ts = TimeSeries(key=self.api_key, output_format='pandas')
+
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        try:
+            data, _ = self.ts.get_daily(symbol=symbol, outputsize='full')
+            if data.empty:
+                raise ValueError(f"Empty dataset received for {symbol}")
+
+            # Rename columns to match format
+            data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+
+            # Filter date range
+            data = data[(data.index >= start_date) & (data.index <= end_date)]
+
+            if data.empty:
+                raise ValueError(f"No data in specified date range for {symbol}")
+
+            return data.round(2)
+
+        except Exception as e:
+            logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
+            return pd.DataFrame()
 
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""

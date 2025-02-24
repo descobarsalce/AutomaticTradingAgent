@@ -56,7 +56,7 @@ class StockDownloader:
         """Download and format data from Alpha Vantage."""
         try:
             ts = TimeSeries(key=self.av_api_key, output_format='pandas')
-            data, _ = ts.get_daily(symbol=symbol, outputsize='full'
+            data, _ = ts.get_daily(symbol=symbol, outputsize='full')
             
             # Filter date range
             data.index = pd.to_datetime(data.index)

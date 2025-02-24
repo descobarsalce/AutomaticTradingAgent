@@ -19,9 +19,9 @@ class StockDownloader:
         self.source = source.lower()
         
         if self.source == 'alpha_vantage':
-            self.av_api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
+            self.av_api_key = os.getenv('alpha_vantage_v2_test')
             if not self.av_api_key:
-                raise ValueError("Alpha Vantage API key not found in environment variables")
+                raise ValueError("Alpha Vantage v2 API key not found in environment variables")
         
         logger.info(f"Initialized StockDownloader with source: {source}")
 

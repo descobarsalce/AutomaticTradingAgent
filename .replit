@@ -19,7 +19,7 @@ STREAMLIT_SERVER_ENABLE_CORS = "true"
 REPLIT_DISABLE_PACKAGE_LAYER = "1"
 
 [[ports]]
-localPort = 5000
+localPort = 8501
 externalPort = 80
 
 [workflows]

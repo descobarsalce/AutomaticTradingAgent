@@ -59,6 +59,7 @@ class SQLHandler:
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
         """Retrieve cached data with validation."""
         try:
+            self.session.rollback()  # Clear any failed transaction state
             query = self.session.query(StockData).filter(
                 and_(
                     StockData.symbol == symbol,
@@ -91,6 +92,7 @@ class SQLHandler:
     def cache_data(self, symbol: str, data: pd.DataFrame) -> None:
         """Cache data with improved batching and validation."""
         try:
+            self.session.rollback()  # Clear any failed transaction state
             records = []
             for date, row in data.iterrows():
                 stock_data = StockData(

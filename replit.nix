@@ -1,6 +1,7 @@
 
 { pkgs }: {
   deps = [
+    pkgs.unixtools.ping
     pkgs.xsimd
     pkgs.pkg-config
     pkgs.libxcrypt

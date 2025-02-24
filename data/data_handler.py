@@ -99,6 +99,7 @@ class DataHandler:
         except Exception as e:
             logger.warning(f"Failed to initialize Alpha Vantage: {e}")
             self._data_source = None
+        self._fallback_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
 
@@ -130,8 +131,8 @@ class DataHandler:
                         data.columns = [f'{col}_{symbol}' for col in data.columns]
                         result_df = pd.concat([result_df, data], axis=1)
                     else:
-                        # Fallback using SQL handler's YFinance source
-                        data = self._sql_handler._fetch_from_fallback(symbol, start_date, end_date)
+                        # Fallback to YFinance
+                        data = self._fallback_source.fetch_data(symbol, start_date, end_date)
                         if not data.empty:
                             data.columns = [f'{col}_{symbol}' for col in data.columns]
                             result_df = pd.concat([result_df, data], axis=1)

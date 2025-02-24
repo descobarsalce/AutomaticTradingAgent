@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 import time
 import os
 from alpha_vantage.timeseries import TimeSeries
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +28,9 @@ class AlphaVantageSource(DataSource):
             raise ValueError("ALPHA_VANTAGE_API_KEY not found in environment variables")
         self.ts = TimeSeries(key=self.api_key, output_format='pandas')
 
-    async def fetch_intraday_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         try:
-            data, _ = self.ts.get_intraday(symbol=symbol, interval='60min', outputsize='full')
+            data, _ = self.ts.get_daily(symbol=symbol, outputsize='full')
             if data.empty:
                 raise ValueError(f"Empty dataset received for {symbol}")
 
@@ -49,7 +48,6 @@ class AlphaVantageSource(DataSource):
         except Exception as e:
             logger.warning(f"Alpha Vantage error for {symbol}: {str(e)}")
             return pd.DataFrame()
-
 
 class YFinanceSource(DataSource):
     """YFinance implementation of data source with improved reliability."""
@@ -77,11 +75,6 @@ class YFinanceSource(DataSource):
                     return pd.DataFrame()
 
                 # Ensure all required columns exist
-                if not all(col in df.columns for col in required_columns):
-                    missing = [col for col in required_columns if col not in df.columns]
-                    logger.error(f"Missing columns for {symbol}: {missing}")
-                    return pd.DataFrame()
-
                 if not all(col in df.columns for col in required_columns):
                     missing = [col for col in required_columns if col not in df.columns]
                     logger.error(f"Missing columns for {symbol}: {missing}")
@@ -132,7 +125,7 @@ class DataHandler:
         for symbol in symbols:
             try:
                 if self._data_source:
-                    data = await self._data_source.fetch_intraday_data(symbol, start_date, end_date)
+                    data = self._data_source.fetch_data(symbol, start_date, end_date)
                     if data is not None and not data.empty:
                         # Rename columns with symbol suffix
                         data.columns = [f'{col}_{symbol}' for col in data.columns]
@@ -151,71 +144,6 @@ class DataHandler:
             raise ValueError("No data retrieved for any symbols")
 
         return result_df.copy()
-        if isinstance(symbols, str):
-            symbols = [s.strip() for s in symbols.split(',') if s.strip()]
-        elif isinstance(symbols, list):
-            symbols = [s.strip() for s in symbols if s.strip()]
-
-        if not symbols:
-            raise ValueError("No symbols provided")
-
-        # Validate symbols
-        if not all(isinstance(s, str) and s for s in symbols):
-            raise ValueError("Invalid symbol format")
-
-        all_stocks_data = pd.DataFrame()
-        failed_symbols = []
-
-        for symbol in symbols:
-            try:
-                # Check cache first
-                cached_data = self._sql_handler.get_cached_data(symbol, start_date, end_date)
-
-                if cached_data is not None and not cached_data.empty:
-                    stock_data = cached_data
-                    logger.info(f"Using cached data for {symbol}")
-                else:
-                    logger.info(f"Fetching new data for {symbol}")
-                    if self._data_source:
-                        stock_data = await self._data_source.fetch_intraday_data(symbol, start_date, end_date)
-                    if stock_data.empty and self._fallback_source:
-                        logger.warning(f"Falling back to YFinance for {symbol}")
-                        for attempt in range(3):  # Try up to 3 times
-                            stock_data = self._fallback_source.fetch_data(symbol, start_date, end_date)
-                            if not stock_data.empty:
-                                break
-                            sleep(2 * (attempt + 1))  # Exponential backoff
-
-                    if not stock_data.empty:
-                        self._sql_handler.cache_data(symbol, stock_data, start_date, end_date)
-                    else:
-                        logger.warning(f"Empty data received for {symbol} after retries")
-                        failed_symbols.append(symbol)
-                        continue
-
-                # Validate data
-                required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-                if not all(col in stock_data.columns for col in required_cols):
-                    logger.error(f"Missing required columns for {symbol}")
-                    failed_symbols.append(symbol)
-                    continue
-
-                # Suffix columns with symbol
-                stock_data.columns = [f'{col}_{symbol}' for col in stock_data.columns]
-                all_stocks_data = pd.concat([all_stocks_data, stock_data], axis=1)
-                logger.info(f"Successfully processed data for {symbol}")
-
-            except Exception as e:
-                logger.error(f"Error fetching data for {symbol}: {str(e)}")
-                failed_symbols.append(symbol)
-                continue
-
-        if all_stocks_data.empty:
-            raise ValueError(f"No valid data retrieved for any symbols. Failed symbols: {failed_symbols}")
-        elif failed_symbols:
-            logger.warning(f"Data retrieval failed for symbols: {failed_symbols}")
-
-        return all_stocks_data
 
     def __del__(self):
         """Cleanup database session"""

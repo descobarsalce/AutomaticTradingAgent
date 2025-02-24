@@ -14,10 +14,10 @@ from core.portfolio_manager import PortfolioManager
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-async def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling."""
     try:
-        data = await st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
+        data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
         if data.empty:
             raise ValueError(f"No data available for symbols {stock_names} between {start_date} and {end_date}")
 
@@ -53,9 +53,8 @@ class TradingEnv(gym.Env):
                  training_mode: bool = True,
                  observation_days: int = 2,
                  burn_in_days: int = 20):  # New parameter for burn-in period.
-        import asyncio
-        # ...existing code to fetch data and validate parameters...
-        data = asyncio.run(fetch_trading_data(stock_names, start_date, end_date))
+        # Fetch trading data
+        data = fetch_trading_data(stock_names, start_date, end_date)
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)
         self._validate_init_params(data, initial_balance, transaction_cost, max_pct_position_by_asset)

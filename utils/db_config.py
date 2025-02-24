@@ -35,14 +35,18 @@ class DatabaseConfig:
             logger.info("🔑 Configuring database connection parameters...")
             engine_kwargs = {
                 'pool_pre_ping': True,
-                'pool_recycle': 300,
-                'pool_size': 5,  # Reduced pool size
-                'max_overflow': 10,  # Reduced overflow
+                'pool_recycle': 60,  # More frequent connection recycling
+                'pool_size': 5,
+                'max_overflow': 10,
                 'pool_timeout': 30,
-                'echo': True,  # Enable SQL logging
+                'echo': False,  # Reduce logging noise
                 'connect_args': {
                     'connect_timeout': 10,
-                    'application_name': 'trading_app'
+                    'application_name': 'trading_app',
+                    'keepalives': 1,
+                    'keepalives_idle': 30,
+                    'keepalives_interval': 10,
+                    'keepalives_count': 5
                 }
             }
             
@@ -93,11 +97,23 @@ class DatabaseConfig:
         return self._SessionLocal
 
     def get_db(self) -> Generator[Session, None, None]:
-        db = self._SessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
+        retries = 3
+        for attempt in range(retries):
+            try:
+                db = self._SessionLocal()
+                # Test connection
+                db.execute(text("SELECT 1"))
+                yield db
+                break
+            except Exception as e:
+                logger.warning(f"Database connection attempt {attempt + 1} failed: {str(e)}")
+                if db:
+                    db.close()
+                if attempt == retries - 1:
+                    raise
+            finally:
+                if 'db' in locals():
+                    db.close()
 
 # Global instance
 db_config = DatabaseConfig()

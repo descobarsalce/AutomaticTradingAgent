@@ -112,7 +112,7 @@ class DataHandler:
         return self._sql_handler.session.query(*args, **kwargs)
 
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        """Fetch data with simple processing and caching."""
+        """Fetch data using SQLHandler's data source hierarchy."""
         if isinstance(symbols, str):
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):
@@ -124,18 +124,10 @@ class DataHandler:
         result_df = pd.DataFrame()
         for symbol in symbols:
             try:
-                if self._data_source:
-                    data = self._data_source.fetch_data(symbol, start_date, end_date)
-                    if data is not None and not data.empty:
-                        # Rename columns with symbol suffix
-                        data.columns = [f'{col}_{symbol}' for col in data.columns]
-                        result_df = pd.concat([result_df, data], axis=1)
-                    else:
-                        # Fallback to YFinance
-                        data = self._fallback_source.fetch_data(symbol, start_date, end_date)
-                        if not data.empty:
-                            data.columns = [f'{col}_{symbol}' for col in data.columns]
-                            result_df = pd.concat([result_df, data], axis=1)
+                data = self._sql_handler.get_data(symbol, start_date, end_date)
+                if not data.empty:
+                    data.columns = [f'{col}_{symbol}' for col in data.columns]
+                    result_df = pd.concat([result_df, data], axis=1)
             except Exception as e:
                 logger.error(f"Error fetching {symbol}: {str(e)}")
                 continue

@@ -1,5 +1,5 @@
 
-"""SQL interaction handler with improved caching and validation."""
+"""SQL interaction handler with data source management and caching."""
 
 import logging
 from datetime import datetime
@@ -13,11 +13,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from data.database import StockData
 from utils.db_config import get_db_session
+from data.alpha_vantage_source import AlphaVantageSource
+from data.data_handler import YFinanceSource
 
 logger = logging.getLogger(__name__)
 
 class SQLHandler:
-    """Handles SQL database operations with improved caching."""
+    """Handles SQL database operations with improved caching and fallback sources."""
     
     BATCH_SIZE = 1000
     MAX_RETRIES = 3
@@ -25,8 +27,46 @@ class SQLHandler:
     def __init__(self):
         self._session: Optional[Session] = None
         self._cache_status: Dict[Tuple[str, datetime, datetime], bool] = {}
-        logger.info("📊 SQLHandler instance created")
-    
+        try:
+            self._alpha_vantage = AlphaVantageSource()
+            logger.info("📈 Alpha Vantage source initialized")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Alpha Vantage: {e}")
+            self._alpha_vantage = None
+        self._yfinance = YFinanceSource()
+        logger.info("📊 SQLHandler instance created with fallback sources")
+
+    def get_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """Main method to fetch data with fallback hierarchy."""
+        # Try SQL first
+        df = self.get_cached_data(symbol, start_date, end_date)
+        if df is not None and not df.empty:
+            logger.info(f"Retrieved data from SQL cache for {symbol}")
+            return df
+
+        # Try Alpha Vantage
+        if self._alpha_vantage:
+            try:
+                df = self._alpha_vantage.fetch_data(symbol, start_date, end_date)
+                if not df.empty:
+                    self.cache_data(symbol, df, start_date, end_date)
+                    logger.info(f"Retrieved and cached Alpha Vantage data for {symbol}")
+                    return df
+            except Exception as e:
+                logger.warning(f"Alpha Vantage fetch failed for {symbol}: {e}")
+
+        # Finally try YFinance
+        try:
+            df = self._yfinance.fetch_data(symbol, start_date, end_date)
+            if not df.empty:
+                self.cache_data(symbol, df, start_date, end_date)
+                logger.info(f"Retrieved and cached YFinance data for {symbol}")
+                return df
+        except Exception as e:
+            logger.error(f"YFinance fetch failed for {symbol}: {e}")
+
+        return pd.DataFrame()
+
     @property
     def session(self) -> Session:
         """Lazily load a database session."""

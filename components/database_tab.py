@@ -98,7 +98,7 @@ def display_database_explorer():
         symbol = st.text_input("Enter Stock Symbol", value="AAPL")
     
     with col2:
-        start_date = st.date_input("Start Date", datetime(2022, 2, 1))
+        start_date = st.date_input("Start Date", datetime.now() - timedelta(days=365))
     
     with col3:
         end_date = st.date_input("End Date", datetime.now())

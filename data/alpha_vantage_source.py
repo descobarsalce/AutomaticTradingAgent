@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 
 class AlphaVantageSource:
     def __init__(self):
-        self.api_key = os.environ.get('ALPHA_VANTAGE_API_KEY')
+        import streamlit as st
+        self.api_key = st.secrets["ALPHA_VANTAGE_API_KEY"]
         if not self.api_key:
-            raise ValueError("ALPHA_VANTAGE_API_KEY environment variable not set")
+            raise ValueError("ALPHA_VANTAGE_API_KEY not found in secrets")
         self.base_url = "https://www.alphavantage.co/query"
 
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:

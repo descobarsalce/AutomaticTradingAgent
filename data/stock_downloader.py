@@ -14,11 +14,9 @@ logger = logging.getLogger(__name__)
 class StockDownloader:
     """Unified stock data downloader supporting multiple sources."""
     
-    def __init__(self, start_date: date, end_date: date, source: str = 'yahoo'):
+    def __init__(self, source: str = 'yahoo'):
         """Initialize downloader with date range and source."""
         self.source = source.lower()
-        self.start_date = start_date
-        self.end_date = end_date
         
         if self.source == 'alpha_vantage':
             self.av_api_key = os.getenv('ALPHA_VANTAGE_API_KEY')
@@ -27,26 +25,26 @@ class StockDownloader:
         
         logger.info(f"Initialized StockDownloader with source: {source}")
 
-    def download_stock_data(self, symbol: str) -> pd.DataFrame:
+    def download_stock_data(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download stock data from specified source with unified format."""
         try:
             if self.source == 'yahoo':
-                return self._download_yahoo(symbol)
+                return self._download_yahoo(symbol, start_date, end_date)
             elif self.source == 'alpha_vantage':
-                return self._download_alpha_vantage(symbol)
+                return self._download_alpha_vantage(symbol, start_date, end_date)
             else:
                 raise ValueError(f"Unsupported data source: {self.source}")
         except Exception as e:
             logger.error(f"Failed to download data for {symbol}: {str(e)}")
             return pd.DataFrame()
 
-    def _download_yahoo(self, symbol: str) -> pd.DataFrame:
+    def _download_yahoo(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download and format data from Yahoo Finance."""
         try:
             ticker = yf.Ticker(symbol)
             df = ticker.history(
-                start=self.start_date,
-                end=self.end_date,
+                start=start_date,
+                end=end_date,
                 interval="1d"
             )
             return self._process_data(df) if not df.empty else pd.DataFrame()
@@ -54,7 +52,7 @@ class StockDownloader:
             logger.error(f"Yahoo Finance error for {symbol}: {str(e)}")
             return pd.DataFrame()
 
-    def _download_alpha_vantage(self, symbol: str) -> pd.DataFrame:
+    def _download_alpha_vantage(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download and format data from Alpha Vantage."""
         try:
             ts = TimeSeries(key=self.av_api_key, output_format='pandas')
@@ -62,7 +60,7 @@ class StockDownloader:
             
             # Filter date range
             data.index = pd.to_datetime(data.index)
-            mask = (data.index >= self.start_date) & (data.index <= self.end_date)
+            mask = (data.index >= start_date) & (data.index <= end_date)
             df = data[mask]
             
             if df.empty:
@@ -86,7 +84,7 @@ class StockDownloader:
         """Process and validate downloaded data."""
         try:
             # Remove duplicates
-            df = df[~df.index.duplicated(keep='first')]
+            df = pd.DataFrame(df[~df.index.duplicated(keep='first')])
             
             # Ensure required columns exist
             required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']

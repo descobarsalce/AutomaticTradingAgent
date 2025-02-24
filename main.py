@@ -168,14 +168,14 @@ def main() -> None:
         #     st.stop()
         #     return
 
-        logger.info("Setting up main UI")
+        # logger.info("Setting up main UI")
         st.title("Trading Analysis and Agent Platform")
 
-        logger.info("Creating application tabs")
+        # logger.info("Creating application tabs")
         tab_training, tab_analysis, tab_database = st.tabs(
             ["Model Training", "Technical Analysis", "Database Explorer"])
 
-        logger.info("Initializing Technical Analysis tab")
+        # logger.info("Initializing Technical Analysis tab")
         with tab_analysis:
             try:
                 display_tech_analysis_tab()
@@ -184,7 +184,7 @@ def main() -> None:
                 logger.error(f"Error in Technical Analysis tab: {str(e)}")
                 st.error(f"Error loading Technical Analysis tab: {str(e)}")
 
-        logger.info("Initializing Model Training tab")
+        # logger.info("Initializing Model Training tab")
         with tab_training:
             try:
                 display_training_tab()
@@ -193,7 +193,7 @@ def main() -> None:
                 logger.error(f"Error in Model Training tab: {str(e)}")
                 st.error(f"Error loading Model Training tab: {str(e)}")
 
-        logger.info("Initializing Database Explorer tab")
+        # logger.info("Initializing Database Explorer tab")
         with tab_database:
             try:
                 display_database_explorer()

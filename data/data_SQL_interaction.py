@@ -19,7 +19,7 @@ from utils.db_config import get_db_session
 
 from data.base_sources import DataSource
 from data.data_handler import AlphaVantageSource, YFinanceSource
-
+from data.alpha_vantage_source import AlphaVantageSource
 
 logger = logging.getLogger(__name__)
 
@@ -221,4 +221,3 @@ class SQLHandler:
         """Ensure session cleanup on deletion."""
         self._cleanup_session()
 
-from data.alpha_vantage_source import AlphaVantageSource

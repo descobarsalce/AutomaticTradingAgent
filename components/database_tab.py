@@ -107,7 +107,7 @@ def display_database_explorer():
     
     if st.button("Add Stock Data"):
         try:
-            data = data_handler.fetch_data([symbol], start_date, end_date, source)
+            data = data_handler.fetch_data([symbol], start_date, end_date, source, use_SQL=False)
             if not data.empty:
                 st.success(f"Successfully added data for {symbol}")
             else:

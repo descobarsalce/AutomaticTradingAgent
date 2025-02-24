@@ -26,7 +26,7 @@ class DataHandler:
         return self._sql_handler.session.query(*args, **kwargs)
 
     
-    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Alpha Vantage") -> pd.DataFrame:
+    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Alpha Vantage", use_SQL=True) -> pd.DataFrame:
         
         """Fetch data using source hierarchy: SQL -> Alpha Vantage -> YFinance"""
         if isinstance(symbols, str):
@@ -41,15 +41,16 @@ class DataHandler:
             df = None
             
             # Try SQL first if not explicitly requesting other sources
-            try:
-                df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
-                if df is not None and not df.empty:
-                    logger.info(f"Retrieved {symbol} data from SQL cache")
-            except SQLAlchemyError as e:
-                logger.warning(f"SQL error for {symbol}: {e}")
+            if use_SQL:
+                try:
+                    df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
+                    if df is not None and not df.empty:
+                        logger.info(f"Retrieved {symbol} data from SQL cache")
+                except SQLAlchemyError as e:
+                    logger.warning(f"SQL error for {symbol}: {e}")
 
-            # Use StockDownloader if SQL cache misses
-            if df is None or df.empty:
+            else:
+                # Use StockDownloader if SQL cache misses
                 try:
                     downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
                     df = downloader.download_stock_data(symbol, start_date, end_date)
@@ -58,12 +59,12 @@ class DataHandler:
                         self._sql_handler.cache_data(symbol, df)
                 except Exception as e:
                     logger.error(f"Download error for {symbol}: {str(e)}")
-
-            if df is not None and not df.empty:
-                df.columns = [f'{col}_{symbol}' for col in df.columns]
-                result_df = pd.concat([result_df, df], axis=1)
-            else:
-                logger.error(f"Failed to fetch data for {symbol} from all sources")
+    
+                if df is not None and not df.empty:
+                    df.columns = [f'{col}_{symbol}' for col in df.columns]
+                    result_df = pd.concat([result_df, df], axis=1)
+                else:
+                    logger.error(f"Failed to fetch data for {symbol} from all sources")
 
         if result_df.empty:
             raise ValueError("No data retrieved for any symbols")

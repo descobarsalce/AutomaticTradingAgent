@@ -6,8 +6,6 @@ import logging
 from typing import Dict, Optional, List, Protocol
 from sqlalchemy.exc import SQLAlchemyError
 
-from data.alpha_vantage_source import AlphaVantageSource
-from data.yfinance_source import YFinanceSource
 from data.data_SQL_interaction import SQLHandler
 from data.stock_downloader import StockDownloader
 
@@ -16,12 +14,6 @@ logger = logging.getLogger(__name__)
 class DataHandler:
     def __init__(self):
         self._sql_handler = SQLHandler()
-        self.data_downloader = None
-        try:
-            logger.info("📈 Alpha Vantage source initialized")
-        except Exception as e:
-            logger.warning(f"Failed to initialize Alpha Vantage: {e}")
-        
         self._cache = {}
         logger.info("📈 DataHandler instance created")
 

@@ -158,8 +158,6 @@ def main() -> None:
         # Add timeout protection
         if (datetime.now() - start_time) > timedelta(seconds=60):
             st.error("Application startup timed out. Please refresh the page.")
-            return
-            return
 
         init_session_state()
 
@@ -180,7 +178,7 @@ def main() -> None:
         logger.info("Initializing Technical Analysis tab")
         with tab_analysis:
             try:
-                # display_tech_analysis_tab()
+                display_tech_analysis_tab()
                 logger.info("Technical Analysis tab loaded successfully")
             except Exception as e:
                 logger.error(f"Error in Technical Analysis tab: {str(e)}")
@@ -189,7 +187,7 @@ def main() -> None:
         logger.info("Initializing Model Training tab")
         with tab_training:
             try:
-                # display_training_tab()
+                display_training_tab()
                 logger.info("Model Training tab loaded successfully")
             except Exception as e:
                 logger.error(f"Error in Model Training tab: {str(e)}")

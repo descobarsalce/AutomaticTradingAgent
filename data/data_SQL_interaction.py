@@ -17,7 +17,8 @@ from sqlalchemy.exc import IntegrityError
 from data.database import StockData
 from utils.db_config import get_db_session
 
-from data.data_handler import DataSource, AlphaVantageSource, YFinanceSource
+from data.base_sources import DataSource
+from data.data_handler import AlphaVantageSource, YFinanceSource
 
 
 logger = logging.getLogger(__name__)

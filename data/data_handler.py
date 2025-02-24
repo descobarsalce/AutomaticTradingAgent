@@ -1,24 +1,19 @@
+
 """Data handler with data source abstraction and improved caching."""
 
 import yfinance as yf
 import pandas as pd
 from time import sleep
 from datetime import datetime, timedelta, timezone
-from data.data_SQL_interaction import SQLHandler
 import logging
 from typing import Dict, Optional, List, Protocol
-from abc import ABC, abstractmethod
 import time
 import os
 from alpha_vantage.timeseries import TimeSeries
 
-logger = logging.getLogger(__name__)
+from data.base_sources import DataSource
 
-class DataSource(ABC):
-    """Abstract base class for data sources."""
-    @abstractmethod
-    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-        pass
+logger = logging.getLogger(__name__)
 
 class AlphaVantageSource(DataSource):
     """Alpha Vantage implementation of data source."""
@@ -88,10 +83,9 @@ class YFinanceSource(DataSource):
                     continue
                 return pd.DataFrame()
 
-
-
 class DataHandler:
     def __init__(self):
+        from data.data_SQL_interaction import SQLHandler
         self._sql_handler = SQLHandler()
         try:
             self._data_source = AlphaVantageSource()

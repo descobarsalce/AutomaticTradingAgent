@@ -5,7 +5,7 @@ import yfinance as yf
 import pandas as pd
 import time
 from datetime import datetime
-from typing import Dict, Optional, List, Protocol
+from typing import Dict, Optional, List, Protocol, Tuple
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 from abc import ABC, abstractmethod

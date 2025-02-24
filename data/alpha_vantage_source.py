@@ -12,13 +12,13 @@ class AlphaVantageSource(DataSource):
     def __init__(self):
         try:
             import os
-            self.api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
+            self.api_key = os.getenv("alpha_vantage_v2_test")
             if not self.api_key:
-                raise ValueError("ALPHA_VANTAGE_API_KEY not found in Replit Secrets")
+                raise ValueError("alpha_vantage_v2_test not found in Replit Secrets")
             self.ts = TimeSeries(key=self.api_key, output_format='pandas')
         except Exception as e:
             logger.error(f"Failed to initialize Alpha Vantage: {e}")
-            raise ValueError("Please add ALPHA_VANTAGE_API_KEY to Replit Secrets (Tools > Secrets)")
+            raise ValueError("Please add alpha_vantage_v2_test to Replit Secrets (Tools > Secrets)")
 
     def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
         try:

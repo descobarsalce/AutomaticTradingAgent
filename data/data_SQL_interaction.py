@@ -25,7 +25,20 @@ class SQLHandler:
     def __init__(self):
         self._session: Optional[Session] = None
         self._cache_status: Dict[Tuple[str, datetime, datetime], bool] = {}
+        self._fallback_source = YFinanceSource()
         logger.info("📊 SQLHandler instance created")
+
+    def get_fallback_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """Get data from fallback source if primary source fails."""
+        try:
+            data = self._fallback_source.fetch_data(symbol, start_date, end_date)
+            if not data.empty:
+                # Cache the fallback data
+                self.cache_data(symbol, data, start_date, end_date)
+            return data
+        except Exception as e:
+            logger.error(f"Fallback source error for {symbol}: {str(e)}")
+            return pd.DataFrame()
     
     @property
     def session(self) -> Session:

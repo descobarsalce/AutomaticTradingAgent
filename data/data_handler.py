@@ -99,7 +99,6 @@ class DataHandler:
         except Exception as e:
             logger.warning(f"Failed to initialize Alpha Vantage: {e}")
             self._data_source = None
-        self._fallback_source = YFinanceSource()
         self._cache = {}
         logger.info("📈 DataHandler instance created")
 

@@ -26,7 +26,7 @@ class DataHandler:
         return self._sql_handler.session.query(*args, **kwargs)
 
     
-    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Yahoo Finance") -> pd.DataFrame:
+    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Alpha Vantage") -> pd.DataFrame:
         
         """Fetch data using source hierarchy: SQL -> Alpha Vantage -> YFinance"""
         if isinstance(symbols, str):

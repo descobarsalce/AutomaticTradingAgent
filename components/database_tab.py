@@ -7,7 +7,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
 from data.database import StockData
-from data.data_handler import AlphaVantageSource, YFinanceSource
 from datetime import datetime, timedelta
 import os
 

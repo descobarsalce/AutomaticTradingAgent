@@ -1,29 +1,72 @@
-
 """SQL interaction handler with data source management and caching."""
 
 import logging
-from datetime import datetime
-from typing import Optional, Dict, Tuple
-
+import yfinance as yf
 import pandas as pd
+import time
+from datetime import datetime
+from typing import Dict, Optional, List, Protocol
 from sqlalchemy import and_, func
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
-from tenacity import retry, stop_after_attempt, wait_exponential
+from abc import ABC, abstractmethod
 
 from data.database import StockData
 from utils.db_config import get_db_session
-from data.alpha_vantage_source import AlphaVantageSource
-from data.data_handler import YFinanceSource
+
+class DataSource(ABC):
+    """Abstract base class for data sources."""
+    @abstractmethod
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        pass
+
+class YFinanceSource(DataSource):
+    """YFinance implementation of data source with improved reliability."""
+    def fetch_data(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        max_retries = 1
+        base_delay = 1
+        required_columns = ['Close', 'Open', 'High', 'Low', 'Volume']
+
+        for attempt in range(max_retries):
+            try:
+                df = yf.download(
+                    symbol,
+                    start=start_date,
+                    end=end_date,
+                    progress=False,
+                    show_errors=False
+                )
+
+                if df.empty:
+                    logger.warning(f"Empty dataset for {symbol} (attempt {attempt + 1}/{max_retries})")
+                    if attempt < max_retries - 1:
+                        time.sleep(base_delay * (attempt + 1))
+                        continue
+                    return pd.DataFrame()
+
+                if not all(col in df.columns for col in required_columns):
+                    missing = [col for col in required_columns if col not in df.columns]
+                    logger.error(f"Missing columns for {symbol}: {missing}")
+                    return pd.DataFrame()
+
+                logger.info(f"Successfully fetched {len(df)} rows for {symbol}")
+                return df
+
+            except Exception as e:
+                logger.warning(f"YFinance error for {symbol} (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(base_delay * (attempt + 1))
+                    continue
+                return pd.DataFrame()
+
 
 logger = logging.getLogger(__name__)
 
 class SQLHandler:
     """Handles SQL database operations with improved caching and fallback sources."""
-    
+
     BATCH_SIZE = 1000
     MAX_RETRIES = 3
-    
+
     def __init__(self):
         self._session: Optional[Session] = None
         self._cache_status: Dict[Tuple[str, datetime, datetime], bool] = {}
@@ -80,10 +123,10 @@ class SQLHandler:
     def is_data_cached(self, symbol: str, start_date: datetime, end_date: datetime) -> bool:
         """Check if data is fully cached for the given symbol and date range."""
         cache_key = self._get_cache_key(symbol, start_date, end_date)
-        
+
         if cache_key in self._cache_status:
             return self._cache_status[cache_key]
-        
+
         count = self.session.query(func.count(StockData.id)).filter(
             and_(
                 StockData.symbol == symbol,
@@ -91,11 +134,11 @@ class SQLHandler:
                 StockData.date <= end_date
             )
         ).scalar()
-        
+
         expected_days = len(pd.date_range(start=start_date, end=end_date, freq='B'))
         is_cached = (count == expected_days)
         self._cache_status[cache_key] = is_cached
-        
+
         return is_cached
 
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
@@ -103,7 +146,7 @@ class SQLHandler:
         try:
             if self.session.in_transaction():
                 self.session.rollback()
-            
+
             query = self.session.query(StockData).filter(
                 and_(
                     StockData.symbol == symbol,
@@ -111,7 +154,7 @@ class SQLHandler:
                     StockData.date <= end_date
                 )
             ).order_by(StockData.date)
-            
+
             records = query.all()
             if not records:
                 logger.info(f"No cached data found for {symbol}")
@@ -184,7 +227,7 @@ class SQLHandler:
             except IntegrityError:
                 self.session.rollback()
                 self._update_existing_record(record)
-            
+
         self.session.commit()
 
     def _update_existing_record(self, record: Dict) -> None:
@@ -193,7 +236,7 @@ class SQLHandler:
             StockData.symbol == record['symbol'],
             StockData.date == record['date']
         ).first()
-        
+
         if existing:
             existing.open = record['open']
             existing.high = record['high']
@@ -215,3 +258,5 @@ class SQLHandler:
     def __del__(self):
         """Ensure session cleanup on deletion."""
         self._cleanup_session()
+
+from data.alpha_vantage_source import AlphaVantageSource

@@ -208,17 +208,24 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                     error_details = {
                         'stock': stock,
                         'error_type': type(e).__name__,
-                        'error_msg': str(e),
-                        'data_shape': data.shape if isinstance(data, pd.DataFrame) else 'No DataFrame',
-                        'data_columns': data.columns.tolist() if isinstance(data, pd.DataFrame) else 'No columns',
-                        'date_range': f"{data.index.min()} to {data.index.max()}" if isinstance(data, pd.DataFrame) and not data.empty else 'No dates'
+                        'error_msg': str(e)
                     }
-                    logger.error(f"Error processing {stock}:\n"
-                               f"Error Type: {error_details['error_type']}\n"
-                               f"Error Message: {error_details['error_msg']}\n"
-                               f"Data Shape: {error_details['data_shape']}\n"
-                               f"Data Columns: {error_details['data_columns']}\n"
-                               f"Date Range: {error_details['date_range']}")
+                    
+                    # Only add data-related details if data exists and is valid
+                    try:
+                        if 'data' in locals() and isinstance(data, pd.DataFrame):
+                            error_details.update({
+                                'data_shape': data.shape,
+                                'data_columns': data.columns.tolist(),
+                                'date_range': f"{data.index.min()} to {data.index.max()}" if not data.empty else 'Empty DataFrame'
+                            })
+                    except Exception as data_error:
+                        error_details.update({
+                            'data_error': str(data_error)
+                        })
+                    
+                    logger.error(f"Error processing {stock}:" + 
+                               ''.join(f"\n{k}: {v}" for k, v in error_details.items()))
                     st.error(f"Error processing {stock}: {error_details['error_msg']}")
                     continue
 

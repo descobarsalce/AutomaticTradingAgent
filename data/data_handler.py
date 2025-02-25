@@ -27,6 +27,7 @@ class DataHandler:
 
     
     def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Alpha Vantage", use_SQL=True) -> pd.DataFrame:
+        """Fetch data with improved error handling and validation"""
         
         """Fetch data using source hierarchy: SQL -> Alpha Vantage -> YFinance"""
         if isinstance(symbols, str):

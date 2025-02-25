@@ -137,7 +137,11 @@ class SQLHandler:
             local_session.close()
 
             if not records:
-                logger.info(f"No cached data found for {symbol} in [{start_date}, {end_date}]")
+                logger.warning(f"No cached data found for {symbol} in [{start_date}, {end_date}]")
+                return None
+
+            if len(records) < 2:  # Minimum data requirement
+                logger.warning(f"Insufficient data points for {symbol}")
                 return None
 
             df = pd.DataFrame(

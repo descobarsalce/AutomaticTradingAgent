@@ -5,14 +5,14 @@ from datetime import datetime
 import logging
 from utils.common import validate_numeric, round_price, MAX_POSITION_SIZE, MIN_POSITION_SIZE
 from metrics.metrics_calculator import MetricsCalculator
+import random
 
 logger = logging.getLogger(__name__)
 
 high_verbosity = False
 
 class PortfolioManager:
-    def __init__(self, initial_balance: float, transaction_cost: float = 0.0, 
-                 price_fetcher: Optional[callable] = None):  # <-- new parameter
+    def __init__(self, initial_balance: float, transaction_cost: float = 0.0):  # <-- new parameter
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
         self.transaction_cost = transaction_cost
@@ -34,8 +34,9 @@ class PortfolioManager:
         self.max_drawdown = 0.0
         self.peak_value = initial_balance
 
-        self.get_price_fn = price_fetcher  # Store the price-fetching callable
-
+    def update_position_values(self, price: float, symbol: str):
+        self.position_values[symbol] = self.positions[symbol] * price
+        
     def _handle_buy(self, symbol: str, quantity: float, price: float, total_cost: float) -> bool:
         """Handle position and balance updates for a BUY."""
         try:
@@ -46,7 +47,7 @@ class PortfolioManager:
             new_cost = price * quantity
             self.cost_bases[symbol] = (old_cost + new_cost) / new_position if new_position > 0 else 0
             self.positions[symbol] = new_position  # Changed: use exact position value
-            self.position_values[symbol] = self.positions[symbol] * price
+            self.update_position_values(price, symbol)
             # Additional check: stop-loss trigger placeholder and position limits
             # e.g., enforce maximum position value per asset
             # if new_position > MAX_POSITION_SIZE:
@@ -66,7 +67,7 @@ class PortfolioManager:
             realized_pnl = (price - self.cost_bases[symbol]) * quantity
             self.realized_pnl[symbol] += realized_pnl
             self.positions[symbol] = new_position  # Changed: use exact position value
-            self.position_values[symbol] = self.positions[symbol] * price
+            self.update_position_values(price, symbol)
             # Additional: trigger stop-loss exit if loss exceeds a threshold
             # if (price - self.cost_bases[symbol]) / self.cost_bases[symbol] < -STOP_LOSS_THRESHOLD:
             #     logger.info(f"Stop-loss triggered for {symbol}")
@@ -92,8 +93,6 @@ class PortfolioManager:
     def execute_trade(self, symbol: str, quantity: float, price: float, timestamp: datetime) -> bool:
         quantity = float(quantity)
         price = float(price)
-        if self.get_price_fn is not None:
-            price = float(self.get_price_fn(symbol))
         trade_type = 'BUY' if quantity > 0 else 'SELL'
         total_cost = (quantity * price) + self.transaction_cost
 
@@ -150,7 +149,7 @@ class PortfolioManager:
 
         # Log the trade in a centralized table format (unchanged).
         self._log_trade_entry(trade_entry)
-        self._update_metrics(price, symbol)
+
         return executed
 
     def _update_metrics(self, current_price: float, symbol: str) -> None:
@@ -241,27 +240,34 @@ class PortfolioManager:
         # First process all sell actions
         for symbol, action in zip(stock_names, actions):
             if action < 0:  # Only process sells first
-                price = get_current_price(symbol)
+                price = get_current_price(symbol, open_price=True)
                 qty = self._calculate_trade_quantity(action, symbol, price, max_pct_position_by_asset)
                 # if not all_zeros:
                     # logger.info(f"Intended SELL action for {symbol}: action={action}, price={price}, calculated quantity={qty}")
                 if qty > 0:
                     if self.execute_trade(symbol, -qty, price, timestamp):  # Note the negative qty for sells
                         trades_executed[symbol] = True
+                        
+                        self._update_metrics(price, symbol)
                     else:
                         if high_verbosity:
                             logger.error(f"Sell trade for {symbol} failed in execution.")
 
+        # Zip the lists into pairs.
+        pairs = list(zip(stock_names, actions))
+        random.shuffle(pairs)
+        
         # Then process all buy actions
-        for symbol, action in zip(stock_names, actions):
+        for symbol, action in pairs:
             if action > 0:  # Only process buys after sells
-                price = get_current_price(symbol)
+                price = get_current_price(symbol, open_price=True)
                 qty = self._calculate_trade_quantity(action, symbol, price, max_pct_position_by_asset)
                 # if not all_zeros:
                 #     logger.info(f"Intended BUY action for {symbol}: action={action}, price={price}, calculated quantity={qty}")
                 if qty > 0:
                     if self.execute_trade(symbol, qty, price, timestamp):
                         trades_executed[symbol] = True
+                        self._update_metrics(price, symbol)
                     else:
                         if high_verbosity:
                             logger.error(f"Buy trade for {symbol} failed in execution.")

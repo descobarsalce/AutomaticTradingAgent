@@ -53,7 +53,7 @@ def fetch_trading_data(stock_names: List[str], start_date: datetime,
 
     # Remove first row since it won't have t-1 data
     data = data.iloc[1:]
-    
+
     return data
     # except Exception as e:
     #     logger.error(f"Error fetching trading data: {str(e)}")
@@ -99,8 +99,7 @@ class TradingEnv(gym.Env):
         # Initialize portfolio manager before constructing observation space.
         self.portfolio_manager = PortfolioManager(
             initial_balance,
-            transaction_cost,
-            price_fetcher=self._get_current_price)
+            transaction_cost)
 
         # initialize state & observation space.
         self.observation_days = observation_days  # Store the number of days to keep in the observation
@@ -135,10 +134,25 @@ class TradingEnv(gym.Env):
         ]  # New observation history
 
     # --- Auxiliary functions to reduce repetition ---
-    def _get_current_price(self, symbol: str) -> float:
+    def _get_current_price(self, symbol: str, open_price=True) -> float:
         """Retrieve the current closing price for a symbol using _full_data."""
-        return float(
-            self._full_data.iloc[self.current_step][f'Open_{symbol}'])
+        if open_price:
+            return float(self._full_data.iloc[self.current_step][f'Open_{symbol}'])
+        else:
+            return float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+            
+    # def _get_yesterday_high(self, symbol: str) -> float:
+    #     """Retrieve the current high price for a symbol using _full_data."""
+    #     return float(
+    #         self._full_data.iloc[self.current_step][f'High_{symbol}'])
+    # def _get_yesterday_low(self, symbol: str) -> float:
+    #     """Retrieve the current low price for a symbol using _full_data."""
+    #     return float(
+    #         self._full_data.iloc[self.current_step][f'Low_{symbol}'])
+    # def _get_yesterday_volume(self, symbol: str) -> float:
+    #     """Retrieve the current volume for a symbol using _full_data."""
+    #     return float(
+    #         self._full_data.iloc[self.current_step][f'Volume_{symbol}'])
 
     def _get_current_data(self) -> pd.Series:
         """Retrieve the current data row."""
@@ -150,10 +164,7 @@ class TradingEnv(gym.Env):
         # Define a fixed observation space shape based on observation_days.
         n_features = len(self.stock_names) * 2 + 1
         obs_dim = self.observation_days * n_features
-        return spaces.Box(low=-np.inf,
-                          high=np.inf,
-                          shape=(obs_dim, ),
-                          dtype=np.float32)
+        return spaces.Box(low=-1, high=1, shape=(obs_dim, ), dtype=np.float32)
 
     def _construct_observation(self) -> np.ndarray:
         """Collect current/past prices, positions, and balance. This is the information available             to the agent in a given day."""
@@ -204,9 +215,12 @@ class TradingEnv(gym.Env):
 
         return combined_obs
 
-    def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
+    def use_rewards_calculator(self, trades_executed: Dict[str, bool]) -> float:
         """Compute reward using the specialized RewardsCalculator."""
         try:
+            for symbol in self.stock_names:
+                close_price = self._get_current_price(symbol, open_price=False)
+                self.portfolio_manager._update_metrics(close_price, symbol)
             history = self.portfolio_manager.portfolio_value_history
             reward = self.rewards_calculator.compute_reward(
                 portfolio_history=history,
@@ -223,13 +237,13 @@ class TradingEnv(gym.Env):
     ) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         try:
             timestamp = self.data.index[self.current_step]
+            actions_arr = np.array(action, dtype=np.float32)
+
             trades_executed = self.portfolio_manager.execute_all_trades(
-                self.stock_names, np.array(action, dtype=np.float32),
-                self._get_current_price, self.max_pct_position_by_asset,
-                timestamp)
+                self.stock_names, actions_arr, self._get_current_price,
+                self.max_pct_position_by_asset, timestamp)
 
             # Merge rejected BUY trade info into one log message.
-            actions_arr = np.array(action, dtype=np.float32)
             rejected = [
                 f"{symbol} (Action: {actions_arr[idx]}, Price: {self._get_current_price(symbol)})"
                 for idx, symbol in enumerate(self.stock_names)
@@ -241,7 +255,7 @@ class TradingEnv(gym.Env):
                 logger.info(f"Rejected BUY trades for: {', '.join(rejected)}")
 
             # Calculate reward and update environment state.
-            reward = self._compute_reward(trades_executed)
+            reward = self.use_rewards_calculator(trades_executed)
             self.current_step += 1
             obs = self._construct_observation()
             done = self.current_step >= len(self.data) - 1

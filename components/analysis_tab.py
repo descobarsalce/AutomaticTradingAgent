@@ -205,8 +205,21 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                             logger.error(f"Error generating moving averages chart for {stock}: {str(mae)}")
 
                 except Exception as e:
-                    logger.error(f"Error processing {stock}: {str(e)}")
-                    st.error(f"Error processing {stock}")
+                    error_details = {
+                        'stock': stock,
+                        'error_type': type(e).__name__,
+                        'error_msg': str(e),
+                        'data_shape': data.shape if isinstance(data, pd.DataFrame) else 'No DataFrame',
+                        'data_columns': data.columns.tolist() if isinstance(data, pd.DataFrame) else 'No columns',
+                        'date_range': f"{data.index.min()} to {data.index.max()}" if isinstance(data, pd.DataFrame) and not data.empty else 'No dates'
+                    }
+                    logger.error(f"Error processing {stock}:\n"
+                               f"Error Type: {error_details['error_type']}\n"
+                               f"Error Message: {error_details['error_msg']}\n"
+                               f"Data Shape: {error_details['data_shape']}\n"
+                               f"Data Columns: {error_details['data_columns']}\n"
+                               f"Date Range: {error_details['date_range']}")
+                    st.error(f"Error processing {stock}: {error_details['error_msg']}")
                     continue
 
             # Display charts

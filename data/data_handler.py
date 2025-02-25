@@ -26,50 +26,80 @@ class DataHandler:
         return self._sql_handler.session.query(*args, **kwargs)
 
     
-    def fetch_data(self, symbols: List[str], start_date: datetime, end_date: datetime, source="Alpha Vantage", use_SQL=True) -> pd.DataFrame:
-        """Fetch data with improved error handling and validation"""
-        
-        """Fetch data using source hierarchy: SQL -> Alpha Vantage -> YFinance"""
+    def _validate_and_parse_symbols(self, symbols: Union[str, List[str]]) -> List[str]:
+        """Validate and parse input symbols."""
         if isinstance(symbols, str):
             symbols = [s.strip() for s in symbols.split(',') if s.strip()]
         elif isinstance(symbols, list):
             symbols = [s.strip() for s in symbols if s.strip()]
         if not symbols:
             raise ValueError("No symbols provided")
+        return symbols
 
+    def _fetch_from_sql(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
+        """Attempt to fetch data from SQL cache."""
+        try:
+            df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
+            if df is not None and not df.empty:
+                logger.info(f"Retrieved {symbol} data from SQL cache")
+                return df
+        except SQLAlchemyError as e:
+            logger.warning(f"SQL error for {symbol}: {e}")
+        return None
+
+    def _fetch_from_external(self, symbol: str, start_date: datetime, end_date: datetime, source: str) -> Optional[pd.DataFrame]:
+        """Fetch data from external source and cache it."""
+        try:
+            downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
+            df = downloader.download_stock_data(symbol, start_date, end_date)
+            if not df.empty:
+                logger.info(f"Retrieved {symbol} data from {source}")
+                self._sql_handler.cache_data(symbol, df)
+                return df
+        except Exception as e:
+            logger.error(f"Download error for {symbol}: {str(e)}")
+        return None
+
+    def _process_dataframe(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
+        """Process dataframe by adding symbol suffix to columns."""
+        if df is not None and not df.empty:
+            df.columns = [f'{col}_{symbol}' for col in df.columns]
+        return df
+
+    def fetch_data(self, symbols: Union[str, List[str]], start_date: datetime, end_date: datetime, source="Alpha Vantage", use_SQL=True) -> pd.DataFrame:
+        """Fetch data with improved error handling and validation.
+        
+        Args:
+            symbols: List of stock symbols or comma-separated string
+            start_date: Start date for data fetching
+            end_date: End date for data fetching
+            source: Data source ("Alpha Vantage" or "Yahoo")
+            use_SQL: Whether to use SQL cache first
+            
+        Returns:
+            DataFrame containing the fetched data
+        """
+        symbols = self._validate_and_parse_symbols(symbols)
         result_df = pd.DataFrame()
+
         for symbol in symbols:
             df = None
-            
-            # Try SQL first if not explicitly requesting other sources
             if use_SQL:
-                try:
-                    df = self._sql_handler.get_cached_data(symbol, start_date, end_date)
-                    if df is not None and not df.empty:
-                        logger.info(f"Retrieved {symbol} data from SQL cache")
-                except SQLAlchemyError as e:
-                    logger.warning(f"SQL error for {symbol}: {e}")
+                df = self._fetch_from_sql(symbol, start_date, end_date)
+                
+                if df is None:
+                    df = self._fetch_from_external(symbol, start_date, end_date, source)
+            
+            if df is not None and not df.empty:
+                df = self._process_dataframe(df, symbol)
+                result_df = pd.concat([result_df, df], axis=1)
+            else:
+                logger.error(f"Failed to fetch data for {symbol} from all sources")
 
-                    # Use StockDownloader if SQL cache misses
-                    try:
-                        downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
-                        df = downloader.download_stock_data(symbol, start_date, end_date)
-                        if not df.empty:
-                            logger.info(f"Retrieved {symbol} data from {source}")
-                            self._sql_handler.cache_data(symbol, df)
-                    except Exception as e:
-                        logger.error(f"Download error for {symbol}: {str(e)}")
+        if result_df.empty:
+            raise ValueError("No data retrieved for any symbols")
         
-                    if df is not None and not df.empty:
-                        df.columns = [f'{col}_{symbol}' for col in df.columns]
-                        result_df = pd.concat([result_df, df], axis=1)
-                    else:
-                        logger.error(f"Failed to fetch data for {symbol} from all sources")
-    
-            if result_df.empty:
-                raise ValueError("No data retrieved for any symbols")
-    
-            return result_df.copy()
+        return result_df.copy()
     
     def __del__(self):
         """Cleanup database session"""

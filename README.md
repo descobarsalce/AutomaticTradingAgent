@@ -134,6 +134,23 @@ tensorboard --logdir=tensorboard_logs
 - Historical data availability varies by asset
 - Trade execution assumes ideal market conditions
 
+## Screenshots & Demo
+
+### Trading Dashboard
+![Trading Dashboard](./assets/screenshots/trading_dashboard.png)
+*Main trading interface showing real-time portfolio performance*
+
+### Technical Analysis
+![Technical Analysis](./assets/screenshots/technical_analysis.png)
+*Technical indicators and chart analysis tools*
+
+### Training Interface
+![Training Interface](./assets/screenshots/training_interface.png)
+*Model training and hyperparameter tuning interface*
+
+### Demo Video
+https://github.com/yourusername/projectname/assets/screenshots/demo.gif
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

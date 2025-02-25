@@ -1,4 +1,3 @@
-
 import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple
@@ -128,12 +127,28 @@ class SQLHandler:
                     and_(
                         StockData.symbol == symbol,
                         StockData.date >= start_date,
-                        StockData.date <= end_date,
+                        StockData.date <= end_date
                     )
                 )
                 .order_by(StockData.date)
             )
+
+            # Log query details
+            logger.info(f"SQL Query for {symbol}:")
+            logger.info(f"Date range: {start_date} to {end_date}")
+            logger.info(f"SQL: {query.statement.compile(compile_kwargs={'literal_binds': True})}")
+
+            # Check if symbol exists at all
+            symbol_exists = local_session.query(StockData.symbol).filter(StockData.symbol == symbol).first()
+            if not symbol_exists:
+                logger.error(f"Symbol {symbol} not found in database")
+
             records = query.all()
+            logger.info(f"Retrieved {len(records)} records for {symbol}")
+
+            if records:
+                logger.info(f"Data range: {records[0].date} to {records[-1].date}")
+
             local_session.close()
 
             if not records:

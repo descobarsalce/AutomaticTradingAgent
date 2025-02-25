@@ -54,14 +54,14 @@ def display_tech_analysis_tab():
                               min_value=datetime(2005, 1, 1)),
                 datetime.min.time()
             )
-        ).tz_localize('America/New_York')
+        ).tz_localize(None)
     with viz_col2:
         viz_end_date = pd.Timestamp(
             datetime.combine(
                 st.date_input("Analysis End Date", value=datetime.now() - timedelta(days=365)),
                 datetime.min.time()
             )
-        ).tz_localize('America/New_York')
+        ).tz_localize(None)
 
     # Plot controls
     st.subheader("Visualization Options")

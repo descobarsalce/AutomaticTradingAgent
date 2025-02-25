@@ -3,7 +3,7 @@
 import pandas as pd
 from datetime import datetime
 import logging
-from typing import List, Dict, Optional, Protocol
+from typing import List, Dict, Optional, Protocol, Union
 from sqlalchemy.exc import SQLAlchemyError
 
 from data.data_SQL_interaction import SQLHandler
@@ -87,11 +87,12 @@ class DataHandler:
             if use_SQL:
                 df = self._fetch_from_sql(symbol, start_date, end_date)
                 
-                if df is None:
-                    df = self._fetch_from_external(symbol, start_date, end_date, source)
+            if df is None or not use_SQL:
+                df = self._fetch_from_external(symbol, start_date, end_date, source)
+                if df is not None and not df.empty:
+                    df = self._process_dataframe(df, symbol)
             
             if df is not None and not df.empty:
-                df = self._process_dataframe(df, symbol)
                 result_df = pd.concat([result_df, df], axis=1)
             else:
                 logger.error(f"Failed to fetch data for {symbol} from all sources")

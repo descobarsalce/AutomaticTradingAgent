@@ -14,6 +14,7 @@ from core.portfolio_manager import PortfolioManager
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+log_verbosity = "Low" # "High" or "Low"
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime) -> pd.DataFrame:
@@ -150,8 +151,8 @@ class TradingEnv(gym.Env):
         current_obs.append(self.portfolio_manager.current_balance)
         current_obs = np.array(current_obs, dtype=np.float32)
 
-        # Log immediate state
-        logger.debug(f"Current step observation: {current_obs}")
+        if log_verbosity== "High":
+            logger.info(f"Current observation: {current_obs}")
 
         # Add to history
         self.observation_history.append(current_obs)
@@ -175,14 +176,15 @@ class TradingEnv(gym.Env):
                 "NaN values detected in observation; replacing with zeros.")
             combined_obs = np.nan_to_num(combined_obs)
 
-        # Log full observation with history and current observation separately
-        logger.info(
-            f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}"
-        )
-        logger.info(
-            f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}"
-        )
-
+        if log_verbosity == "High":
+            # Log full observation with history and current observation separately
+            logger.info(
+                f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}"
+            )
+            logger.info(
+                f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}"
+            )
+    
         return combined_obs
 
     def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
@@ -243,7 +245,8 @@ class TradingEnv(gym.Env):
                 if actions_arr[idx] > 0
                 and not trades_executed.get(symbol, False)
             ]
-            if rejected:
+            if rejected and log_verbosity == "High":
+                logger.info(f"Rejected trades: {rejected}")
                 logger.info(f"Rejected BUY trades for: {', '.join(rejected)}")
 
             # Calculate reward and update environment state.
@@ -252,21 +255,22 @@ class TradingEnv(gym.Env):
             obs = self._construct_observation()
             done = self.current_step >= len(self.data) - 1
 
+            if log_verbosity == "High":
             # Log one structured table summarizing the step.
-            log_table = (
-                "+-------------------------+----------------------------------------------+\n"
-                f"| {'Step':<23} | {self.current_step!s:<44} |\n"
-                f"| {'Timestamp':<23} | {timestamp!s:<44} |\n"
-                f"| {'Balance':<23} | {self.portfolio_manager.current_balance!s:<44} |\n"
-                f"| {'Positions':<23} | {str(self.portfolio_manager.positions):<44} |\n"
-                f"| {'Actions':<23} | {str(action):<44} |\n"
-                f"| {'Trades Exec':<23} | {str(trades_executed):<44} |\n"
-                f"| {'Reward':<23} | {reward!s:<44} |\n"
-                f"| {'Total Value':<23} | {self.portfolio_manager.get_total_value()!s:<44} |\n"
-                "+-------------------------+----------------------------------------------+"
-            )
-            logger.info(log_table)
-
+                log_table = (
+                    "+-------------------------+----------------------------------------------+\n"
+                    f"| {'Step':<23} | {self.current_step!s:<44} |\n"
+                    f"| {'Timestamp':<23} | {timestamp!s:<44} |\n"
+                    f"| {'Balance':<23} | {self.portfolio_manager.current_balance!s:<44} |\n"
+                    f"| {'Positions':<23} | {str(self.portfolio_manager.positions):<44} |\n"
+                    f"| {'Actions':<23} | {str(action):<44} |\n"
+                    f"| {'Trades Exec':<23} | {str(trades_executed):<44} |\n"
+                    f"| {'Reward':<23} | {reward!s:<44} |\n"
+                    f"| {'Total Value':<23} | {self.portfolio_manager.get_total_value()!s:<44} |\n"
+                    "+-------------------------+----------------------------------------------+"
+                )
+                logger.info(log_table)
+    
             info = {
                 'net_worth': self.portfolio_manager.get_total_value(),
                 'balance': self.portfolio_manager.current_balance,

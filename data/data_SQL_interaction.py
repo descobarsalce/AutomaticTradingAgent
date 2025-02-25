@@ -185,7 +185,10 @@ class SQLHandler:
                     }
                     for record in records
                 ]
-            ).set_index("Date")
+            )
+            logger.info(f"Dataframe shape YY: {df.shape}")
+            logger.info(f"Dataframe columns YY: {list(df.columns)}")
+            logger.info(f"Dataframe index YY: {df.index.name}")
 
             return df
 
@@ -207,10 +210,6 @@ class SQLHandler:
         if data.empty:
             logger.warning(f"No data provided to cache for symbol '{symbol}'.")
             return
-
-        # Make sure DataFrame index is DateTime-like
-        if not isinstance(data.index, pd.DatetimeIndex):
-            raise ValueError("DataFrame index must be a DateTimeIndex.")
 
         try:
             # Clear any failed transaction state in the existing session

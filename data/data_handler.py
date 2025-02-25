@@ -99,8 +99,9 @@ class DataHandler:
                 df = self._fetch_from_sql(symbol, start_date, end_date)
                 logger.info(f"Using SQL cache for: {symbol}")
                 if df is not None:
+                    # logger.info(f"Retrieved df columns 1:")
                     logger.info(f"Retrieved df columns: {list(df.columns)}")
-                    logger.info(f"Retrieved df index: {df.index.name}")
+                    # logger.info(f"Retrieved df index: {df.index.name}")
                     logger.info(f"Retrieved df shape: {df.shape}")
 
             if df is None or not use_SQL:
@@ -110,9 +111,8 @@ class DataHandler:
                         df = self._process_dataframe(df, symbol)
             
             if df is not None:
-                if not df.empty:
-                    result_df = pd.merge(result_df, df, on='Date', how='outer')
-                    logger.info(f"Appended {symbol} data to result_df")
+                result_df = pd.concat([result_df, df], axis=1)
+                logger.info(f"Appended {symbol} data to result_df")
             else:
                 logger.error(f"Failed to fetch data for {symbol} from all sources")
 

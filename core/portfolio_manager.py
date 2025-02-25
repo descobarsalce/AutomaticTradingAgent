@@ -8,6 +8,8 @@ from metrics.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
+high_verbosity = True
+
 class PortfolioManager:
     def __init__(self, initial_balance: float, transaction_cost: float = 0.0, 
                  price_fetcher: Optional[callable] = None):  # <-- new parameter
@@ -102,7 +104,8 @@ class PortfolioManager:
         is_buy = quantity > 0
         if is_buy:
             if total_cost > self.current_balance or (self.current_balance - total_cost) < 0:
-                logger.warning(f"Buy trade for {symbol} rejected: Insufficient funds.")
+                if high_verbosity:
+                    logger.warning(f"Buy trade for {symbol} rejected: Insufficient funds.")
                 return False
         else:
             sell_qty = abs(quantity)
@@ -245,7 +248,8 @@ class PortfolioManager:
                     if self.execute_trade(symbol, -qty, price, timestamp):  # Note the negative qty for sells
                         trades_executed[symbol] = True
                     else:
-                        logger.error(f"Sell trade for {symbol} failed in execution.")
+                        if high_verbosity:
+                            logger.error(f"Sell trade for {symbol} failed in execution.")
 
         # Then process all buy actions
         for symbol, action in zip(stock_names, actions):

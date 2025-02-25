@@ -179,7 +179,7 @@ def main() -> None:
         with tab_analysis:
             try:
                 display_tech_analysis_tab()
-                logger.info("Technical Analysis tab loaded successfully")
+                # logger.info("Technical Analysis tab loaded successfully")
             except Exception as e:
                 logger.error(f"Error in Technical Analysis tab: {str(e)}")
                 st.error(f"Error loading Technical Analysis tab: {str(e)}")
@@ -188,7 +188,7 @@ def main() -> None:
         with tab_training:
             # try:
             display_training_tab()
-            logger.info("Model Training tab loaded successfully")
+            # logger.info("Model Training tab loaded successfully")
             # except Exception as e:
             #     logger.error(f"Error in Model Training tab: {str(e)}")
             #     st.error(f"Error loading Model Training tab: {str(e)}")
@@ -197,7 +197,7 @@ def main() -> None:
         with tab_database:
             try:
                 display_database_explorer()
-                logger.info("Database Explorer tab loaded successfully")
+                # logger.info("Database Explorer tab loaded successfully")
             except Exception as e:
                 logger.error(f"Error in Database Explorer tab: {str(e)}")
                 st.error(f"Error loading Database Explorer tab: {str(e)}")

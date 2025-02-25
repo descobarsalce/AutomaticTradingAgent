@@ -28,7 +28,12 @@ class DatabaseConfig:
         logger.info("🔄 Starting database initialization...")
         try:
             database_url = os.getenv('DATABASE_URL')
-            if not database_url:
+            if database_url:
+                logger.info("Found DATABASE_URL in environment")
+                # Hide sensitive info while logging
+                safe_url = database_url.split('@')[-1] if '@' in database_url else 'db-connection'
+                logger.info(f"Attempting to connect to: {safe_url}")
+            else:
                 logger.warning("DATABASE_URL not set, using SQLite fallback")
                 database_url = 'sqlite:///trading_data.db'
                 
@@ -46,7 +51,8 @@ class DatabaseConfig:
                     'keepalives': 1,
                     'keepalives_idle': 30,
                     'keepalives_interval': 10,
-                    'keepalives_count': 5
+                    'keepalives_count': 5,
+                    'sslmode': 'require'
                 }
             }
             

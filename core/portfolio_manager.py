@@ -8,7 +8,7 @@ from metrics.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
 
-high_verbosity = True
+high_verbosity = False
 
 class PortfolioManager:
     def __init__(self, initial_balance: float, transaction_cost: float = 0.0, 
@@ -111,7 +111,8 @@ class PortfolioManager:
             sell_qty = abs(quantity)
             prospective_balance = self.current_balance + (sell_qty * price) - self.transaction_cost
             if prospective_balance < 0:
-                logger.warning(f"Sell trade for {symbol} rejected: Negative balance would result.")
+                if high_verbosity:
+                    logger.warning(f"Sell trade for {symbol} rejected: Negative balance would result.")
                 return False
 
         # Ensure symbol keys are initialized
@@ -262,7 +263,8 @@ class PortfolioManager:
                     if self.execute_trade(symbol, qty, price, timestamp):
                         trades_executed[symbol] = True
                     else:
-                        logger.error(f"Buy trade for {symbol} failed in execution.")
+                        if high_verbosity:
+                            logger.error(f"Buy trade for {symbol} failed in execution.")
 
         # logger.debug(f"Trades executed: {trades_executed}")
         return trades_executed

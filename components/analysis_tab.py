@@ -49,7 +49,8 @@ def display_tech_analysis_tab():
     with viz_col1:
         viz_start_date = datetime.combine(
             st.date_input("Analysis Start Date",
-                          value=datetime.now() - timedelta(days=365)),
+                          value=datetime.now() - timedelta(days=365),
+                          min_value=datetime(2000, 1, 1)),
             datetime.min.time())
     with viz_col2:
         viz_end_date = datetime.combine(

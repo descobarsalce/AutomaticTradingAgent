@@ -131,7 +131,7 @@ def display_database_explorer():
     if st.button("Query Data"):
         try:
             # Fetch data using DataHandler
-            df = data_handler.fetch_data(selected_symbol, start_date, end_date)
+            df = data_handler._sql_handler.get_cached_data(selected_symbol, start_date, end_date)
 
             if not df.empty:
                 # Calculate basic statistics

@@ -3,7 +3,7 @@
 import pandas as pd
 from datetime import datetime
 import logging
-from typing import Dict, Optional, List, Protocol
+from typing import List, Dict, Optional, Protocol
 from sqlalchemy.exc import SQLAlchemyError
 
 from data.data_SQL_interaction import SQLHandler
@@ -50,28 +50,27 @@ class DataHandler:
                 except SQLAlchemyError as e:
                     logger.warning(f"SQL error for {symbol}: {e}")
 
-            else:
-                # Use StockDownloader if SQL cache misses
-                try:
-                    downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
-                    df = downloader.download_stock_data(symbol, start_date, end_date)
-                    if not df.empty:
-                        logger.info(f"Retrieved {symbol} data from {source}")
-                        self._sql_handler.cache_data(symbol, df)
-                except Exception as e:
-                    logger.error(f"Download error for {symbol}: {str(e)}")
+                    # Use StockDownloader if SQL cache misses
+                    try:
+                        downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
+                        df = downloader.download_stock_data(symbol, start_date, end_date)
+                        if not df.empty:
+                            logger.info(f"Retrieved {symbol} data from {source}")
+                            self._sql_handler.cache_data(symbol, df)
+                    except Exception as e:
+                        logger.error(f"Download error for {symbol}: {str(e)}")
+        
+                    if df is not None and not df.empty:
+                        df.columns = [f'{col}_{symbol}' for col in df.columns]
+                        result_df = pd.concat([result_df, df], axis=1)
+                    else:
+                        logger.error(f"Failed to fetch data for {symbol} from all sources")
     
-                if df is not None and not df.empty:
-                    df.columns = [f'{col}_{symbol}' for col in df.columns]
-                    result_df = pd.concat([result_df, df], axis=1)
-                else:
-                    logger.error(f"Failed to fetch data for {symbol} from all sources")
-
-        if result_df.empty:
-            raise ValueError("No data retrieved for any symbols")
-
-        return result_df.copy()
-
+            if result_df.empty:
+                raise ValueError("No data retrieved for any symbols")
+    
+            return result_df.copy()
+    
     def __del__(self):
         """Cleanup database session"""
         if hasattr(self, '_sql_handler'):

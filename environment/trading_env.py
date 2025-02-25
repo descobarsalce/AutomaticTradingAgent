@@ -8,21 +8,27 @@ import logging
 from typing import Dict, Any, Optional, Union, List, Tuple
 from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
-                         POSITION_PRECISION)
+                          POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: datetime) -> pd.DataFrame:
+
+def fetch_trading_data(stock_names: List[str], start_date: datetime,
+                       end_date: datetime) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling."""
     try:
-        data = st.session_state.data_handler.fetch_data(stock_names, start_date, end_date)
+        data = st.session_state.data_handler._sql_handler.get_cached_data(
+            stock_names, start_date, end_date)
         if data.empty:
-            raise ValueError(f"No data available for symbols {stock_names} between {start_date} and {end_date}")
+            raise ValueError(
+                f"No data available for symbols {stock_names} between {start_date} and {end_date}"
+            )
 
         # Validate that we have data for all symbols
-        symbols_with_data = set(col.split('_')[1] for col in data.columns if '_' in col)
+        symbols_with_data = set(
+            col.split('_')[1] for col in data.columns if '_' in col)
         missing_symbols = set(stock_names) - symbols_with_data
         if missing_symbols:
             raise ValueError(f"Missing data for symbols: {missing_symbols}")
@@ -30,16 +36,22 @@ def fetch_trading_data(stock_names: List[str], start_date: datetime, end_date: d
         # Ensure we have all required columns for each symbol
         required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         for symbol in stock_names:
-            missing_cols = [col for col in required_cols if f"{col}_{symbol}" not in data.columns]
+            missing_cols = [
+                col for col in required_cols
+                if f"{col}_{symbol}" not in data.columns
+            ]
             if missing_cols:
-                raise ValueError(f"Missing columns {missing_cols} for symbol {symbol}")
+                raise ValueError(
+                    f"Missing columns {missing_cols} for symbol {symbol}")
 
         return data
     except Exception as e:
         logger.error(f"Error fetching trading data: {str(e)}")
         raise ValueError(f"Failed to fetch valid trading data: {str(e)}")
 
+
 class TradingEnv(gym.Env):
+
     def __init__(self,
                  stock_names: List[str],
                  start_date: datetime,
@@ -57,7 +69,8 @@ class TradingEnv(gym.Env):
         data = fetch_trading_data(stock_names, start_date, end_date)
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)
-        self._validate_init_params(data, initial_balance, transaction_cost, max_pct_position_by_asset)
+        self._validate_init_params(data, initial_balance, transaction_cost,
+                                   max_pct_position_by_asset)
         self._full_data = data.copy()
         self.data = data
         self.max_pct_position_by_asset = max_pct_position_by_asset
@@ -72,25 +85,28 @@ class TradingEnv(gym.Env):
         self.training_mode = training_mode
 
         # Initialize portfolio manager before constructing observation space.
-        self.portfolio_manager = PortfolioManager(initial_balance, transaction_cost, price_fetcher=self._get_current_price)
+        self.portfolio_manager = PortfolioManager(
+            initial_balance,
+            transaction_cost,
+            price_fetcher=self._get_current_price)
 
         # initialize state & observation space.
         self.observation_days = observation_days  # Store the number of days to keep in the observation
         self.burn_in_days = burn_in_days
         self._initialize_state()
-        self.observation_space = self._create_observation_space()  # Ensure observation space is created before use
+        self.observation_space = self._create_observation_space(
+        )  # Ensure observation space is created before use
 
         # Set the action space to Box with shape (n_stocks,) and range [-1, 1]
-        self.action_space = spaces.Box(
-            low=-1,
-            high=1, 
-            shape=(len(stock_names),),
-            dtype=np.float32
-        )
+        self.action_space = spaces.Box(low=-1,
+                                       high=1,
+                                       shape=(len(stock_names), ),
+                                       dtype=np.float32)
 
-    def _validate_init_params(self, data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
-                            initial_balance: float, transaction_cost: float,
-                            max_pct_position_by_asset: float) -> None:
+    def _validate_init_params(self, data: Union[pd.DataFrame,
+                                                Dict[str, pd.DataFrame]],
+                              initial_balance: float, transaction_cost: float,
+                              max_pct_position_by_asset: float) -> None:
         if initial_balance <= 0:
             raise ValueError("Initial balance must be positive")
         if transaction_cost < 0:
@@ -103,23 +119,29 @@ class TradingEnv(gym.Env):
     def _initialize_state(self) -> None:
         self.current_step = 0
         self.episode_trades = {symbol: 0 for symbol in self.stock_names}
-        self.observation_history: List[np.ndarray] = []  # New observation history
+        self.observation_history: List[np.ndarray] = [
+        ]  # New observation history
 
     # --- Auxiliary functions to reduce repetition ---
     def _get_current_price(self, symbol: str) -> float:
         """Retrieve the current closing price for a symbol using _full_data."""
-        return float(self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+        return float(
+            self._full_data.iloc[self.current_step][f'Close_{symbol}'])
 
     def _get_current_data(self) -> pd.Series:
         """Retrieve the current data row."""
         return self.data.iloc[self.current_step]
+
     # --- End Auxiliary functions ---
 
     def _create_observation_space(self) -> spaces.Box:
         # Define a fixed observation space shape based on observation_days.
         n_features = len(self.stock_names) * 2 + 1
         obs_dim = self.observation_days * n_features
-        return spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
+        return spaces.Box(low=-np.inf,
+                          high=np.inf,
+                          shape=(obs_dim, ),
+                          dtype=np.float32)
 
     def _construct_observation(self) -> np.ndarray:
         """Collect current prices, positions, and balance."""
@@ -140,7 +162,12 @@ class TradingEnv(gym.Env):
 
         if len(self.observation_history) < self.observation_days:
             missing = self.observation_days - len(self.observation_history)
-            pad = [self.observation_history[0]] * missing if self.observation_history else [np.zeros(self.observation_space.shape[0] // self.observation_days, dtype=np.float32)] * missing
+            pad = [self.observation_history[0]
+                   ] * missing if self.observation_history else [
+                       np.zeros(self.observation_space.shape[0] //
+                                self.observation_days,
+                                dtype=np.float32)
+                   ] * missing
             history = pad + self.observation_history
         else:
             history = self.observation_history[-self.observation_days:]
@@ -148,12 +175,17 @@ class TradingEnv(gym.Env):
 
         # New: Check and replace NaNs in the observation.
         if np.isnan(combined_obs).any():
-            logger.warning("NaN values detected in observation; replacing with zeros.")
+            logger.warning(
+                "NaN values detected in observation; replacing with zeros.")
             combined_obs = np.nan_to_num(combined_obs)
 
         # Log full observation with history and current observation separately
-        logger.info(f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}")
-        logger.info(f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}")
+        logger.info(
+            f"Full observation (including history):\nShape: {combined_obs.shape}\nData: {combined_obs}"
+        )
+        logger.info(
+            f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}"
+        )
 
         return combined_obs
 
@@ -165,7 +197,7 @@ class TradingEnv(gym.Env):
             last_value = history[-2]
             current_value = history[-1]
             if last_value > 0:
-                step_return = (current_value - last_value) #/ last_value
+                step_return = (current_value - last_value)  #/ last_value
             else:
                 step_return = 0.0
         else:
@@ -182,7 +214,8 @@ class TradingEnv(gym.Env):
         reward -= volatility
 
         # Transaction cost penalty
-        transaction_cost_penalty = sum(trades_executed.values()) * self.transaction_cost
+        transaction_cost_penalty = sum(
+            trades_executed.values()) * self.transaction_cost
         reward -= transaction_cost_penalty
 
         # Clip reward to prevent extreme values
@@ -196,22 +229,24 @@ class TradingEnv(gym.Env):
         logger.debug(f"Computed reward (step_return based): {reward}")
         return reward
 
-    def step(self, action: Union[int, np.ndarray]) -> Tuple[np.ndarray, float, bool, bool, Dict]:
+    def step(
+        self, action: Union[int, np.ndarray]
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         try:
             timestamp = self.data.index[self.current_step]
             trades_executed = self.portfolio_manager.execute_all_trades(
-                self.stock_names,
-                np.array(action, dtype=np.float32),
-                self._get_current_price,
-                self.max_pct_position_by_asset,
-                timestamp
-            )
+                self.stock_names, np.array(action, dtype=np.float32),
+                self._get_current_price, self.max_pct_position_by_asset,
+                timestamp)
 
             # Merge rejected BUY trade info into one log message.
             actions_arr = np.array(action, dtype=np.float32)
-            rejected = [f"{symbol} (Action: {actions_arr[idx]}, Price: {self._get_current_price(symbol)})"
-                        for idx, symbol in enumerate(self.stock_names)
-                        if actions_arr[idx] > 0 and not trades_executed.get(symbol, False)]
+            rejected = [
+                f"{symbol} (Action: {actions_arr[idx]}, Price: {self._get_current_price(symbol)})"
+                for idx, symbol in enumerate(self.stock_names)
+                if actions_arr[idx] > 0
+                and not trades_executed.get(symbol, False)
+            ]
             if rejected:
                 logger.info(f"Rejected BUY trades for: {', '.join(rejected)}")
 
@@ -253,17 +288,28 @@ class TradingEnv(gym.Env):
         except Exception as e:
             logger.error(f"Error in step method: {str(e)}")
             return self._construct_observation(), 0.0, True, False, {
-                'error': str(e),
-                'net_worth': self.portfolio_manager.get_total_value(),
-                'balance': self.portfolio_manager.current_balance,
-                'positions': self.portfolio_manager.positions.copy(),
+                'error':
+                str(e),
+                'net_worth':
+                self.portfolio_manager.get_total_value(),
+                'balance':
+                self.portfolio_manager.current_balance,
+                'positions':
+                self.portfolio_manager.positions.copy(),
                 'trades_executed': {},
-                'episode_trades': self.episode_trades.copy(),
-                'actions': action,
-                'date': self.data.index[self.current_step-1] if self.current_step > 0 else self.data.index[0],
-                'current_data': self._get_current_data(),
-                'portfolio_value': self.portfolio_manager.get_total_value(),
-                'step': self.current_step
+                'episode_trades':
+                self.episode_trades.copy(),
+                'actions':
+                action,
+                'date':
+                self.data.index[self.current_step - 1]
+                if self.current_step > 0 else self.data.index[0],
+                'current_data':
+                self._get_current_data(),
+                'portfolio_value':
+                self.portfolio_manager.get_total_value(),
+                'step':
+                self.current_step
             }
 
     def _verify_observation_consistency(self) -> None:
@@ -275,7 +321,8 @@ class TradingEnv(gym.Env):
         first_obs_shape = self.observation_history[0].shape
         for idx, obs in enumerate(self.observation_history):
             if obs.shape != first_obs_shape:
-                raise ValueError(f"Inconsistent observation shape at index {idx}")
+                raise ValueError(
+                    f"Inconsistent observation shape at index {idx}")
 
         # Verify no NaN values
         if any(np.isnan(obs).any() for obs in self.observation_history):
@@ -283,7 +330,8 @@ class TradingEnv(gym.Env):
 
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         self._initialize_state()
-        self.portfolio_manager = PortfolioManager(self.initial_balance, self.transaction_cost)
+        self.portfolio_manager = PortfolioManager(self.initial_balance,
+                                                  self.transaction_cost)
         self.portfolio_manager.portfolio_value_history = [self.initial_balance]
         self.current_step = 0
         self.observation_history.clear()
@@ -291,7 +339,8 @@ class TradingEnv(gym.Env):
         # Burn-in period: automatically take no-op action (assumed to be action "0")
         burn_in_counter = 0
         while burn_in_counter < self.burn_in_days and not self._burn_in_done():
-            obs, reward, done, _, info = self.step(np.zeros(len(self.stock_names)))
+            obs, reward, done, _, info = self.step(
+                np.zeros(len(self.stock_names)))
             burn_in_counter += 1
             if done:
                 break
@@ -301,7 +350,10 @@ class TradingEnv(gym.Env):
             'net_worth': self.initial_balance,
             'balance': self.portfolio_manager.current_balance,
             'positions': self.portfolio_manager.positions.copy(),
-            'trades_executed': {symbol: False for symbol in self.stock_names},
+            'trades_executed': {
+                symbol: False
+                for symbol in self.stock_names
+            },
             'episode_trades': self.episode_trades,
             'actions': {},
             'date': self.data.index[self.current_step],
@@ -317,29 +369,42 @@ class TradingEnv(gym.Env):
     def verify_env_state(self) -> Dict[str, Any]:
         """Verify environment state consistency"""
         state = {
-            'current_step': self.current_step,
-            'observation_shapes': [obs.shape for obs in self.observation_history],
-            'has_nans': any(np.isnan(obs).any() for obs in self.observation_history),
-            'portfolio_balance': self.portfolio_manager.current_balance,
-            'data_remaining': len(self._full_data) - self.current_step
+            'current_step':
+            self.current_step,
+            'observation_shapes':
+            [obs.shape for obs in self.observation_history],
+            'has_nans':
+            any(np.isnan(obs).any() for obs in self.observation_history),
+            'portfolio_balance':
+            self.portfolio_manager.current_balance,
+            'data_remaining':
+            len(self._full_data) - self.current_step
         }
         return state
 
     def get_portfolio_history(self) -> List[float]:
         return self.portfolio_manager.portfolio_value_history
 
-    def _prepare_test_results(self, info_history: List[Dict]) -> Dict[str, Any]:
+    def _prepare_test_results(self,
+                              info_history: List[Dict]) -> Dict[str, Any]:
         portfolio_history = self.portfolio_manager.portfolio_value_history
         returns = MetricsCalculator.calculate_returns(portfolio_history)
         # ...existing code...
         result = {
             # ...existing code...
             'metrics': {
-                'sharpe_ratio': float(MetricsCalculator.calculate_sharpe_ratio(returns)),
-                'sortino_ratio': float(MetricsCalculator.calculate_sortino_ratio(returns)),
-                'information_ratio': float(MetricsCalculator.calculate_information_ratio(returns)),
-                'max_drawdown': float(MetricsCalculator.calculate_maximum_drawdown(portfolio_history)),
-                'volatility': float(MetricsCalculator.calculate_volatility(returns))
+                'sharpe_ratio':
+                float(MetricsCalculator.calculate_sharpe_ratio(returns)),
+                'sortino_ratio':
+                float(MetricsCalculator.calculate_sortino_ratio(returns)),
+                'information_ratio':
+                float(MetricsCalculator.calculate_information_ratio(returns)),
+                'max_drawdown':
+                float(
+                    MetricsCalculator.calculate_maximum_drawdown(
+                        portfolio_history)),
+                'volatility':
+                float(MetricsCalculator.calculate_volatility(returns))
             }
         }
         return result

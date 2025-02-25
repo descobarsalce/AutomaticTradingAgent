@@ -8,6 +8,13 @@ from typing import Optional, Generator
 
 logger = logging.getLogger(__name__)
 
+# Set SQL logging verbosity
+SQL_LOGGING_ENABLED = os.getenv('SQL_LOGGING_ENABLED', 'false').lower() == 'true'
+if not SQL_LOGGING_ENABLED:
+    logging.getLogger('utils.db_config').setLevel(logging.WARNING)
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+    logging.getLogger('data.data_SQL_interaction').setLevel(logging.WARNING)
+
 class DatabaseConfig:
     _instance = None
     _engine = None

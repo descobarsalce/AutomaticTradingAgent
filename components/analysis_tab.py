@@ -47,15 +47,21 @@ def display_tech_analysis_tab():
     # Date selection for visualization
     viz_col1, viz_col2 = st.columns(2)
     with viz_col1:
-        viz_start_date = datetime.combine(
-            st.date_input("Analysis Start Date",
-                          value=datetime.now() - timedelta(days=365*3),
-                          min_value=datetime(2005, 1, 1)),
-            datetime.min.time())
+        viz_start_date = pd.Timestamp(
+            datetime.combine(
+                st.date_input("Analysis Start Date",
+                              value=datetime.now() - timedelta(days=365*3),
+                              min_value=datetime(2005, 1, 1)),
+                datetime.min.time()
+            )
+        ).tz_localize('America/New_York')
     with viz_col2:
-        viz_end_date = datetime.combine(
-            st.date_input("Analysis End Date", value=datetime.now() - timedelta(days=365)),
-            datetime.min.time())
+        viz_end_date = pd.Timestamp(
+            datetime.combine(
+                st.date_input("Analysis End Date", value=datetime.now() - timedelta(days=365)),
+                datetime.min.time()
+            )
+        ).tz_localize('America/New_York')
 
     # Plot controls
     st.subheader("Visualization Options")
@@ -210,7 +216,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                         'error_type': type(e).__name__,
                         'error_msg': str(e)
                     }
-                    
+
                     # Only add data-related details if data exists and is valid
                     try:
                         if 'data' in locals() and isinstance(data, pd.DataFrame):
@@ -223,7 +229,7 @@ def generate_analysis(viz_stocks, viz_start_date, viz_end_date,
                         error_details.update({
                             'data_error': str(data_error)
                         })
-                    
+
                     logger.error(f"Error processing {stock}:" + 
                                ''.join(f"\n{k}: {v}" for k, v in error_details.items()))
                     st.error(f"Error processing {stock}: {error_details['error_msg']}")

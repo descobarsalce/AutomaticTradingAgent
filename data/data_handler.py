@@ -61,11 +61,19 @@ class DataHandler:
         return None
 
     def _process_dataframe(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
-        """Process dataframe by adding symbol suffix to columns."""
+        """Process dataframe by adding symbol suffix to columns except Date."""
         if df is not None and not df.empty:
-            # Process all columns except the Date column
-            df.columns = [f'{col}_{symbol}' for col in df.columns]
-            df.set_index('Date', inplace=True)
+            # First set the Date as index if it's a column
+            if 'date' in df.columns:
+                df = df.rename(columns={'date': 'Date'})
+            
+            # Add symbol suffix to all columns except Date
+            cols_to_rename = [col for col in df.columns if col != 'Date']
+            df.columns = ['Date' if col == 'Date' else f'{col}_{symbol}' for col in df.columns]
+            
+            # Set Date as index if not already
+            if 'Date' in df.columns:
+                df.set_index('Date', inplace=True)
             
         return df
 

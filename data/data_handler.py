@@ -100,7 +100,7 @@ class DataHandler:
                 logger.info(f"Using SQL cache for XXX: {symbol}")
                 # # logger.info(f"Retried df with columns {df.columns}") # Make sure this is casted correctly as a string:
                 # logger.info(f"Retried df with column names")
-                # logger.info(f"Retried df with column names {df.columns}")
+                logger.info(f"Retried df with column names {df.columns}")
                 # logger.info(f"Retried df with index {df.index}")
                 # logger.info(df.columns)
                 logger.info(f"Retried df with shape XXX: {df.shape}")

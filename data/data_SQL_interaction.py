@@ -177,11 +177,11 @@ class SQLHandler:
                 [
                     {
                         "Date": record.date,
-                        "Close": record.close,
-                        "Open": record.open,
-                        "High": record.high,
-                        "Low": record.low,
-                        "Volume": record.volume,
+                        f"Close_{symbol}": record.close,
+                        f"Open_{symbol}": record.open,
+                        f"High_{symbol}": record.high,
+                        f"Low_{symbol}": record.low,
+                        f"Volume_{symbol}": record.volume,
                     }
                     for record in records
                 ]

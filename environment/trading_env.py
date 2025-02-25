@@ -20,19 +20,19 @@ log_verbosity = "Low"  # "High" or "Low"
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime) -> pd.DataFrame:
-    """Fetch and validate trading data with improved error handling."""
-    # try:
+    """Fetch and validate trading data with improved error handling.
+    Uses current day's open price and previous day's high, low, volume."""
     data = st.session_state.data_handler.fetch_data(stock_names, start_date,
                                                     end_date)
 
-    # Validate that we have data for all symbols
+    # Validate data presence
     symbols_with_data = set(
         col.split('_')[1] for col in data.columns if '_' in col)
     missing_symbols = set(stock_names) - symbols_with_data
     if missing_symbols:
         raise ValueError(f"Missing data for symbols: {missing_symbols}")
 
-    # Ensure we have all required columns for each symbol
+    # Ensure we have all required columns
     required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
     for symbol in stock_names:
         missing_cols = [
@@ -43,6 +43,17 @@ def fetch_trading_data(stock_names: List[str], start_date: datetime,
             raise ValueError(
                 f"Missing columns {missing_cols} for symbol {symbol}")
 
+    # Shift previous day's data
+    for symbol in stock_names:
+        # Shift high, low, and volume by 1 day (t-1)
+        data[f'High_{symbol}'] = data[f'High_{symbol}'].shift(1)
+        data[f'Low_{symbol}'] = data[f'Low_{symbol}'].shift(1)
+        data[f'Volume_{symbol}'] = data[f'Volume_{symbol}'].shift(1)
+        data[f'Close_{symbol}'] = data[f'Close_{symbol}'].shift(1)
+
+    # Remove first row since it won't have t-1 data
+    data = data.iloc[1:]
+    
     return data
     # except Exception as e:
     #     logger.error(f"Error fetching trading data: {str(e)}")

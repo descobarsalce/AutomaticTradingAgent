@@ -2,6 +2,7 @@ from datetime import datetime
 import gymnasium as gym
 import streamlit as st
 from metrics.metrics_calculator import MetricsCalculator
+from environment.rewards_calculator import RewardsCalculator
 import numpy as np
 import pandas as pd
 import logging
@@ -76,9 +77,12 @@ class TradingEnv(gym.Env):
         self.stock_names = stock_names
 
         # Set reward shaping flags
-        self.use_position_profit = use_position_profit
-        self.use_holding_bonus = use_holding_bonus
-        self.use_trading_penalty = use_trading_penalty
+        # Initialize rewards calculator
+        self.rewards_calculator = RewardsCalculator(
+            use_position_profit=use_position_profit,
+            use_holding_bonus=use_holding_bonus,
+            use_trading_penalty=use_trading_penalty
+        )
         self.training_mode = training_mode
 
         # Initialize portfolio manager before constructing observation space.
@@ -188,44 +192,19 @@ class TradingEnv(gym.Env):
         return combined_obs
 
     def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
-        # Use the portfolio manager's history for incremental reward calculation.
-        history = self.portfolio_manager.portfolio_value_history
-        if len(history) > 1:
-            # Compute step-specific return based on the last two recorded portfolio values.
-            last_value = history[-2]
-            current_value = history[-1]
-            if last_value > 0:
-                step_return = (current_value - last_value)  #/ last_value
-            else:
-                step_return = 0.0
-        else:
-            step_return = 0.0
-
-        reward = step_return
-
-        # Risk management adjustments
-        max_drawdown = MetricsCalculator.calculate_maximum_drawdown(history)
-        reward -= max_drawdown
-
-        returns = MetricsCalculator.calculate_returns(history)
-        volatility = MetricsCalculator.calculate_volatility(returns)
-        reward -= volatility
-
-        # Transaction cost penalty
-        transaction_cost_penalty = sum(
-            trades_executed.values()) * self.transaction_cost
-        reward -= transaction_cost_penalty
-
-        # Clip reward to prevent extreme values
-        reward = np.clip(reward, -10, 10)
-
-        # Check for NaN values in reward
-        if np.isnan(reward):
-            logger.error(f"NaN detected in reward: {reward}")
-            raise ValueError("NaN detected in reward")
-
-        logger.debug(f"Computed reward (step_return based): {reward}")
-        return reward
+        """Compute reward using the specialized RewardsCalculator."""
+        try:
+            history = self.portfolio_manager.portfolio_value_history
+            reward = self.rewards_calculator.compute_reward(
+                portfolio_history=history,
+                trades_executed=trades_executed,
+                transaction_cost=self.transaction_cost
+            )
+            logger.debug(f"Computed reward: {reward}")
+            return reward
+        except Exception as e:
+            logger.error(f"Error computing reward: {str(e)}")
+            return 0.0
 
     def step(
         self, action: Union[int, np.ndarray]

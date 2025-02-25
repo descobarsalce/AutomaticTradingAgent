@@ -97,13 +97,11 @@ class DataHandler:
             df = None
             if use_SQL:
                 df = self._fetch_from_sql(symbol, start_date, end_date)
-                logger.info(f"Using SQL cache for XXX: {symbol}")
-                # # logger.info(f"Retried df with columns {df.columns}") # Make sure this is casted correctly as a string:
-                # logger.info(f"Retried df with column names")
-                logger.info(f"Retried df with column names {df.columns}")
-                # logger.info(f"Retried df with index {df.index}")
-                # logger.info(df.columns)
-                logger.info(f"Retried df with shape XXX: {df.shape}")
+                logger.info(f"Using SQL cache for: {symbol}")
+                if df is not None:
+                    logger.info(f"Retrieved df columns: {list(df.columns)}")
+                    logger.info(f"Retrieved df index: {df.index.name}")
+                    logger.info(f"Retrieved df shape: {df.shape}")
 
             if df is None or not use_SQL:
                 df = self._fetch_from_external(symbol, start_date, end_date, source)

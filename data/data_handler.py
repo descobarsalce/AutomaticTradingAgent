@@ -86,18 +86,24 @@ class DataHandler:
             df = None
             if use_SQL:
                 df = self._fetch_from_sql(symbol, start_date, end_date)
+                logger.info(f"Using SQL cache for {symbol}")
+                logger.info(f"Retried df with shape {df.shape}")
                 
             if df is None or not use_SQL:
                 df = self._fetch_from_external(symbol, start_date, end_date, source)
-                if df is not None and not df.empty:
-                    df = self._process_dataframe(df, symbol)
+                if df is not None:
+                    if not df.empty:
+                        df = self._process_dataframe(df, symbol)
             
-            if df is not None and not df.empty:
-                result_df = pd.concat([result_df, df], axis=1)
+            if df is not None:
+                if not df.empty:
+                    result_df = pd.merge(result_df, df, on='Date', how='outer')
+                    logger.info(f"Appended {symbol} data to result_df")
             else:
                 logger.error(f"Failed to fetch data for {symbol} from all sources")
 
-        if result_df.empty:
+        if result_df is None:
+            logger.info(f"No data retrieved for any symbols")
             raise ValueError("No data retrieved for any symbols")
         
         return result_df.copy()

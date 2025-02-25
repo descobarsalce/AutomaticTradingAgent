@@ -18,36 +18,32 @@ logger.setLevel(logging.INFO)
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling."""
-    try:
-        data = st.session_state.data_handler._sql_handler.get_cached_data(
-            stock_names, start_date, end_date)
-        if data.empty:
+    # try:
+    data = st.session_state.data_handler.fetch_data(
+        stock_names, start_date, end_date)
+
+    # Validate that we have data for all symbols
+    symbols_with_data = set(
+        col.split('_')[1] for col in data.columns if '_' in col)
+    missing_symbols = set(stock_names) - symbols_with_data
+    if missing_symbols:
+        raise ValueError(f"Missing data for symbols: {missing_symbols}")
+
+    # Ensure we have all required columns for each symbol
+    required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+    for symbol in stock_names:
+        missing_cols = [
+            col for col in required_cols
+            if f"{col}_{symbol}" not in data.columns
+        ]
+        if missing_cols:
             raise ValueError(
-                f"No data available for symbols {stock_names} between {start_date} and {end_date}"
-            )
+                f"Missing columns {missing_cols} for symbol {symbol}")
 
-        # Validate that we have data for all symbols
-        symbols_with_data = set(
-            col.split('_')[1] for col in data.columns if '_' in col)
-        missing_symbols = set(stock_names) - symbols_with_data
-        if missing_symbols:
-            raise ValueError(f"Missing data for symbols: {missing_symbols}")
-
-        # Ensure we have all required columns for each symbol
-        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        for symbol in stock_names:
-            missing_cols = [
-                col for col in required_cols
-                if f"{col}_{symbol}" not in data.columns
-            ]
-            if missing_cols:
-                raise ValueError(
-                    f"Missing columns {missing_cols} for symbol {symbol}")
-
-        return data
-    except Exception as e:
-        logger.error(f"Error fetching trading data: {str(e)}")
-        raise ValueError(f"Failed to fetch valid trading data: {str(e)}")
+    return data
+    # except Exception as e:
+    #     logger.error(f"Error fetching trading data: {str(e)}")
+    #     raise ValueError(f"Failed to fetch valid trading data: {str(e)}")
 
 
 class TradingEnv(gym.Env):

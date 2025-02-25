@@ -186,12 +186,12 @@ def main() -> None:
 
         # logger.info("Initializing Model Training tab")
         with tab_training:
-            try:
-                display_training_tab()
-                logger.info("Model Training tab loaded successfully")
-            except Exception as e:
-                logger.error(f"Error in Model Training tab: {str(e)}")
-                st.error(f"Error loading Model Training tab: {str(e)}")
+            # try:
+            display_training_tab()
+            logger.info("Model Training tab loaded successfully")
+            # except Exception as e:
+            #     logger.error(f"Error in Model Training tab: {str(e)}")
+            #     st.error(f"Error loading Model Training tab: {str(e)}")
 
         # logger.info("Initializing Database Explorer tab")
         with tab_database:

@@ -15,8 +15,6 @@ from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
-import streamlit as st
-from data.data_handler import DataHandler
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,

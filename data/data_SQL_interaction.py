@@ -27,10 +27,26 @@ class SQLHandler:
 
     @property
     def session(self) -> Session:
-        """Lazily load a database session."""
+        """Lazily load a database session with proper transaction handling."""
         if self._session is None or not self._session.is_active:
+            if self._session:
+                try:
+                    self._session.rollback()
+                    self._session.close()
+                except:
+                    pass
             self._session = next(get_db_session())
         return self._session
+
+    def _reset_session(self):
+        """Reset the session state."""
+        if self._session:
+            try:
+                self._session.rollback()
+                self._session.close()
+            except:
+                pass
+            self._session = next(get_db_session())
 
     def _get_cache_key(self, symbol: str, start_date: datetime, end_date: datetime) -> Tuple[str, datetime, datetime]:
         return (symbol, start_date, end_date)
@@ -59,7 +75,7 @@ class SQLHandler:
     def get_cached_data(self, symbol: str, start_date: datetime, end_date: datetime) -> Optional[pd.DataFrame]:
         """Retrieve cached data with validation."""
         try:
-            self.session.rollback()  # Clear any failed transaction state
+            self._reset_session()  # Ensure clean session state
             query = self.session.query(StockData).filter(
                 and_(
                     StockData.symbol == symbol,

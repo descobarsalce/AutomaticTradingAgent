@@ -136,20 +136,25 @@ tensorboard --logdir=tensorboard_logs
 
 ## Screenshots & Demo
 
-### Trading Dashboard
-![Trading Dashboard](./assets/screenshots/trading_dashboard.png)
-*Main trading interface showing real-time portfolio performance*
+### Model Training Interface
+![Training Interface](./assets/screenshots/main.png)
+*Main training interface for configuring and training the trading agent*
 
-### Technical Analysis
-![Technical Analysis](./assets/screenshots/technical_analysis.png)
-*Technical indicators and chart analysis tools*
+### Database Explorer
+![Database Explorer](./assets/screenshots/data_explorer.png)
+*Database interface showing stock data statistics and summaries*
 
-### Training Interface
-![Training Interface](./assets/screenshots/training_interface.png)
-*Model training and hyperparameter tuning interface*
+### Data Query Interface
+![Data Query](./assets/screenshots/data_query.png)
+*Interface for querying and adding new stock data*
 
-### Demo Video
-https://github.com/yourusername/projectname/assets/screenshots/demo.gif
+### Agent Parameters
+![Agent Parameters](./assets/screenshots/agent_parameters.png)
+*Configurable parameters for the trading agent*
+
+### Hyperparameter Tuning
+![Hyperparameter Tuning](./assets/screenshots/hyperparameters_tuning.png)
+*Interface for optimizing model hyperparameters*
 
 ## License
 

@@ -121,6 +121,20 @@ class SQLHandler:
             self._cleanup_session(force=True)
             local_session = next(get_db_session())
 
+            # First check if symbol exists and get its date range
+            symbol_info = local_session.query(
+                StockData.symbol,
+                func.min(StockData.date).label('min_date'),
+                func.max(StockData.date).label('max_date'),
+                func.count(StockData.id).label('count')
+            ).filter(StockData.symbol == symbol).group_by(StockData.symbol).first()
+
+            if symbol_info:
+                logger.info(f"Found {symbol} in database:")
+                logger.info(f"Date range in DB: {symbol_info.min_date} to {symbol_info.max_date}")
+                logger.info(f"Total records: {symbol_info.count}")
+                logger.info(f"Requested date range: {start_date} to {end_date}")
+
             query = (
                 local_session.query(StockData)
                 .filter(
@@ -133,10 +147,10 @@ class SQLHandler:
                 .order_by(StockData.date)
             )
 
-            # Log query details
-            logger.info(f"SQL Query for {symbol}:")
-            logger.info(f"Date range: {start_date} to {end_date}")
-            logger.info(f"SQL: {query.statement.compile(compile_kwargs={'literal_binds': True})}")
+            # Log complete query
+            query_str = str(query.statement.compile(
+                compile_kwargs={'literal_binds': True}))
+            logger.info(f"Executing query:\n{query_str}")
 
             # Check if symbol exists at all
             symbol_exists = local_session.query(StockData.symbol).filter(StockData.symbol == symbol).first()

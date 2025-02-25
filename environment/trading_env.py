@@ -15,14 +15,15 @@ from core.portfolio_manager import PortfolioManager
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-log_verbosity = "Low" # "High" or "Low"
+log_verbosity = "Low"  # "High" or "Low"
+
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling."""
     # try:
-    data = st.session_state.data_handler.fetch_data(
-        stock_names, start_date, end_date)
+    data = st.session_state.data_handler.fetch_data(stock_names, start_date,
+                                                    end_date)
 
     # Validate that we have data for all symbols
     symbols_with_data = set(
@@ -81,8 +82,7 @@ class TradingEnv(gym.Env):
         self.rewards_calculator = RewardsCalculator(
             use_position_profit=use_position_profit,
             use_holding_bonus=use_holding_bonus,
-            use_trading_penalty=use_trading_penalty
-        )
+            use_trading_penalty=use_trading_penalty)
         self.training_mode = training_mode
 
         # Initialize portfolio manager before constructing observation space.
@@ -127,7 +127,7 @@ class TradingEnv(gym.Env):
     def _get_current_price(self, symbol: str) -> float:
         """Retrieve the current closing price for a symbol using _full_data."""
         return float(
-            self._full_data.iloc[self.current_step][f'Close_{symbol}'])
+            self._full_data.iloc[self.current_step][f'Open_{symbol}'])
 
     def _get_current_data(self) -> pd.Series:
         """Retrieve the current data row."""
@@ -145,7 +145,7 @@ class TradingEnv(gym.Env):
                           dtype=np.float32)
 
     def _construct_observation(self) -> np.ndarray:
-        """Collect current prices, positions, and balance."""
+        """Collect current/past prices, positions, and balance. This is the information available             to the agent in a given day."""
         # Construct current observation
         current_obs = []
         for symbol in self.stock_names:
@@ -155,7 +155,7 @@ class TradingEnv(gym.Env):
         current_obs.append(self.portfolio_manager.current_balance)
         current_obs = np.array(current_obs, dtype=np.float32)
 
-        if log_verbosity== "High":
+        if log_verbosity == "High":
             logger.info(f"Current observation: {current_obs}")
 
         # Add to history
@@ -171,7 +171,9 @@ class TradingEnv(gym.Env):
                    ] * missing
             history = pad + self.observation_history
         else:
-            history = self.observation_history[-self.observation_days:]
+            history = self.observation_history[
+                -self.
+                observation_days:]  # returns a fixed amnount of past days as input (history)
         combined_obs = np.concatenate(history, axis=0)
 
         # New: Check and replace NaNs in the observation.
@@ -188,7 +190,7 @@ class TradingEnv(gym.Env):
             logger.info(
                 f"Current observation (this date):\nShape: {current_obs.shape}\nData: {current_obs}"
             )
-    
+
         return combined_obs
 
     def _compute_reward(self, trades_executed: Dict[str, bool]) -> float:
@@ -198,8 +200,7 @@ class TradingEnv(gym.Env):
             reward = self.rewards_calculator.compute_reward(
                 portfolio_history=history,
                 trades_executed=trades_executed,
-                transaction_cost=self.transaction_cost
-            )
+                transaction_cost=self.transaction_cost)
             logger.debug(f"Computed reward: {reward}")
             return reward
         except Exception as e:
@@ -235,7 +236,7 @@ class TradingEnv(gym.Env):
             done = self.current_step >= len(self.data) - 1
 
             if log_verbosity == "High":
-            # Log one structured table summarizing the step.
+                # Log one structured table summarizing the step.
                 log_table = (
                     "+-------------------------+----------------------------------------------+\n"
                     f"| {'Step':<23} | {self.current_step!s:<44} |\n"
@@ -249,7 +250,7 @@ class TradingEnv(gym.Env):
                     "+-------------------------+----------------------------------------------+"
                 )
                 logger.info(log_table)
-    
+
             info = {
                 'net_worth': self.portfolio_manager.get_total_value(),
                 'balance': self.portfolio_manager.current_balance,

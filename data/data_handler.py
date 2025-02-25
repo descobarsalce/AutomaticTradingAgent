@@ -63,8 +63,9 @@ class DataHandler:
     def _process_dataframe(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
         """Process dataframe by adding symbol suffix to columns."""
         if df is not None and not df.empty:
-            # Help me fix this to exclude "Date": df.columns = [f'{col}_{symbol}' for col in list(set(df.columns-{'Date'})]  
-            df.columns = [f'{col}_{symbol}' for col in set(df.columns-{'Date'})]
+            # Process all columns except the Date column
+            df.columns = [f'{col}_{symbol}' for col in df.columns]
+            df.set_index('Date', inplace=True)
             
         return df
 

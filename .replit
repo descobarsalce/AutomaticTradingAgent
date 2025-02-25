@@ -67,14 +67,5 @@ task = "shell.exec"
 args = "streamlit run main.py --server.address 0.0.0.0 --server.port 8501"
 waitForPort = 8501
 
-[[workflows.workflow]]
-name = "Data Download Test"
-author = 38040550
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python data_download_test.py"
-
 [objectStorage]
 defaultBucketID = "replit-objstore-d8cfd369-11b3-4398-bfae-63072aa2b2c2"

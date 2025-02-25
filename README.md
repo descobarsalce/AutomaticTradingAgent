@@ -48,8 +48,8 @@ A sophisticated machine learning-based trading platform that leverages reinforce
 
 ## Quick Start
 
-1. The platform runs on Replit - no additional setup required
-2. Launch the application:
+1. The platform runs on Replit or in local instance using streamlit.
+3. Launch the application:
    ```bash
    streamlit run main.py --server.address 0.0.0.0 --server.port 8501
    ```
@@ -159,3 +159,7 @@ tensorboard --logdir=tensorboard_logs
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+Note: This model does not incorportate major feature engineering. It provides the structure 
+
+Requirements: must download dataset from yahoo finance or alpha vantage (free API available), or provide an alternative data source.

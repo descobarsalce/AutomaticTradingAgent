@@ -7,8 +7,8 @@ hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "python -m streamlit run main.py"]
-deploymentTarget = "cloudrun"
+deploymentTarget = "static"
+publicDir = "automatic-trading-agent-public"
 
 [env]
 PYTHONPATH = "${PYTHONPATH}:${REPL_HOME}"

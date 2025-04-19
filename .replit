@@ -5,6 +5,7 @@ hidden = [".config", "**/__pycache__", "**/.pytest_cache"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["ffmpeg-full", "glibcLocales", "libxcrypt", "pkg-config", "xsimd"]
 
 [deployment]
 deploymentTarget = "static"

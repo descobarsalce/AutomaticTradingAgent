@@ -28,3 +28,4 @@ utils/__pycache__/callbacks.cpython-311.pyc
 utils/__pycache__/common.cpython-311.pyc
 utils/__pycache__/db_config.cpython-311.pyc
 utils/__pycache__/stock_utils.cpython-311.pyc
+.streamlit/secrets.toml

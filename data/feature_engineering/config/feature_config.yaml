@@ -1,0 +1,51 @@
+# Feature Engineering Configuration
+# This file configures the modular feature engineering pipeline.
+
+feature_pipeline:
+  # Feature selection settings
+  selection:
+    enabled: false
+    method: variance  # variance, mutual_info, f_score, model_based
+    top_k: 50
+    correlation_threshold: 0.95
+
+  # Registered feature sources
+  sources:
+    - name: MarketDataSource
+      enabled: true
+      priority: 10
+      config:
+        windows: [5, 10, 20]
+        lags: 5
+
+    - name: TechnicalSource
+      enabled: true
+      priority: 8
+      config:
+        rsi_period: 14
+        macd_fast: 12
+        macd_slow: 26
+        macd_signal: 9
+        bb_window: 20
+        bb_std: 2.0
+        volatility_window: 20
+        stoch_period: 14
+        fft_components: 3
+        fft_window: 30
+
+  # Caching configuration
+  caching:
+    enabled: true
+    max_memory_items: 100
+    enable_disk: true
+    cache_dir: .feature_cache
+
+  # Parallelization settings
+  parallelization:
+    enabled: true
+    max_workers: 4
+
+# Data processing settings
+processing:
+  drop_na: true
+  fill_method: ffill  # ffill, bfill, interpolate

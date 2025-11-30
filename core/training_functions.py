@@ -53,13 +53,19 @@ def execute_training(
             progress_bar=progress_bar,
             status_placeholder=status_placeholder)
 
+    # Get feature configuration from session state
+    feature_config = st.session_state.get('feature_config', None)
+    if feature_config:
+        logger.info(f"Using feature config: {feature_config.get('use_feature_engineering', False)}")
+
     return st.session_state.model.train(
         stock_names=st.session_state.stock_names,
         start_date=st.session_state.train_start_date,
         end_date=st.session_state.train_end_date,
         env_params=st.session_state.env_params,
         ppo_params=ppo_params,
-        callback=progress_callback)
+        callback=progress_callback,
+        feature_config=feature_config)
 
 
 def get_training_parameters(use_optuna_params: bool = False) -> Dict[str, Any]:

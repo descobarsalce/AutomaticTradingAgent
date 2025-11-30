@@ -35,6 +35,33 @@ class StockData(Base):
         return f"<StockData(symbol='{self.symbol}', date='{self.date}')>"
 
 
+class OptionsData(Base):
+    __tablename__ = 'options_data'
+
+    id = Column(Integer, primary_key=True)
+    ticker = Column(String(10), nullable=False, index=True)
+    contract_symbol = Column(String(30), nullable=False, unique=True, index=True)
+    option_type = Column(String(4), nullable=False, index=True)  # 'call' or 'put'
+    expiration = Column(DateTime, nullable=False, index=True)
+    strike = Column(Float, nullable=False)
+    last_price = Column(Float)
+    bid = Column(Float)
+    ask = Column(Float)
+    change = Column(Float)
+    percent_change = Column(Float)
+    volume = Column(Float)
+    open_interest = Column(Float)
+    implied_volatility = Column(Float)
+    in_the_money = Column(String(5))  # 'True' or 'False'
+    contract_size = Column(String(10))
+    currency = Column(String(5))
+    last_trade_date = Column(DateTime)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<OptionsData(contract='{self.contract_symbol}', type='{self.option_type}', strike={self.strike})>"
+
+
 def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(db_config.engine)

@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, date
 from alpha_vantage.timeseries import TimeSeries
 import logging
-from typing import Optional
+from typing import Optional, List
 import os
 import time
 import requests
@@ -268,4 +268,298 @@ class StockDownloader:
             return df
         except Exception as e:
             logger.error(f"Data processing error: {str(e)}")
+            return pd.DataFrame()
+
+    def get_options_expirations(self, symbol: str, max_retries: int = 3) -> List[str]:
+        """Get available expiration dates for a symbol's options."""
+        logger.info(f"=" * 60)
+        logger.info(f"FETCHING OPTIONS EXPIRATIONS FOR: {symbol}")
+        logger.info(f"=" * 60)
+
+        # Try yfinance first with retries
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Attempt {attempt + 1}/{max_retries}: Creating yf.Ticker for {symbol}...")
+
+                # Create a session with proper headers to avoid blocking
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'application/json,text/html,application/xhtml+xml',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                })
+
+                ticker = yf.Ticker(symbol, session=session)
+
+                logger.info(f"Accessing ticker.options property...")
+                expirations = ticker.options
+
+                logger.info(f"Raw expirations response type: {type(expirations)}")
+                logger.info(f"Raw expirations response: {expirations}")
+
+                if expirations:
+                    logger.info(f"SUCCESS: Found {len(expirations)} expiration dates for {symbol}")
+                    logger.info(f"First expiration: {expirations[0]}")
+                    logger.info(f"Last expiration: {expirations[-1]}")
+                    return list(expirations)
+                else:
+                    logger.warning(f"NO EXPIRATIONS: ticker.options returned empty for {symbol}")
+
+            except requests.exceptions.JSONDecodeError as e:
+                logger.warning(f"Attempt {attempt + 1} failed with JSONDecodeError: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # exponential backoff: 2s, 4s, 6s
+                    logger.info(f"Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                continue
+
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1} failed: {type(e).__name__}: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2
+                    logger.info(f"Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                continue
+
+        # If yfinance fails, try direct API call
+        logger.info(f"yfinance failed after {max_retries} attempts, trying direct API...")
+        return self._get_options_expirations_direct(symbol)
+
+    def _get_options_expirations_direct(self, symbol: str) -> List[str]:
+        """Fallback: Get options expirations directly from Yahoo Finance API."""
+        try:
+            url = f"https://query2.finance.yahoo.com/v7/finance/options/{symbol}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+            }
+
+            logger.info(f"Direct API call to: {url}")
+            response = requests.get(url, headers=headers, timeout=10)
+            logger.info(f"Response status: {response.status_code}")
+
+            if response.status_code != 200:
+                logger.error(f"Direct API returned status {response.status_code}")
+                logger.error(f"Response text: {response.text[:500]}")
+                return []
+
+            data = response.json()
+
+            if 'optionChain' not in data or 'result' not in data['optionChain']:
+                logger.error(f"Unexpected response format: {list(data.keys())}")
+                return []
+
+            result = data['optionChain']['result']
+            if not result:
+                logger.warning(f"No options data in response for {symbol}")
+                return []
+
+            expirations = result[0].get('expirationDates', [])
+
+            if expirations:
+                # Convert Unix timestamps to date strings
+                from datetime import datetime as dt
+                exp_dates = [dt.fromtimestamp(ts).strftime('%Y-%m-%d') for ts in expirations]
+                logger.info(f"Direct API SUCCESS: Found {len(exp_dates)} expirations")
+                return exp_dates
+            else:
+                logger.warning(f"No expiration dates in response")
+                return []
+
+        except Exception as e:
+            logger.error(f"Direct API failed: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
+            return []
+
+    def download_options_data(
+        self,
+        symbol: str,
+        expirations: List[str] = None,
+        option_type: str = 'both'
+    ) -> pd.DataFrame:
+        """
+        Download options data from Yahoo Finance.
+
+        Args:
+            symbol: Stock ticker symbol (e.g., 'AAPL')
+            expirations: List of expiration dates to fetch. If None, fetches all.
+            option_type: 'call', 'put', or 'both'
+
+        Returns:
+            DataFrame with all options data
+        """
+        logger.info(f"Downloading options for {symbol}, expirations={expirations}, type={option_type}")
+
+        try:
+            # Create session with proper headers
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json,text/html,application/xhtml+xml',
+                'Accept-Language': 'en-US,en;q=0.9',
+            })
+
+            ticker = yf.Ticker(symbol, session=session)
+            available_expirations = ticker.options
+
+            if not available_expirations:
+                logger.warning(f"No options available for {symbol}")
+                # Try getting expirations via direct API
+                available_expirations = self._get_options_expirations_direct(symbol)
+                if not available_expirations:
+                    return pd.DataFrame()
+
+            # Use all expirations if none specified
+            if expirations is None:
+                expirations = available_expirations
+            else:
+                # Validate requested expirations
+                expirations = [exp for exp in expirations if exp in available_expirations]
+                if not expirations:
+                    logger.warning(f"None of the requested expirations are available")
+                    return pd.DataFrame()
+
+            all_options = []
+
+            for exp in expirations:
+                try:
+                    chain = ticker.option_chain(exp)
+
+                    if option_type in ('call', 'both'):
+                        calls = chain.calls.copy()
+                        calls['option_type'] = 'call'
+                        calls['expiration'] = exp
+                        calls['ticker'] = symbol
+                        all_options.append(calls)
+
+                    if option_type in ('put', 'both'):
+                        puts = chain.puts.copy()
+                        puts['option_type'] = 'put'
+                        puts['expiration'] = exp
+                        puts['ticker'] = symbol
+                        all_options.append(puts)
+
+                    logger.info(f"Fetched options for {symbol} expiring {exp}")
+
+                except Exception as e:
+                    logger.error(f"Failed to fetch {symbol} options for {exp} via yfinance: {e}")
+                    # Try direct API fallback for this expiration
+                    logger.info(f"Trying direct API for {symbol} {exp}...")
+                    direct_data = self._download_option_chain_direct(symbol, exp, option_type)
+                    if not direct_data.empty:
+                        all_options.append(direct_data)
+                    continue
+
+            if not all_options:
+                return pd.DataFrame()
+
+            df = pd.concat(all_options, ignore_index=True)
+
+            # Rename columns to match database schema
+            column_mapping = {
+                'contractSymbol': 'contract_symbol',
+                'lastTradeDate': 'last_trade_date',
+                'lastPrice': 'last_price',
+                'percentChange': 'percent_change',
+                'openInterest': 'open_interest',
+                'impliedVolatility': 'implied_volatility',
+                'inTheMoney': 'in_the_money',
+                'contractSize': 'contract_size'
+            }
+            df = df.rename(columns=column_mapping)
+
+            # Convert in_the_money to string
+            if 'in_the_money' in df.columns:
+                df['in_the_money'] = df['in_the_money'].astype(str)
+
+            logger.info(f"Downloaded {len(df)} option contracts for {symbol}")
+            return df
+
+        except Exception as e:
+            logger.error(f"Error downloading options for {symbol}: {e}")
+            return pd.DataFrame()
+
+    def _download_option_chain_direct(self, symbol: str, expiration: str, option_type: str = 'both') -> pd.DataFrame:
+        """Fallback: Download option chain directly from Yahoo Finance API."""
+        try:
+            # Convert expiration date string to Unix timestamp
+            from datetime import datetime as dt
+            exp_date = dt.strptime(expiration, '%Y-%m-%d')
+            exp_timestamp = int(exp_date.timestamp())
+
+            url = f"https://query2.finance.yahoo.com/v7/finance/options/{symbol}"
+            params = {'date': exp_timestamp}
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+            }
+
+            logger.info(f"Direct API call: {url}?date={exp_timestamp}")
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            logger.info(f"Response status: {response.status_code}")
+
+            if response.status_code != 200:
+                logger.error(f"Direct API returned status {response.status_code}")
+                return pd.DataFrame()
+
+            data = response.json()
+
+            if 'optionChain' not in data or 'result' not in data['optionChain']:
+                logger.error(f"Unexpected response format")
+                return pd.DataFrame()
+
+            result = data['optionChain']['result']
+            if not result or 'options' not in result[0]:
+                logger.warning(f"No options data in response")
+                return pd.DataFrame()
+
+            options_data = result[0]['options'][0]
+            all_options = []
+
+            # Process calls
+            if option_type in ('call', 'both') and 'calls' in options_data:
+                calls_df = pd.DataFrame(options_data['calls'])
+                calls_df['option_type'] = 'call'
+                calls_df['expiration'] = expiration
+                calls_df['ticker'] = symbol
+                all_options.append(calls_df)
+                logger.info(f"Direct API: {len(calls_df)} call contracts")
+
+            # Process puts
+            if option_type in ('put', 'both') and 'puts' in options_data:
+                puts_df = pd.DataFrame(options_data['puts'])
+                puts_df['option_type'] = 'put'
+                puts_df['expiration'] = expiration
+                puts_df['ticker'] = symbol
+                all_options.append(puts_df)
+                logger.info(f"Direct API: {len(puts_df)} put contracts")
+
+            if not all_options:
+                return pd.DataFrame()
+
+            df = pd.concat(all_options, ignore_index=True)
+
+            # Rename columns to match expected format
+            column_mapping = {
+                'contractSymbol': 'contract_symbol',
+                'lastTradeDate': 'last_trade_date',
+                'lastPrice': 'last_price',
+                'percentChange': 'percent_change',
+                'openInterest': 'open_interest',
+                'impliedVolatility': 'implied_volatility',
+                'inTheMoney': 'in_the_money',
+                'contractSize': 'contract_size'
+            }
+            df = df.rename(columns=column_mapping)
+
+            # Convert in_the_money to string
+            if 'in_the_money' in df.columns:
+                df['in_the_money'] = df['in_the_money'].astype(str)
+
+            logger.info(f"Direct API SUCCESS: {len(df)} contracts for {symbol} {expiration}")
+            return df
+
+        except Exception as e:
+            logger.error(f"Direct option chain download failed: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
             return pd.DataFrame()

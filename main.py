@@ -2,8 +2,10 @@ import streamlit as st
 from core.base_agent import UnifiedTradingAgent
 from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
+from components.tuning_tab import display_tuning_tab
 from components.testing_tab import display_testing_tab
 from components.database_tab import display_database_explorer
+from components.features_tab import display_features_tab, initialize_feature_config
 from data.data_handler import DataHandler
 from datetime import datetime, timedelta
 import logging
@@ -58,6 +60,9 @@ def init_session_state() -> None:
             
         if 'training_in_progress' not in st.session_state:
             st.session_state.training_in_progress = False
+
+        # Initialize feature configuration
+        initialize_feature_config()
 
         if (datetime.now() - start_time) > timeout:
             raise TimeoutError("Session state initialization timed out")
@@ -173,17 +178,44 @@ def main() -> None:
         st.title("Trading Analysis and Agent Platform")
 
         # logger.info("Creating application tabs")
-        tab_training, tab_testing, tab_analysis, tab_database = st.tabs(
-            ["Model Training", "Testing Interface", "Technical Analysis", "Database Explorer"])
+        # Reordered to match workflow: 1) Download data, 2) Select features, 3) Train model
+        tab_database, tab_features, tab_training, tab_tuning, tab_testing, tab_analysis = st.tabs(
+            ["Database Explorer", "Feature Selection", "Model Training", "Hyperparameter Tuning", "Testing Interface", "Technical Analysis"])
+
+        # logger.info("Initializing Database Explorer tab")
+        with tab_database:
+            try:
+                display_database_explorer()
+                # logger.info("Database Explorer tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Database Explorer tab: {str(e)}")
+                st.error(f"Error loading Database Explorer tab: {str(e)}")
+
+        # Feature Selection tab
+        with tab_features:
+            try:
+                display_features_tab()
+            except Exception as e:
+                logger.error(f"Error in Feature Selection tab: {str(e)}")
+                st.error(f"Error loading Feature Selection tab: {str(e)}")
 
         # logger.info("Initializing Model Training tab")
         with tab_training:
-            # try:
-            display_training_tab()
-            # logger.info("Model Training tab loaded successfully")
-            # except Exception as e:
-            #     logger.error(f"Error in Model Training tab: {str(e)}")
-            #     st.error(f"Error loading Model Training tab: {str(e)}")
+            try:
+                display_training_tab()
+                # logger.info("Model Training tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Model Training tab: {str(e)}")
+                st.error(f"Error loading Model Training tab: {str(e)}")
+
+        # logger.info("Initializing Hyperparameter Tuning tab")
+        with tab_tuning:
+            try:
+                display_tuning_tab()
+                # logger.info("Hyperparameter Tuning tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Hyperparameter Tuning tab: {str(e)}")
+                st.error(f"Error loading Hyperparameter Tuning tab: {str(e)}")
 
         # logger.info("Initializing Testing Interface tab")
         with tab_testing:
@@ -202,15 +234,6 @@ def main() -> None:
             except Exception as e:
                 logger.error(f"Error in Technical Analysis tab: {str(e)}")
                 st.error(f"Error loading Technical Analysis tab: {str(e)}")
-
-        # logger.info("Initializing Database Explorer tab")
-        with tab_database:
-            try:
-                display_database_explorer()
-                # logger.info("Database Explorer tab loaded successfully")
-            except Exception as e:
-                logger.error(f"Error in Database Explorer tab: {str(e)}")
-                st.error(f"Error loading Database Explorer tab: {str(e)}")
 
         execution_time = (datetime.now() - start_time).total_seconds()
         logger.info(

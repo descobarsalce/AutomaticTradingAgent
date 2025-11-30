@@ -1,6 +1,22 @@
 """
 Feature engineering pipeline with consolidated technical indicators.
+
+DEPRECATED: This module is deprecated. Please use the new modular feature
+engineering system instead:
+
+    from data.feature_engineering import FeatureEngineer
+
+    engineer = FeatureEngineer()
+    engineer.register_default_sources()
+    features = engineer.compute_features(data, symbols=['AAPL', 'MSFT'])
+
+The new system provides:
+- Plugin-based architecture for adding custom feature sources
+- Automatic feature selection
+- Caching for improved performance
+- Parallel computation
 """
+import warnings
 import pandas as pd
 import numpy as np
 import logging
@@ -11,11 +27,61 @@ from metrics.base_indicators import BaseTechnicalIndicators
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
 class FeatureEngineer(BaseTechnicalIndicators):
-    """Feature engineering using base technical indicators."""
+    """Feature engineering using base technical indicators.
+
+    DEPRECATED: Use data.feature_engineering.FeatureEngineer instead.
+    """
 
     def __init__(self, n_jobs: int = 1):
+        warnings.warn(
+            "data.data_feature_engineer.FeatureEngineer is deprecated. "
+            "Use data.feature_engineering.FeatureEngineer instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.n_jobs = n_jobs
+
+    def calculate_stochastic_oscillator(
+        self,
+        data: pd.DataFrame,
+        period: int = 14,
+        smooth_k: int = 3,
+        smooth_d: int = 3,
+    ) -> pd.DataFrame:
+        """Calculate Stochastic Oscillator."""
+        high = data['High']
+        low = data['Low']
+        close = data['Close']
+
+        lowest_low = low.rolling(window=period).min()
+        highest_high = high.rolling(window=period).max()
+
+        denominator = highest_high - lowest_low
+        denominator = denominator.replace(0, np.nan)
+
+        stoch_k = 100 * (close - lowest_low) / denominator
+        stoch_k = stoch_k.rolling(window=smooth_k).mean()
+        stoch_d = stoch_k.rolling(window=smooth_d).mean()
+
+        return pd.DataFrame({
+            'Stoch_%K': stoch_k,
+            'Stoch_%D': stoch_d,
+        }, index=data.index)
+
+    def calculate_on_balance_volume(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate On-Balance Volume."""
+        close = data['Close']
+        volume = data['Volume']
+
+        obv = pd.Series(0.0, index=close.index)
+        price_change = close.diff()
+
+        obv[price_change > 0] = volume[price_change > 0]
+        obv[price_change < 0] = -volume[price_change < 0]
+
+        return obv.cumsum()
 
     @staticmethod
     def normalize_data(data: pd.Series) -> pd.Series:
@@ -67,7 +133,7 @@ class FeatureEngineer(BaseTechnicalIndicators):
                 fft_result = fft(window_data.values)
                 for j in range(top_n):
                     result.loc[prices.index[i - 1], f'FFT_{j + 1}'] = np.abs(fft_result[j])
-            return result.fillna(method='ffill')
+            return result.ffill()
         except Exception as e:
             logger.error(f"FFT calculation error: {e}")
             return pd.DataFrame(index=prices.index)

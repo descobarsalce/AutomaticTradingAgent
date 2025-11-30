@@ -68,11 +68,20 @@ class UnifiedTradingAgent:
         }
 
     @type_check
-    def initialize_env(self, stock_names: List[str], start_date: datetime, 
-                      end_date: datetime, env_params: Dict[str, Any]) -> None:
-        """Initialize trading environment with parameters."""
+    def initialize_env(self, stock_names: List[str], start_date: datetime,
+                      end_date: datetime, env_params: Dict[str, Any],
+                      feature_config: Optional[Dict[str, Any]] = None) -> None:
+        """Initialize trading environment with parameters.
+
+        Args:
+            stock_names: List of stock symbols
+            start_date: Training start date
+            end_date: Training end date
+            env_params: Environment parameters (balance, costs, etc.)
+            feature_config: Optional feature engineering configuration
+        """
         logger.info(f"Initializing environment with params: {env_params}")
-        
+
         # Clean up env_params to remove any deprecated parameters
         cleaned_params = {
             'initial_balance': env_params.get('initial_balance', 10000),
@@ -83,17 +92,21 @@ class UnifiedTradingAgent:
             'use_trading_penalty': env_params.get('use_trading_penalty', False),
             'observation_days': env_params.get('history_length', 3)  # Convert history_length to observation_days
         }
-        
+
         # Remove any None values
         cleaned_params = {k: v for k, v in cleaned_params.items() if v is not None}
-        
+
         logger.info(f"Cleaned environment parameters: {cleaned_params}")
-        
+
         # Log a centralized table of environment parameters
         headers = f"{'Parameter':<25}{'Value':<15}"
         rows = "\n".join([f"{k:<25}{v!s:<15}" for k, v in cleaned_params.items()])
         logger.info("\nEnvironment Parameters:\n" + headers + "\n" + rows)
-        
+
+        # Log feature configuration
+        if feature_config:
+            logger.info(f"Feature engineering enabled: {feature_config.get('use_feature_engineering', False)}")
+
         try:
             # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
             self.env = TradingEnv(
@@ -101,6 +114,7 @@ class UnifiedTradingAgent:
                 start_date=start_date,
                 end_date=end_date,
                 **cleaned_params,
+                feature_config=feature_config,
                 training_mode=True
             )
             logger.info("Environment initialized successfully")
@@ -160,9 +174,10 @@ class UnifiedTradingAgent:
             raise
 
     def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
-                            env_params: Dict[str, Any], ppo_params: Dict[str, Any]):
+                            env_params: Dict[str, Any], ppo_params: Dict[str, Any],
+                            feature_config: Optional[Dict[str, Any]] = None):
         """Prepare environment and configure PPO model."""
-        self.initialize_env(stock_names, start_date, end_date, env_params)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config)
         # Set default action space if not provided by the environment
         if self.env.action_space is None:
             import gymnasium as gym
@@ -189,10 +204,24 @@ class UnifiedTradingAgent:
               end_date: datetime,
               env_params: Dict[str, Any],
               ppo_params: Dict[str, Any],
-              callback: Optional[BaseCallback] = None) -> Dict[str, float]:
-        """Train the agent with progress logging."""
+              callback: Optional[BaseCallback] = None,
+              feature_config: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+        """Train the agent with progress logging.
+
+        Args:
+            stock_names: List of stock symbols to trade
+            start_date: Training start date
+            end_date: Training end date
+            env_params: Environment parameters
+            ppo_params: PPO hyperparameters
+            callback: Optional training callback
+            feature_config: Optional feature engineering configuration
+
+        Returns:
+            Dictionary of training metrics
+        """
         logger.info(f"Starting training with {len(stock_names)} stocks from {start_date} to {end_date}")
-        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params)
+        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params, feature_config)
 
         total_timesteps = max(1, (end_date - start_date).days)
         eval_callback = EvalCallback(self.env,
@@ -227,12 +256,12 @@ class UnifiedTradingAgent:
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
-             env_params: Dict[str, Any]) -> Dict[str, Any]:
+             env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
         logger.info(f"Stocks: {stock_names}")
         logger.info(f"Period: {start_date} to {end_date}")
-        
-        self.initialize_env(stock_names, start_date, end_date, env_params)
+
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):

@@ -52,7 +52,19 @@ class DatabaseConfig:
                 'max_overflow': 10,
                 'pool_timeout': 30,
                 'echo': False,  # Reduce logging noise
-                'connect_args': {
+            }
+
+            if not database_url:
+                logger.warning("⚠️ No PostgreSQL connection found, falling back to SQLite")
+                database_url = 'sqlite:///trading_data.db'
+
+            if database_url.startswith('sqlite'):
+                # SQLite only accepts limited connect_args
+                engine_kwargs['connect_args'] = {'check_same_thread': False}
+                logger.info("📁 Using SQLite database at: trading_data.db")
+            else:
+                # Use connection pooling for PostgreSQL and pass only relevant connect_args
+                engine_kwargs['connect_args'] = {
                     'connect_timeout': 10,
                     'application_name': 'trading_app',
                     'keepalives': 1,
@@ -61,15 +73,6 @@ class DatabaseConfig:
                     'keepalives_count': 5,
                     'sslmode': 'require'
                 }
-            }
-            
-            if not database_url:
-                logger.warning("⚠️ No PostgreSQL connection found, falling back to SQLite")
-                database_url = 'sqlite:///trading_data.db'
-                engine_kwargs['connect_args'] = {'check_same_thread': False}
-                logger.info("📁 Using SQLite database at: trading_data.db")
-            else:
-                # Use connection pooling for PostgreSQL
                 database_url = database_url.replace('.us-east-2', '-pooler.us-east-2')
                 logger.info("🐘 Configuring PostgreSQL connection with pooling")
                 logger.info(f"📊 Pool configuration - Size: {engine_kwargs['pool_size']}, "

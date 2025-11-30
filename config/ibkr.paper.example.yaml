@@ -1,0 +1,9 @@
+# Example IBKR Paper configuration for Lean or direct adapter use
+host: 127.0.0.1
+port: 4002  # 4002 = paper gateway by default
+client_id: 17
+account: YOUR_PAPER_ACCOUNT_ID
+readonly: false
+connect_timeout: 15
+auto_disconnect: true
+log_level: 20  # INFO

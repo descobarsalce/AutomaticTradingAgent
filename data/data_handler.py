@@ -50,15 +50,28 @@ class DataHandler:
     def _fetch_from_external(self, symbol: str, start_date: datetime, end_date: datetime, source: str) -> Optional[pd.DataFrame]:
         """Fetch data from external source and cache it."""
         try:
+            logger.info(f"Fetching {symbol} from {source}: [{start_date}, {end_date}]")
             downloader = StockDownloader(source='alpha_vantage' if source == "Alpha Vantage" else 'yahoo')
             df = downloader.download_stock_data(symbol, start_date, end_date)
-            if not df.empty:
-                logger.info(f"Retrieved {symbol} data from {source}")
+
+            if df is None or df.empty:
+                logger.warning(f"No data returned for {symbol} from {source}")
+                return None
+
+            logger.info(f"Retrieved {len(df)} rows for {symbol} from {source}")
+
+            try:
                 self._sql_handler.cache_data(symbol, df)
-                return df
+                logger.info(f"Cached {symbol} data in SQL")
+            except Exception as cache_error:
+                logger.warning(f"Failed to cache {symbol}: {str(cache_error)}")
+                # Don't fail the entire operation if caching fails
+
+            return df
+
         except Exception as e:
-            logger.error(f"Download error for {symbol}: {str(e)}")
-        return None
+            logger.error(f"Download error for {symbol} from {source}: {type(e).__name__}: {str(e)}", exc_info=True)
+            raise
 
     def _process_dataframe(self, df: pd.DataFrame, symbol: str) -> pd.DataFrame:
         """Process dataframe by adding symbol suffix to columns except Date."""
@@ -79,17 +92,27 @@ class DataHandler:
 
     def fetch_data(self, symbols: Union[str, List[str]], start_date: datetime, end_date: datetime, source="Alpha Vantage", use_SQL=True) -> pd.DataFrame:
         """Fetch data with improved error handling and validation.
-        
+
         Args:
             symbols: List of stock symbols or comma-separated string
             start_date: Start date for data fetching
             end_date: End date for data fetching
             source: Data source ("Alpha Vantage" or "Yahoo")
             use_SQL: Whether to use SQL cache first
-            
+
         Returns:
             DataFrame containing the fetched data
         """
+        # INPUT VALIDATION
+        if not isinstance(start_date, datetime):
+            raise TypeError(f"start_date must be datetime, got {type(start_date).__name__}")
+        if not isinstance(end_date, datetime):
+            raise TypeError(f"end_date must be datetime, got {type(end_date).__name__}")
+        if start_date > end_date:
+            raise ValueError(f"start_date ({start_date}) cannot be after end_date ({end_date})")
+
+        logger.info(f"Fetching data for {symbols} from {source}: [{start_date}, {end_date}]")
+
         symbols = self._validate_and_parse_symbols(symbols)
         result_df = pd.DataFrame()
 

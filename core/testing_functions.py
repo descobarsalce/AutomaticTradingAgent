@@ -94,9 +94,9 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                                 "test_trade")
 
                         # Create tabs for different visualization aspects
-                        metrics_tab, trades_tab, analysis_tab = st.tabs([
+                        metrics_tab, trades_tab, positions_tab, analysis_tab = st.tabs([
                             "Performance Metrics", "Trade Analysis",
-                            "Technical Analysis"
+                            "Position History", "Technical Analysis"
                         ])
 
                         with metrics_tab:
@@ -118,6 +118,10 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                         with trades_tab:
                             st.subheader("Trading Activity")
                             display_trading_activity(test_results)
+
+                        with positions_tab:
+                            st.subheader("Position History")
+                            display_position_history(test_results, stock_names)
 
                         with analysis_tab:
                             st.subheader("Technical Analysis")
@@ -182,6 +186,166 @@ def display_trading_activity(test_results: Dict[str, Any]):
 
     if 'combined_plot' in test_results:
         st.plotly_chart(test_results['combined_plot'], use_container_width=True, key="trades_combined_plot")
+
+def display_position_history(test_results: Dict[str, Any], stock_names: list):
+    """
+    Display detailed position history showing all position changes
+    """
+    import pandas as pd
+
+    if 'info_history' not in test_results:
+        st.warning("No position history data available")
+        return
+
+    info_history = test_results['info_history']
+
+    # Extract position data from info_history
+    position_records = []
+    prev_positions = None
+    prev_balance = None
+
+    for i, info in enumerate(info_history):
+        current_positions = info.get('positions', {})
+        current_balance = info.get('balance', 0)
+        current_value = info.get('portfolio_value', 0)
+        date = info.get('date', i)
+
+        # Check if positions or balance changed
+        positions_changed = (prev_positions != current_positions) or (prev_balance != current_balance)
+
+        # Always include first and last record, or when positions changed
+        if i == 0 or i == len(info_history) - 1 or positions_changed:
+            record = {
+                'Date': date,
+                'Balance': f"${current_balance:,.2f}",
+                'Portfolio Value': f"${current_value:,.2f}",
+            }
+
+            # Add each stock position
+            for stock in stock_names:
+                shares = current_positions.get(stock, 0)
+                record[f'{stock} Shares'] = shares
+
+            # Calculate allocation percentages
+            if current_value > 0:
+                cash_pct = (current_balance / current_value) * 100
+                record['Cash %'] = f"{cash_pct:.1f}%"
+
+                for stock in stock_names:
+                    shares = current_positions.get(stock, 0)
+                    if shares > 0 and 'current_data' in info:
+                        current_data = info['current_data']
+                        price_key = f'Close_{stock}'
+                        if price_key in current_data:
+                            stock_value = shares * current_data[price_key]
+                            stock_pct = (stock_value / current_value) * 100
+                            record[f'{stock} %'] = f"{stock_pct:.1f}%"
+                        else:
+                            record[f'{stock} %'] = "0.0%"
+                    else:
+                        record[f'{stock} %'] = "0.0%"
+
+            position_records.append(record)
+
+        prev_positions = current_positions.copy()
+        prev_balance = current_balance
+
+    # Create DataFrame
+    if position_records:
+        df = pd.DataFrame(position_records)
+
+        # Display summary statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Position Changes", len(position_records) - 2)  # Exclude first and last
+        with col2:
+            st.metric("Start Value", position_records[0]['Portfolio Value'])
+        with col3:
+            st.metric("End Value", position_records[-1]['Portfolio Value'])
+
+        st.markdown("### Position Changes Over Time")
+        st.markdown("*This table shows only the days when positions changed*")
+
+        # Display the full table
+        st.dataframe(df, use_container_width=True, height=400)
+
+        # Download button
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Position History CSV",
+            data=csv,
+            file_name="position_history.csv",
+            mime="text/csv"
+        )
+
+        # Create position allocation over time chart
+        st.markdown("### Portfolio Allocation Over Time")
+        create_allocation_chart(info_history, stock_names)
+    else:
+        st.warning("No position changes detected during testing period")
+
+def create_allocation_chart(info_history: list, stock_names: list):
+    """
+    Create a stacked area chart showing portfolio allocation over time
+    """
+    import plotly.graph_objects as go
+
+    dates = []
+    cash_values = []
+    stock_values = {stock: [] for stock in stock_names}
+
+    for info in info_history:
+        date = info.get('date')
+        balance = info.get('balance', 0)
+        positions = info.get('positions', {})
+        current_data = info.get('current_data', {})
+
+        dates.append(date)
+        cash_values.append(balance)
+
+        for stock in stock_names:
+            shares = positions.get(stock, 0)
+            price_key = f'Close_{stock}'
+            if shares > 0 and price_key in current_data:
+                value = shares * current_data[price_key]
+            else:
+                value = 0
+            stock_values[stock].append(value)
+
+    # Create stacked area chart
+    fig = go.Figure()
+
+    # Add cash
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=cash_values,
+        mode='lines',
+        name='Cash',
+        stackgroup='one',
+        fillcolor='lightblue'
+    ))
+
+    # Add each stock
+    colors = ['lightgreen', 'lightcoral', 'lightyellow', 'lightpink', 'lightgray']
+    for idx, stock in enumerate(stock_names):
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=stock_values[stock],
+            mode='lines',
+            name=stock,
+            stackgroup='one',
+            fillcolor=colors[idx % len(colors)]
+        ))
+
+    fig.update_layout(
+        title='Portfolio Allocation Over Time',
+        xaxis_title='Date',
+        yaxis_title='Value ($)',
+        hovermode='x unified',
+        height=500
+    )
+
+    st.plotly_chart(fig, use_container_width=True, key="allocation_chart")
 
 def perform_monte_carlo_analysis(model, data, num_simulations=100):
     """

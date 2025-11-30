@@ -112,6 +112,29 @@ def display_testing_tab():
 
     st.markdown("---")
 
+    # Important configuration warning
+    st.info(
+        "⚠️ **Important**: The stocks and environment parameters must match those used during training.\n\n"
+        "If you get an observation space error, ensure you're using the same:\n"
+        "- Number and list of stocks\n"
+        "- Environment parameters (especially history_length/observation_days)\n\n"
+        "Go to the 'Model Training' tab to verify your current configuration."
+    )
+
+    # Display current testing configuration
+    with st.expander("Current Testing Configuration", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("**Stocks:**")
+            st.code(", ".join(st.session_state.stock_names))
+            st.metric("Number of Stocks", len(st.session_state.stock_names))
+
+        with col2:
+            st.write("**Environment Parameters:**")
+            for key, value in st.session_state.env_params.items():
+                st.text(f"{key}: {value}")
+
     # Store parameters in session state
     st.session_state.ppo_params = best_params_data.get('params', {})
 

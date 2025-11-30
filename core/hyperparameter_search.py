@@ -1384,6 +1384,9 @@ def hyperparameter_tuning() -> None:
         progress_bar = st.progress(0)
         status_text = st.empty()
 
+        # Get feature configuration from session state
+        feature_config = st.session_state.get('feature_config', None)
+
         try:
             study, optimizer = run_hyperparameter_optimization(
                 stock_names=stock_names,
@@ -1401,6 +1404,7 @@ def hyperparameter_tuning() -> None:
                 iterative_refinement=iterative_refinement if two_phase_enabled else False,
                 improvement_threshold=improvement_threshold,
                 max_rounds=max_rounds,
+                feature_config=feature_config,
             )
 
             st.success("✅ Hyperparameter tuning completed!")

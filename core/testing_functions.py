@@ -113,7 +113,7 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
 
                             # Display performance charts
                             if 'combined_plot' in test_results:
-                                st.plotly_chart(test_results['combined_plot'])
+                                st.plotly_chart(test_results['combined_plot'], key="metrics_combined_plot")
 
                         with trades_tab:
                             st.subheader("Trading Activity")
@@ -133,14 +133,16 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                                     corr_fig = visualizer.plot_correlation_heatmap(
                                         portfolio_data)
                                     st.plotly_chart(corr_fig,
-                                                    use_container_width=True)
+                                                    use_container_width=True,
+                                                    key="correlation_heatmap")
 
                                 # Show drawdown analysis
-                                for symbol in stock_names:
+                                for idx, symbol in enumerate(stock_names):
                                     drawdown_fig = visualizer.plot_performance_and_drawdown(
                                         portfolio_data, symbol)
                                     st.plotly_chart(drawdown_fig,
-                                                    use_container_width=True)
+                                                    use_container_width=True,
+                                                    key=f"drawdown_{symbol}_{idx}")
 
             except Exception as e:
                 st.error(f"Error during testing: {str(e)}")
@@ -176,10 +178,10 @@ def display_trading_activity(test_results: Dict[str, Any]):
     Displays trading activity plots
     """
     if 'action_plot' in test_results:
-        st.plotly_chart(test_results['action_plot'], use_container_width=True)
+        st.plotly_chart(test_results['action_plot'], use_container_width=True, key="trades_action_plot")
 
     if 'combined_plot' in test_results:
-        st.plotly_chart(test_results['combined_plot'], use_container_width=True)
+        st.plotly_chart(test_results['combined_plot'], use_container_width=True, key="trades_combined_plot")
 
 def perform_monte_carlo_analysis(model, data, num_simulations=100):
     """

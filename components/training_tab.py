@@ -22,7 +22,6 @@ from core.training_functions import (initialize_training, execute_training,
                                      get_training_parameters,
                                      display_training_metrics, run_training)
 from core.hyperparameter_search import hyperparameter_tuning
-from core.testing_functions import display_testing_interface
 
 
 def display_training_tab():
@@ -137,13 +136,6 @@ def display_training_tab():
 
     with tab2:
         hyperparameter_tuning()
-
-    if st.session_state.ppo_params is not None:
-        display_testing_interface(st.session_state.model,
-                                  st.session_state.stock_names,
-                                  st.session_state.env_params,
-                                  st.session_state.ppo_params,
-                                  use_optuna_params=use_optuna_params)
 
     # # Display code execution interface
     # from components.execution_window_ui import display_execution_window

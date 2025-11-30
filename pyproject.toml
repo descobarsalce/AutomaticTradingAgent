@@ -31,6 +31,8 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "alpha-vantage>=3.0.0",
     "aiohttp>=3.11.12",
+    "ib-insync>=0.9.86",
+    "PyYAML>=6.0.2",
 ]
 
 [[tool.uv.index]]

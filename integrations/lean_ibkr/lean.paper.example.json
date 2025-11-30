@@ -1,0 +1,23 @@
+{
+  "organization-id": "YOUR_ORG_ID",
+  "api-token": "YOUR_QC_API_TOKEN",
+  "environments": {
+    "ibkr-paper": {
+      "live-mode": true,
+      "algorithm-language": "Python",
+      "brokerage": "InteractiveBrokersBrokerage",
+      "data-queue-handler": "InteractiveBrokersBrokerage",
+      "environment": "paper",
+      "ib-account": "YOUR_PAPER_ACCOUNT_ID",
+      "ib-host": "127.0.0.1",
+      "ib-port": 4002,
+      "ib-tws-dir": "/opt/ibc/tws",  
+      "ib-user-name": "YOUR_USERNAME",
+      "ib-password": "YOUR_PASSWORD",
+      "ib-use-regular-trading-hours": true,
+      "ib-enable-delayed-streaming-data": false,
+      "ib-allow-delayed-optimization": false,
+      "job-brokerage-environment": "Paper"
+    }
+  }
+}

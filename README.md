@@ -49,10 +49,12 @@ A sophisticated machine learning-based trading platform that leverages reinforce
 ## Quick Start
 
 1. The platform runs on Replit or in local instance using streamlit.
-3. Launch the application:
+3. Launch the application locally (from the project root on your laptop):
    ```bash
    streamlit run main.py --server.address 0.0.0.0 --server.port 8501
    ```
+   - Open the app at `http://localhost:8501` in your browser. If port `8501` is busy on your machine, change `--server.port` (e.g., `8502`) and use the matching port in the URL.
+   - Database note: by default the app uses a local SQLite file; if you want PostgreSQL via Homebrew on macOS, follow `docs/local_db_setup.md`.
 
 ## Trading Environment
 
@@ -133,6 +135,10 @@ tensorboard --logdir=tensorboard_logs
 - Model training requires significant computational resources
 - Historical data availability varies by asset
 - Trade execution assumes ideal market conditions
+
+## Live trading integration overview
+
+If you want to pair this agent with a broker for paper or live trading, see `docs/quantconnect_ibkr_overview.md` for how QuantConnect's Lean engine (data + orchestration) and Interactive Brokers (execution venue) work together to provide recruiter-ready runs. A minimal Lean project scaffold and IBKR adapter utilities live in `integrations/lean_ibkr/`, with a direct IBKR smoke-test script at `scripts/run_ibkr_session.py`.
 
 ## Screenshots & Demo
 

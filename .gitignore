@@ -29,4 +29,17 @@ utils/__pycache__/common.cpython-311.pyc
 utils/__pycache__/db_config.cpython-311.pyc
 utils/__pycache__/stock_utils.cpython-311.pyc
 .streamlit/secrets.toml
+
+# Streamlit secrets (never commit)
 .streamlit/secrets.toml
+
+# Model artifacts
+best_hyperparameters.json
+hyperparameter_tuning_results.csv
+trained_model.zip
+saved_models/
+best_model/
+
+# Generic model + zip ignore
+*.zip
+

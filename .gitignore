@@ -44,3 +44,5 @@ best_model/
 # Generic model + zip ignore
 *.zip
 
+data/__init__.py
+.gitignore

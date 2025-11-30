@@ -667,6 +667,7 @@ def run_hyperparameter_optimization(
     iterative_refinement: bool = False,
     improvement_threshold: float = 0.01,
     max_rounds: int = 3,
+    feature_config: Optional[Dict[str, Any]] = None,
 ) -> Tuple[optuna.Study, Optional[IterativeHyperparameterOptimizer]]:
     """
     Run hyperparameter optimization using Optuna.
@@ -691,6 +692,7 @@ def run_hyperparameter_optimization(
             optimization_metric=optimization_metric,
             progress_bar=progress_bar,
             status_text=status_text,
+            feature_config=feature_config,
         )
 
         study = optimizer.run_optimization(
@@ -746,6 +748,7 @@ def run_hyperparameter_optimization(
                     end_date=train_end_date,
                     env_params=env_params,
                     ppo_params=ppo_params,
+                    feature_config=feature_config,
                 )
 
                 trial_value = metrics.get(optimization_metric, float("-inf"))

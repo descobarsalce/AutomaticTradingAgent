@@ -144,10 +144,22 @@ class IBKRAdapter(BrokerAdapter):
 
     def get_account_summary(self) -> Dict[str, Any]:
         summary: Dict[str, Any] = {}
-        for tag in ["TotalCashValue", "BuyingPower", "NetLiquidation", "GrossPositionValue"]:
-            values = self.ib.accountSummary(tag)
-            if values:
-                summary[tag] = values[0].value
+        tags = ["TotalCashValue", "BuyingPower", "NetLiquidation", "GrossPositionValue"]
+        account_summary = self.ib.accountSummary(
+            account=self.config.account or "", tags=",".join(tags)
+        )
+        for tag in tags:
+            matching_value = next(
+                (
+                    item
+                    for item in account_summary
+                    if item.tag == tag
+                    and (not self.config.account or item.account == self.config.account)
+                ),
+                None,
+            )
+            if matching_value:
+                summary[tag] = matching_value.value
         if self.config.account:
             summary["account"] = self.config.account
         return summary

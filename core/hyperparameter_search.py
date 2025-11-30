@@ -102,6 +102,9 @@ class TwoPhaseHyperparameterOptimizer:
         Returns:
             The best study (from whichever phase performed better)
         """
+        if n_trials <= 0:
+            raise ValueError("n_trials must be positive to run optimization")
+
         if iterative:
             return self._run_iterative_rounds(
                 n_trials=n_trials,
@@ -184,7 +187,7 @@ class TwoPhaseHyperparameterOptimizer:
         """Run iterative exploration→exploitation cycles until improvement stalls."""
         self.round_studies = []
         self.round_summaries = []
-        self.total_trials = n_trials * max_rounds
+        self.total_trials = max(n_trials * max_rounds, 1)
         self.completed_trials = 0
         current_ranges = self.param_ranges
         previous_best = float("-inf")
@@ -192,6 +195,7 @@ class TwoPhaseHyperparameterOptimizer:
         best_phase_overall = None
         trial_offset = 0
 
+        expected_trials_remaining = self.total_trials
         for current_round in range(1, max_rounds + 1):
             phase1_trials = int(n_trials * phase1_ratio)
             phase2_trials = n_trials - phase1_trials
@@ -233,6 +237,13 @@ class TwoPhaseHyperparameterOptimizer:
             )
             trial_offset += len(self.phase2_study.trials)
 
+            expected_trials_remaining -= phase1_trials + phase2_trials
+            remaining_rounds = max_rounds - current_round
+            self.total_trials = max(
+                self.completed_trials + max(expected_trials_remaining, remaining_rounds * n_trials),
+                1,
+            )
+
             round_best_study = self._select_best_study()
             round_best_value = (
                 round_best_study.best_value
@@ -240,11 +251,7 @@ class TwoPhaseHyperparameterOptimizer:
                 else float("-inf")
             )
 
-            improvement = (
-                (round_best_value - previous_best) / abs(previous_best)
-                if previous_best not in (-float("inf"), float("-inf")) and previous_best != 0
-                else float("inf")
-            )
+            improvement = self._compute_improvement(previous_best, round_best_value)
 
             self.round_summaries.append(
                 {
@@ -270,6 +277,8 @@ class TwoPhaseHyperparameterOptimizer:
                     improvement,
                     improvement_threshold,
                 )
+                if self.progress_bar:
+                    self.progress_bar.progress(1.0)
                 break
 
             previous_best = max(previous_best, round_best_value)
@@ -278,7 +287,17 @@ class TwoPhaseHyperparameterOptimizer:
         if best_study_overall is None:
             best_study_overall = self.phase1_study or self.phase2_study
         self.best_phase_overall = best_phase_overall
+        if self.progress_bar:
+            self.progress_bar.progress(1.0)
         return best_study_overall
+
+    @staticmethod
+    def _compute_improvement(previous_best: float, current_best: float) -> float:
+        """Compute relative improvement safely to avoid division edge cases."""
+        if previous_best in (-float("inf"), float("-inf")):
+            return float("inf")
+        baseline = max(abs(previous_best), 1e-8)
+        return (current_best - previous_best) / baseline
 
     def _run_phase1(self, n_trials: int, pruning_enabled: bool) -> optuna.Study:
         """Phase 1: Broad exploration of parameter space."""

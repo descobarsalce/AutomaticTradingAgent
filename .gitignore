@@ -2,4 +2,6 @@ VEnvMLFinance_Feb/
 eval_logs/
 tensorboard_logs/
 .replit
+__pycache__/
 *.pyc
+*.pyo

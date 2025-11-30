@@ -149,7 +149,65 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                                                     key=f"drawdown_{symbol}_{idx}")
 
             except Exception as e:
-                st.error(f"Error during testing: {str(e)}")
+                error_msg = str(e)
+
+                # Check for observation space mismatch error
+                if "Observation spaces do not match" in error_msg:
+                    st.error("### ⚠️ Configuration Mismatch Error")
+                    st.error(f"**Error Details:** {error_msg}")
+
+                    # Parse the dimensions from the error message
+                    import re
+                    matches = re.findall(r'\((\d+),\)', error_msg)
+                    if len(matches) == 2:
+                        expected_dim = int(matches[0])
+                        actual_dim = int(matches[1])
+
+                        st.markdown("---")
+                        st.markdown("### 🔍 Analysis:")
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Model (Trained with):**")
+                            # Calculate number of stocks from observation dimension
+                            # Formula: obs_dim = observation_days * (num_stocks * 2 + 1)
+                            # Assuming observation_days = 3
+                            obs_days = 3
+                            n_features_expected = expected_dim / obs_days
+                            num_stocks_expected = (n_features_expected - 1) / 2
+                            st.metric("Observation Dimension", expected_dim)
+                            st.metric("Estimated Number of Stocks", f"~{int(num_stocks_expected)}")
+
+                        with col2:
+                            st.markdown("**Current Configuration:**")
+                            n_features_actual = actual_dim / obs_days
+                            num_stocks_actual = (n_features_actual - 1) / 2
+                            st.metric("Observation Dimension", actual_dim)
+                            st.metric("Current Number of Stocks", f"{len(stock_names)} ({', '.join(stock_names)})")
+
+                        st.markdown("---")
+                        st.markdown("### ✅ Solution:")
+                        st.info(
+                            f"**Option 1 (Quick Fix):** Go to the **Model Training** tab and change the stock list to use "
+                            f"approximately **{int(num_stocks_expected)} stocks** instead of {len(stock_names)}.\n\n"
+                            f"**Option 2 (Retrain):** Retrain the model with your current {len(stock_names)} stocks:\n"
+                            f"1. Go to **Model Training → Hyperparameter Tuning**\n"
+                            f"2. Run optimization with current stock configuration\n"
+                            f"3. Return to this Testing Interface tab"
+                        )
+                else:
+                    st.error(f"Error during testing: {error_msg}")
+
+                    # Show debug info
+                    with st.expander("Debug Information"):
+                        st.write("**Current Configuration:**")
+                        st.json({
+                            "stocks": stock_names,
+                            "num_stocks": len(stock_names),
+                            "env_params": env_params,
+                            "test_period": f"{test_start_date} to {test_end_date}"
+                        })
                 return
 
 def display_metrics_grid(metrics: Dict[str, float], test_results: Dict[str, Any]):

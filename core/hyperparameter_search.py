@@ -67,6 +67,11 @@ class TwoPhaseHyperparameterOptimizer:
         self.all_trials: list = []
         self.refined_ranges: Dict[str, Tuple[float, float]] = {}
 
+        # Phase accounting
+        self.phase1_trials_count: int = 0
+        self.phase2_trials_count: int = 0
+        self.phase1_ratio: float = 0.0
+
         # Trial counter for progress
         self.total_trials = 0
         self.completed_trials = 0
@@ -75,29 +80,71 @@ class TwoPhaseHyperparameterOptimizer:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
 
     def run_optimization(
-        self, n_trials: int, pruning_enabled: bool = True, phase1_ratio: float = 0.6
+        self,
+        n_trials: int,
+        pruning_enabled: bool = True,
+        phase1_ratio: float = 0.6,
+        iterative: bool = False,
+        max_rounds: int = 3,
+        improvement_threshold: float = 0.01,
     ) -> optuna.Study:
         """
         Run complete two-phase optimization.
 
         Args:
-            n_trials: Total number of trials across both phases
+            n_trials: Trials per iteration across both phases
             pruning_enabled: Whether to enable early trial pruning
             phase1_ratio: Fraction of trials for Phase 1 (default 60%)
+            iterative: Whether to repeat two-phase cycles until improvement stalls
+            max_rounds: Maximum refinement cycles to run
+            improvement_threshold: Minimum relative improvement needed to keep refining
 
         Returns:
             The best study (from whichever phase performed better)
         """
+        if n_trials <= 0:
+            raise ValueError("n_trials must be positive to run optimization")
+
+        if iterative:
+            return self._run_iterative_rounds(
+                n_trials=n_trials,
+                pruning_enabled=pruning_enabled,
+                phase1_ratio=phase1_ratio,
+                max_rounds=max_rounds,
+                improvement_threshold=improvement_threshold,
+            )
+
+        return self._run_single_round(
+            n_trials=n_trials, pruning_enabled=pruning_enabled, phase1_ratio=phase1_ratio
+        )
+
+    def _run_single_round(
+        self, n_trials: int, pruning_enabled: bool, phase1_ratio: float
+    ) -> optuna.Study:
+        """Run one exploration→exploitation cycle."""
         phase1_trials = int(n_trials * phase1_ratio)
         phase2_trials = n_trials - phase1_trials
+        self.phase1_trials_count = phase1_trials
+        self.phase2_trials_count = phase2_trials
+        self.phase1_ratio = phase1_ratio
         self.total_trials = n_trials
         self.completed_trials = 0
+        self.round_studies = []
+        self.round_summaries = []
 
         if self.status_text:
             self.status_text.text(f"Phase 1: Broad exploration ({phase1_trials} trials)")
 
         # Phase 1: Exploration
         self.phase1_study = self._run_phase1(phase1_trials, pruning_enabled)
+        self.round_studies.append(
+            {
+                "round": 1,
+                "phase": 1,
+                "study": self.phase1_study,
+                "trial_offset": 0,
+            }
+        )
 
         # Extract promising regions
         self.refined_ranges = self._extract_promising_regions()
@@ -107,9 +154,150 @@ class TwoPhaseHyperparameterOptimizer:
 
         # Phase 2: Exploitation
         self.phase2_study = self._run_phase2(phase2_trials, pruning_enabled)
+        self.round_studies.append(
+            {
+                "round": 1,
+                "phase": 2,
+                "study": self.phase2_study,
+                "trial_offset": len(self.phase1_study.trials),
+            }
+        )
 
-        # Return the better study
-        return self._select_best_study()
+        best_study = self._select_best_study()
+        self.best_phase_overall = 1 if best_study == self.phase1_study else 2
+        self.round_summaries.append(
+            {
+                "round": 1,
+                "phase1_trials": phase1_trials,
+                "phase2_trials": phase2_trials,
+                "best_value": best_study.best_value if best_study and best_study.best_trial else float("-inf"),
+                "refined_ranges": self.refined_ranges,
+            }
+        )
+        return best_study
+
+    def _run_iterative_rounds(
+        self,
+        n_trials: int,
+        pruning_enabled: bool,
+        phase1_ratio: float,
+        max_rounds: int,
+        improvement_threshold: float,
+    ) -> optuna.Study:
+        """Run iterative exploration→exploitation cycles until improvement stalls."""
+        self.round_studies = []
+        self.round_summaries = []
+        self.total_trials = max(n_trials * max_rounds, 1)
+        self.completed_trials = 0
+        current_ranges = self.param_ranges
+        previous_best = float("-inf")
+        best_study_overall: Optional[optuna.Study] = None
+        best_phase_overall = None
+        trial_offset = 0
+
+        expected_trials_remaining = self.total_trials
+        for current_round in range(1, max_rounds + 1):
+            phase1_trials = int(n_trials * phase1_ratio)
+            phase2_trials = n_trials - phase1_trials
+            self.phase1_trials_count = phase1_trials
+            self.phase2_trials_count = phase2_trials
+            self.phase1_ratio = phase1_ratio
+            self.param_ranges = current_ranges
+
+            if self.status_text:
+                self.status_text.text(
+                    f"Round {current_round}: Phase 1 exploration ({phase1_trials} trials)"
+                )
+
+            self.phase1_study = self._run_phase1(phase1_trials, pruning_enabled)
+            self.round_studies.append(
+                {
+                    "round": current_round,
+                    "phase": 1,
+                    "study": self.phase1_study,
+                    "trial_offset": trial_offset,
+                }
+            )
+            trial_offset += len(self.phase1_study.trials)
+
+            self.refined_ranges = self._extract_promising_regions()
+            if self.status_text:
+                self.status_text.text(
+                    f"Round {current_round}: Phase 2 exploitation ({phase2_trials} trials)"
+                )
+
+            self.phase2_study = self._run_phase2(phase2_trials, pruning_enabled)
+            self.round_studies.append(
+                {
+                    "round": current_round,
+                    "phase": 2,
+                    "study": self.phase2_study,
+                    "trial_offset": trial_offset,
+                }
+            )
+            trial_offset += len(self.phase2_study.trials)
+
+            expected_trials_remaining -= phase1_trials + phase2_trials
+            remaining_rounds = max_rounds - current_round
+            self.total_trials = max(
+                self.completed_trials + max(expected_trials_remaining, remaining_rounds * n_trials),
+                1,
+            )
+
+            round_best_study = self._select_best_study()
+            round_best_value = (
+                round_best_study.best_value
+                if round_best_study and round_best_study.best_trial
+                else float("-inf")
+            )
+
+            improvement = self._compute_improvement(previous_best, round_best_value)
+
+            self.round_summaries.append(
+                {
+                    "round": current_round,
+                    "phase1_trials": phase1_trials,
+                    "phase2_trials": phase2_trials,
+                    "best_value": round_best_value,
+                    "improvement": improvement,
+                    "refined_ranges": self.refined_ranges,
+                }
+            )
+
+            if (
+                best_study_overall is None
+                or (round_best_study and round_best_value > best_study_overall.best_value)
+            ):
+                best_study_overall = round_best_study
+                best_phase_overall = 1 if round_best_study == self.phase1_study else 2
+
+            if previous_best != float("-inf") and improvement < improvement_threshold:
+                logger.info(
+                    "Stopping iterative refinement: improvement %.4f below threshold %.4f",
+                    improvement,
+                    improvement_threshold,
+                )
+                if self.progress_bar:
+                    self.progress_bar.progress(1.0)
+                break
+
+            previous_best = max(previous_best, round_best_value)
+            current_ranges = self.refined_ranges if self.refined_ranges else current_ranges
+
+        if best_study_overall is None:
+            best_study_overall = self.phase1_study or self.phase2_study
+        self.best_phase_overall = best_phase_overall
+        if self.progress_bar:
+            self.progress_bar.progress(1.0)
+        return best_study_overall
+
+    @staticmethod
+    def _compute_improvement(previous_best: float, current_best: float) -> float:
+        """Compute relative improvement safely to avoid division edge cases."""
+        if previous_best in (-float("inf"), float("-inf")):
+            return float("inf")
+        baseline = max(abs(previous_best), 1e-8)
+        return (current_best - previous_best) / baseline
 
     def _run_phase1(self, n_trials: int, pruning_enabled: bool) -> optuna.Study:
         """Phase 1: Broad exploration of parameter space."""
@@ -372,37 +560,54 @@ class TwoPhaseHyperparameterOptimizer:
             return self.phase2_study
 
     def get_combined_study_data(self) -> pd.DataFrame:
-        """Get combined trial data from both phases."""
+        """Get combined trial data from all rounds and phases."""
         trials_data = []
 
-        # Add Phase 1 trials
-        if self.phase1_study:
-            for t in self.phase1_study.trials:
-                if t.value is not None:
-                    trials_data.append(
-                        {
-                            "Trial": t.number,
-                            "Phase": 1,
-                            "Value": t.value,
-                            "State": str(t.state),
-                            **t.params,
-                        }
-                    )
+        if hasattr(self, "round_studies") and self.round_studies:
+            for phase_record in self.round_studies:
+                study = phase_record["study"]
+                if not study:
+                    continue
+                for t in study.trials:
+                    if t.value is not None:
+                        trials_data.append(
+                            {
+                                "Trial": t.number + phase_record.get("trial_offset", 0),
+                                "Round": phase_record.get("round"),
+                                "Phase": phase_record.get("phase"),
+                                "Value": t.value,
+                                "State": str(t.state),
+                                **t.params,
+                            }
+                        )
+        else:
+            # Fallback to the latest two-phase run
+            if self.phase1_study:
+                for t in self.phase1_study.trials:
+                    if t.value is not None:
+                        trials_data.append(
+                            {
+                                "Trial": t.number,
+                                "Phase": 1,
+                                "Value": t.value,
+                                "State": str(t.state),
+                                **t.params,
+                            }
+                        )
 
-        # Add Phase 2 trials (offset trial numbers)
-        phase1_count = len(self.phase1_study.trials) if self.phase1_study else 0
-        if self.phase2_study:
-            for t in self.phase2_study.trials:
-                if t.value is not None:
-                    trials_data.append(
-                        {
-                            "Trial": t.number + phase1_count,
-                            "Phase": 2,
-                            "Value": t.value,
-                            "State": str(t.state),
-                            **t.params,
-                        }
-                    )
+            phase1_count = len(self.phase1_study.trials) if self.phase1_study else 0
+            if self.phase2_study:
+                for t in self.phase2_study.trials:
+                    if t.value is not None:
+                        trials_data.append(
+                            {
+                                "Trial": t.number + phase1_count,
+                                "Phase": 2,
+                                "Value": t.value,
+                                "State": str(t.state),
+                                **t.params,
+                            }
+                        )
 
         return pd.DataFrame(trials_data)
 
@@ -452,6 +657,9 @@ def run_hyperparameter_optimization(
     pruning_enabled: bool = True,
     two_phase: bool = True,
     phase1_ratio: float = 0.6,
+    iterative_refinement: bool = False,
+    improvement_threshold: float = 0.01,
+    max_rounds: int = 3,
 ) -> Tuple[optuna.Study, Optional[TwoPhaseHyperparameterOptimizer]]:
     """
     Run hyperparameter optimization using Optuna.
@@ -479,6 +687,9 @@ def run_hyperparameter_optimization(
             n_trials=trials_number,
             pruning_enabled=pruning_enabled,
             phase1_ratio=phase1_ratio,
+            iterative=iterative_refinement,
+            max_rounds=max_rounds,
+            improvement_threshold=improvement_threshold,
         )
 
         return study, optimizer
@@ -567,15 +778,23 @@ def display_optimization_results(
 ) -> None:
     """Display optimization results using Streamlit."""
 
+    # Build phase-aware stats early for richer displays
+    trials_df: pd.DataFrame
+    phase_stats = None
+    round_summaries = getattr(optimizer, "round_summaries", []) if optimizer else []
+
     # Determine which phase produced the best result
     best_phase = None
     if optimizer:
-        if optimizer.phase1_study and optimizer.phase1_study.best_trial:
-            if study.best_value == optimizer.phase1_study.best_value:
-                best_phase = 1
-        if optimizer.phase2_study and optimizer.phase2_study.best_trial:
-            if study.best_value == optimizer.phase2_study.best_value:
-                best_phase = 2
+        if getattr(optimizer, "best_phase_overall", None):
+            best_phase = optimizer.best_phase_overall
+        else:
+            if optimizer.phase1_study and optimizer.phase1_study.best_trial:
+                if study.best_value == optimizer.phase1_study.best_value:
+                    best_phase = 1
+            if optimizer.phase2_study and optimizer.phase2_study.best_trial:
+                if study.best_value == optimizer.phase2_study.best_value:
+                    best_phase = 2
 
     # Save best parameters
     save_best_params(study.best_params, study.best_value, best_phase)
@@ -583,6 +802,16 @@ def display_optimization_results(
     # Get trials dataframe
     if optimizer:
         trials_df = optimizer.get_combined_study_data()
+        if not trials_df.empty and "Phase" in trials_df.columns:
+            phase_stats = (
+                trials_df.groupby("Phase")["Value"]
+                .agg(["count", "mean", "median", "min", "max"])
+                .rename(
+                    columns={
+                        "count": "Completed", "mean": "Mean", "median": "Median"
+                    }
+                )
+            )
     else:
         trials_df = pd.DataFrame(
             [
@@ -601,22 +830,87 @@ def display_optimization_results(
     if optimizer:
         tabs = st.tabs(
             [
+                "Run Context & Inputs",
                 "Best Parameters",
                 "Optimization History",
                 "Phase Comparison",
-                "Parameter Importance",
+                "Parameter Sensitivity",
                 "Refined Ranges",
             ]
         )
     else:
-        tabs = st.tabs([
-            "Best Parameters",
-            "Optimization History",
-            "Parameter Importance",
-        ])
+        tabs = st.tabs(
+            [
+                "Run Context & Inputs",
+                "Best Parameters",
+                "Optimization History",
+                "Parameter Importance",
+            ]
+        )
+
+    # Tab 0: Run Context
+    with tabs[0]:
+        st.subheader("Fold Inputs & Run Context")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**Data Window**")
+            st.metric("Train Start", getattr(st.session_state, "train_start_date", "-"))
+            st.metric("Train End", getattr(st.session_state, "train_end_date", "-"))
+            st.metric("Stocks", len(getattr(st.session_state, "stock_names", [])))
+
+        with col2:
+            st.markdown("**Run Configuration**")
+            total_trials = optimizer.total_trials if optimizer else len(trials_df)
+            st.metric("Total Trials", total_trials)
+            if optimizer:
+                st.metric("Phase Split", f"{optimizer.phase1_trials_count}/{optimizer.phase2_trials_count}")
+                st.metric("Phase 1 Ratio", f"{optimizer.phase1_ratio:.0%}")
+            st.metric("Optimization Metric", getattr(st, "session_state", {}).get("optimization_metric", "-"))
+
+        if getattr(st.session_state, "stock_names", None):
+            st.markdown("**Stocks Selected**")
+            st.write(", ".join(st.session_state.stock_names))
+
+        if optimizer:
+            # Show per-phase headline stats
+            st.markdown("**Phase-Level Outcome Summary**")
+            if phase_stats is not None:
+                st.dataframe(
+                    phase_stats.style.format({"Mean": "{:.4f}", "Median": "{:.4f}", "min": "{:.4f}", "max": "{:.4f}"}),
+                    use_container_width=True,
+                )
+            else:
+                st.info("Phase-level stats will appear once trials finish.")
+
+            if round_summaries:
+                st.markdown("**Iterative Round Progress**")
+                round_df = pd.DataFrame(round_summaries)
+                display_cols = ["round", "phase1_trials", "phase2_trials", "best_value", "improvement"]
+                st.dataframe(
+                    round_df[display_cols]
+                    .rename(
+                        columns={
+                            "round": "Round",
+                            "phase1_trials": "Phase 1 Trials",
+                            "phase2_trials": "Phase 2 Trials",
+                            "best_value": "Best Value",
+                            "improvement": "Δ vs prior",
+                        }
+                    )
+                    .style.format({"Best Value": "{:.4f}", "Δ vs prior": "{:.3f}"}),
+                    use_container_width=True,
+                )
+
+        # Env inputs snapshot to understand fold inputs
+        env_params = getattr(st.session_state, "env_params", {})
+        if env_params:
+            st.markdown("**Environment Inputs Used in Each Fold**")
+            env_df = pd.DataFrame(env_params.items(), columns=["Parameter", "Value"])
+            st.dataframe(env_df, use_container_width=True)
 
     # Tab 1: Best Parameters
-    with tabs[0]:
+    with tabs[1]:
         st.subheader("Best Configuration Found")
 
         if best_phase:
@@ -645,47 +939,61 @@ def display_optimization_results(
         st.session_state.ppo_params = study.best_params
 
     # Tab 2: Optimization History
-    with tabs[1]:
+    with tabs[2]:
         st.subheader("Trial History")
 
         history_fig = go.Figure()
 
         if optimizer and "Phase" in trials_df.columns:
-            # Plot Phase 1 and Phase 2 separately
-            phase1_df = trials_df[trials_df["Phase"] == 1]
-            phase2_df = trials_df[trials_df["Phase"] == 2]
+            if "Round" in trials_df.columns:
+                for (round_id, phase_id), sub_df in trials_df.groupby(["Round", "Phase"]):
+                    color = "blue" if phase_id == 1 else "green"
+                    history_fig.add_trace(
+                        go.Scatter(
+                            x=sub_df["Trial"],
+                            y=sub_df["Value"],
+                            mode="markers+lines",
+                            name=f"Round {round_id} - {'Exploration' if phase_id == 1 else 'Exploitation'}",
+                            marker=dict(color=color, size=8),
+                            line=dict(color=color, width=1, dash="dot" if phase_id == 1 else "solid"),
+                        )
+                    )
+            else:
+                # Plot Phase 1 and Phase 2 separately
+                phase1_df = trials_df[trials_df["Phase"] == 1]
+                phase2_df = trials_df[trials_df["Phase"] == 2]
 
-            history_fig.add_trace(
-                go.Scatter(
-                    x=phase1_df["Trial"],
-                    y=phase1_df["Value"],
-                    mode="markers+lines",
-                    name="Phase 1 (Exploration)",
-                    marker=dict(color="blue", size=8),
-                    line=dict(color="blue", width=1, dash="dot"),
+                history_fig.add_trace(
+                    go.Scatter(
+                        x=phase1_df["Trial"],
+                        y=phase1_df["Value"],
+                        mode="markers+lines",
+                        name="Phase 1 (Exploration)",
+                        marker=dict(color="blue", size=8),
+                        line=dict(color="blue", width=1, dash="dot"),
+                    )
                 )
-            )
 
-            history_fig.add_trace(
-                go.Scatter(
-                    x=phase2_df["Trial"],
-                    y=phase2_df["Value"],
-                    mode="markers+lines",
-                    name="Phase 2 (Exploitation)",
-                    marker=dict(color="green", size=8),
-                    line=dict(color="green", width=1, dash="dot"),
+                history_fig.add_trace(
+                    go.Scatter(
+                        x=phase2_df["Trial"],
+                        y=phase2_df["Value"],
+                        mode="markers+lines",
+                        name="Phase 2 (Exploitation)",
+                        marker=dict(color="green", size=8),
+                        line=dict(color="green", width=1, dash="dot"),
+                    )
                 )
-            )
 
-            # Add phase divider
-            if len(phase1_df) > 0 and len(phase2_df) > 0:
-                phase_boundary = phase1_df["Trial"].max() + 0.5
-                history_fig.add_vline(
-                    x=phase_boundary,
-                    line_dash="dash",
-                    line_color="gray",
-                    annotation_text="Phase 2 Start",
-                )
+                # Add phase divider
+                if len(phase1_df) > 0 and len(phase2_df) > 0:
+                    phase_boundary = phase1_df["Trial"].max() + 0.5
+                    history_fig.add_vline(
+                        x=phase_boundary,
+                        line_dash="dash",
+                        line_color="gray",
+                        annotation_text="Phase 2 Start",
+                    )
         else:
             history_fig.add_trace(
                 go.Scatter(
@@ -714,7 +1022,7 @@ def display_optimization_results(
 
     # Tab 3: Phase Comparison (only for two-phase)
     if optimizer:
-        with tabs[2]:
+        with tabs[3]:
             st.subheader("Phase Comparison")
 
             col1, col2 = st.columns(2)
@@ -785,10 +1093,10 @@ def display_optimization_results(
                 )
                 st.plotly_chart(box_fig, use_container_width=True)
 
-    # Tab 4: Parameter Importance
-    importance_tab_idx = 3 if optimizer else 2
+    # Tab 4: Parameter sensitivity / importance
+    importance_tab_idx = 4 if optimizer else 3
     with tabs[importance_tab_idx]:
-        st.subheader("Parameter Importance")
+        st.subheader("Parameter Impact Across Folds")
 
         try:
             importance_dict = optuna.importance.get_param_importances(study)
@@ -818,9 +1126,87 @@ def display_optimization_results(
         except Exception as e:
             st.warning(f"Could not compute parameter importance: {str(e)}")
 
+        # Scatter view for a selected parameter to see phase-specific behavior
+        if not trials_df.empty:
+            available_params = [c for c in trials_df.columns if c not in {"Trial", "Phase", "Value", "State"}]
+            if available_params:
+                selected_param = st.selectbox(
+                    "Inspect parameter vs. metric", available_params, index=0
+                )
+                scatter_fig = go.Figure()
+                if "Phase" in trials_df.columns:
+                    for phase_id, phase_name in ((1, "Exploration"), (2, "Exploitation")):
+                        phase_subset = trials_df[trials_df["Phase"] == phase_id]
+                        scatter_fig.add_trace(
+                            go.Scatter(
+                                x=phase_subset[selected_param],
+                                y=phase_subset["Value"],
+                                mode="markers",
+                                name=f"Phase {phase_id} ({phase_name})",
+                                marker=dict(size=9, opacity=0.75),
+                            )
+                        )
+                else:
+                    scatter_fig.add_trace(
+                        go.Scatter(
+                            x=trials_df[selected_param],
+                            y=trials_df["Value"],
+                            mode="markers",
+                            name=selected_param,
+                            marker=dict(size=9, opacity=0.75),
+                        )
+                    )
+
+                scatter_fig.update_layout(
+                    title=f"Effect of {selected_param} on {study.direction.name.title()} metric",
+                    xaxis_title=selected_param,
+                    yaxis_title="Metric Value",
+                    height=450,
+                )
+                st.plotly_chart(scatter_fig, use_container_width=True)
+
+        # Parallel coordinates for top trials to compare parameter interactions
+        if not trials_df.empty and len(trials_df) >= 3:
+            top_df = trials_df.nlargest(min(30, len(trials_df)), "Value")
+            dimension_cols = [
+                col
+                for col in top_df.columns
+                if col
+                not in {
+                    "Trial",
+                    "Phase",
+                    "Value",
+                    "State",
+                }
+            ]
+            dimensions = [
+                dict(label="Metric", values=top_df["Value"], range=[top_df["Value"].min(), top_df["Value"].max()])
+            ]
+            for col in dimension_cols:
+                try:
+                    dimensions.append(dict(label=col, values=top_df[col]))
+                except Exception:
+                    continue
+            if len(dimensions) > 1:
+                parallel_fig = go.Figure(
+                    data=
+                    [
+                        go.Parcoords(
+                            line=dict(color=top_df["Value"], colorscale="Viridis"),
+                            dimensions=dimensions,
+                        )
+                    ]
+                )
+                parallel_fig.update_layout(
+                    title="Top Trials Parameter Interactions",
+                    height=500,
+                    margin=dict(l=20, r=20, t=40, b=10),
+                )
+                st.plotly_chart(parallel_fig, use_container_width=True)
+
     # Tab 5: Refined Ranges (only for two-phase)
     if optimizer:
-        with tabs[4]:
+        with tabs[5]:
             st.subheader("Refined Parameter Ranges")
             st.markdown(
                 """
@@ -895,6 +1281,7 @@ def hyperparameter_tuning() -> None:
                 ["sharpe_ratio", "sortino_ratio", "total_return"],
                 help="Metric to optimize during hyperparameter search",
             )
+            st.session_state.optimization_metric = optimization_metric
 
         with col2:
             two_phase_enabled = st.checkbox(
@@ -904,6 +1291,10 @@ def hyperparameter_tuning() -> None:
             )
 
             pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
+
+        iterative_refinement = False
+        improvement_threshold = 0.0
+        max_rounds = 1
 
         # Two-phase specific settings
         if two_phase_enabled:
@@ -927,6 +1318,37 @@ def hyperparameter_tuning() -> None:
 
             with col3:
                 st.metric("Phase 2 Trials", int(trials_number * (1 - phase1_ratio)))
+
+            iterative_refinement = st.checkbox(
+                "Iterate until improvement stalls",
+                value=True,
+                help="Repeat explore→exploit cycles while best metric keeps improving above the threshold.",
+            )
+
+            if iterative_refinement:
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    max_rounds = st.number_input(
+                        "Max refinement rounds", min_value=1, value=3, step=1
+                    )
+                with col_b:
+                    improvement_threshold = st.number_input(
+                        "Min improvement to continue",
+                        min_value=0.0,
+                        value=0.01,
+                        step=0.005,
+                        format="%.3f",
+                        help="Relative improvement required to launch another refinement round.",
+                    )
+                with col_c:
+                    st.metric(
+                        "Planned Trials",
+                        f"{trials_number * max_rounds} (up to)",
+                        help="Product of trials per round and max rounds",
+                    )
+            else:
+                max_rounds = 1
+                improvement_threshold = 0.0
 
             st.info(
                 """
@@ -958,6 +1380,9 @@ def hyperparameter_tuning() -> None:
                 pruning_enabled=pruning_enabled,
                 two_phase=two_phase_enabled,
                 phase1_ratio=phase1_ratio if two_phase_enabled else 0.6,
+                iterative_refinement=iterative_refinement if two_phase_enabled else False,
+                improvement_threshold=improvement_threshold,
+                max_rounds=max_rounds,
             )
 
             st.success("✅ Hyperparameter tuning completed!")

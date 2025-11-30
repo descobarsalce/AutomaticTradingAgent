@@ -9,6 +9,9 @@ from sqlalchemy import func, distinct
 from data.database import StockData
 from datetime import datetime, timedelta
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 def display_database_explorer():
     """Display the database explorer interface"""
@@ -95,25 +98,202 @@ def display_database_explorer():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        symbol = st.text_input("Enter Stock Symbol", value="AAPL")
+        symbol = st.text_input("Enter Stock Symbol(s)",
+                               value="AAPL",
+                               help="Enter one or more symbols separated by commas (e.g., AAPL, MSFT, GOOGL)")
     
     with col2:
-        start_date = st.date_input("Start Date", datetime.now() - timedelta(days=365))
-    
+        start_date = datetime.combine(
+            st.date_input("Start Date",
+                          value=datetime.now() - timedelta(days=365)),
+            datetime.min.time()
+        )
+
     with col3:
-        end_date = st.date_input("End Date", datetime.now())
+        end_date = datetime.combine(
+            st.date_input("End Date",
+                          value=datetime.now()),
+            datetime.min.time()
+        )
         
     source = st.radio("Select Data Source", ["Yahoo Finance", "Alpha Vantage"])
     
     if st.button("Add Stock Data"):
         try:
-            data = data_handler.fetch_data([symbol], start_date, end_date, source, use_SQL=False)
-            if not data.empty:
-                st.success(f"Successfully added data for {symbol}")
+            if not symbol.strip():
+                st.error("Please enter a stock symbol")
+            elif start_date > end_date:
+                st.error("Start date cannot be after end date")
             else:
-                st.error(f"No data found for {symbol}")
+                # Create detailed diagnostic info box
+                with st.expander("📊 Download Details", expanded=True):
+                    st.markdown("### Query Parameters")
+
+                    # Show different details based on source
+                    if source == "Yahoo Finance":
+                        import yfinance as yf
+                        start_str = start_date.strftime('%Y-%m-%d')
+                        end_str = end_date.strftime('%Y-%m-%d')
+                        period1 = int(start_date.timestamp())
+                        period2 = int(end_date.timestamp())
+
+                        # Parse symbols
+                        symbol_list = [s.strip() for s in symbol.split(',') if s.strip()]
+
+                        info_text = f"""
+Symbol(s):        {symbol}
+Source:           {source}
+yfinance version: {yf.__version__}
+
+DATE PARAMETERS:
+Start Date:       {start_str} (timestamp: {period1})
+End Date:         {end_str} (timestamp: {period2})
+Date Range:       {(end_date - start_date).days} days
+Interval:         1d (daily)
+"""
+
+                        if len(symbol_list) > 1:
+                            info_text += f"\nWill download {len(symbol_list)} symbols: {', '.join(symbol_list)}\n"
+                            info_text += "\nAPI ENDPOINTS (one per symbol):\n"
+                            for sym in symbol_list:
+                                info_text += f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}\n"
+                        else:
+                            info_text += f"""
+API ENDPOINT:
+https://query2.finance.yahoo.com/v8/finance/chart/{symbol_list[0]}
+
+FULL API URL:
+https://query2.finance.yahoo.com/v8/finance/chart/{symbol_list[0]}?period1={period1}&period2={period2}&interval=1d&includeAdjustedClose=true
+"""
+
+                        info_text += f"""
+PYTHON CALL:
+for symbol in {symbol_list}:
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(start='{start_str}', end='{end_str}', interval='1d')
+"""
+
+                        st.code(info_text, language="text")
+                    else:  # Alpha Vantage
+                        st.code(f"""
+Symbol:      {symbol}
+Source:      {source}
+Start Date:  {start_date.date()} ({start_date})
+End Date:    {end_date.date()} ({end_date})
+Date Range:  {(end_date - start_date).days} days
+
+API ENDPOINT:
+https://www.alphavantage.co/query
+
+PARAMETERS:
+function:    TIME_SERIES_DAILY
+symbol:      {symbol}
+outputsize:  compact (last 100 days - free tier)
+apikey:      [REDACTED]
+                        """, language="text")
+
+                    status_placeholder = st.empty()
+                    details_placeholder = st.empty()
+
+                logger.info(f"=== STARTING DOWNLOAD: {symbol} from {source} ({start_date.date()} to {end_date.date()}) ===")
+
+                with st.spinner(f"Downloading {symbol} data from {source}..."):
+                    status_placeholder.info("🔄 Initiating download request...")
+                    # Pass symbol as string to allow comma-separated values
+                    data = data_handler.fetch_data(symbol, start_date, end_date, source, use_SQL=False)
+
+                logger.info(f"=== DOWNLOAD COMPLETE: Received {len(data) if data is not None and not data.empty else 0} rows ===")
+
+                # Show detailed results
+                with st.expander("📊 Download Details", expanded=True):
+                    if not data.empty:
+                        # Parse symbols to show in message
+                        symbol_list = [s.strip() for s in symbol.split(',') if s.strip()]
+                        symbols_str = ', '.join(symbol_list) if len(symbol_list) > 1 else symbol_list[0]
+
+                        st.markdown("### ✅ Download Results")
+                        st.code(f"""
+Status:         SUCCESS
+Symbols:        {symbols_str}
+Rows Retrieved: {len(data)}
+Columns:        {', '.join(data.columns.tolist())}
+Date Range:     {data.index.min()} to {data.index.max()}
+Data Shape:     {data.shape}
+Memory Usage:   {data.memory_usage(deep=True).sum() / 1024:.2f} KB
+                        """, language="text")
+
+                        st.markdown("### 📈 Data Preview")
+                        st.dataframe(data.head(10))
+
+                        if len(symbol_list) > 1:
+                            st.success(f"✅ Successfully added {len(data)} rows of data for {len(symbol_list)} symbols: {symbols_str}")
+                        else:
+                            st.success(f"✅ Successfully added {len(data)} rows of data for {symbols_str}")
+                    else:
+                        st.markdown("### ⚠️ No Data Retrieved")
+                        st.code(f"""
+Status:        FAILED - No data returned
+Symbol(s):     {symbol}
+Source:        {source}
+Date Range:    {start_date.date()} to {end_date.date()}
+
+Possible Reasons:
+1. Symbol '{symbol}' may not exist or is delisted
+2. No trading data available for this date range
+3. Data source API might be experiencing issues
+4. Date range might be outside available historical data
+5. Free tier limitations (for Alpha Vantage)
+
+What to try:
+- Check if the symbol is correct (e.g., 'AAPL' not 'Apple')
+- Try a different date range (e.g., last 30 days)
+- Try the other data source (Yahoo Finance vs Alpha Vantage)
+- Check your internet connection
+- Look at the console logs for more technical details
+                        """, language="text")
+                        st.warning(f"⚠️ No data found for {symbol}")
+
+        except ValueError as ve:
+            st.error(f"❌ Invalid input: {str(ve)}")
+            with st.expander("🔍 Error Details", expanded=True):
+                st.code(f"""
+Error Type: ValueError
+Message:    {str(ve)}
+Symbol:     {symbol}
+Source:     {source}
+Dates:      {start_date.date()} to {end_date.date()}
+                """, language="text")
+
         except Exception as e:
-            st.error(f"Error fetching data: {str(e)}")
+            logger.exception(f"Error fetching data for {symbol}")
+            st.error(f"❌ Download Failed: {type(e).__name__}")
+
+            with st.expander("🔍 Error Details", expanded=True):
+                st.code(f"""
+Error Type:  {type(e).__name__}
+Error Message: {str(e)}
+
+Query Parameters:
+Symbol:      {symbol}
+Source:      {source}
+Start Date:  {start_date.date()}
+End Date:    {end_date.date()}
+
+Troubleshooting:
+1. Check the console/terminal logs for full stack trace
+2. Verify your internet connection
+3. Try a different symbol or date range
+4. For Alpha Vantage: Check your API key is valid
+5. For Yahoo Finance: Try again in a few minutes (rate limiting)
+
+Full Error:
+{str(e)}
+                """, language="text")
+
+                if hasattr(e, '__traceback__'):
+                    import traceback
+                    st.markdown("### Stack Trace")
+                    st.code(traceback.format_exc(), language="python")
 
     # Query Interface
     st.header("Query Interface")

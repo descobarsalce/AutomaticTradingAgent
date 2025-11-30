@@ -2,6 +2,7 @@ import streamlit as st
 from core.base_agent import UnifiedTradingAgent
 from components.analysis_tab import display_tech_analysis_tab
 from components.training_tab import display_training_tab
+from components.testing_tab import display_testing_tab
 from components.database_tab import display_database_explorer
 from data.data_handler import DataHandler
 from datetime import datetime, timedelta
@@ -172,17 +173,8 @@ def main() -> None:
         st.title("Trading Analysis and Agent Platform")
 
         # logger.info("Creating application tabs")
-        tab_training, tab_analysis, tab_database = st.tabs(
-            ["Model Training", "Technical Analysis", "Database Explorer"])
-
-        # logger.info("Initializing Technical Analysis tab")
-        with tab_analysis:
-            try:
-                display_tech_analysis_tab()
-                # logger.info("Technical Analysis tab loaded successfully")
-            except Exception as e:
-                logger.error(f"Error in Technical Analysis tab: {str(e)}")
-                st.error(f"Error loading Technical Analysis tab: {str(e)}")
+        tab_training, tab_testing, tab_analysis, tab_database = st.tabs(
+            ["Model Training", "Testing Interface", "Technical Analysis", "Database Explorer"])
 
         # logger.info("Initializing Model Training tab")
         with tab_training:
@@ -192,6 +184,24 @@ def main() -> None:
             # except Exception as e:
             #     logger.error(f"Error in Model Training tab: {str(e)}")
             #     st.error(f"Error loading Model Training tab: {str(e)}")
+
+        # logger.info("Initializing Testing Interface tab")
+        with tab_testing:
+            try:
+                display_testing_tab()
+                # logger.info("Testing Interface tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Testing Interface tab: {str(e)}")
+                st.error(f"Error loading Testing Interface tab: {str(e)}")
+
+        # logger.info("Initializing Technical Analysis tab")
+        with tab_analysis:
+            try:
+                display_tech_analysis_tab()
+                # logger.info("Technical Analysis tab loaded successfully")
+            except Exception as e:
+                logger.error(f"Error in Technical Analysis tab: {str(e)}")
+                st.error(f"Error loading Technical Analysis tab: {str(e)}")
 
         # logger.info("Initializing Database Explorer tab")
         with tab_database:

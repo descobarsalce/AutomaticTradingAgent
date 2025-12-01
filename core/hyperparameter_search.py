@@ -1,6 +1,7 @@
 """
 Enhanced Hyperparameter Search Module
-Two-phase Optuna optimization: broad exploration → focused exploitation
+Iterative Optuna optimization with exploration → exploitation cycles
+Each round narrows the search space until improvement stalls
 """
 import json
 import logging
@@ -29,17 +30,20 @@ class ParamRange:
     step: Optional[float] = None
 
 
-class TwoPhaseHyperparameterOptimizer:
+class IterativeHyperparameterOptimizer:
     """
-    Advanced two-phase hyperparameter optimization using Optuna.
+    Iterative hyperparameter optimization using Optuna with exploration→exploitation cycles.
 
-    Phase 1: Broad exploration of the parameter space
-    Phase 2: Focused exploitation of promising regions
+    Each round consists of two phases:
+    - Phase 1 (Exploration): Broad sampling of the parameter space
+    - Phase 2 (Exploitation): Focused search in promising regions
+
+    The process iterates, narrowing the search space each round until improvement stalls.
     """
 
     # Configuration constants
-    TOP_FRAC = 0.20  # Keep best 20% from Phase 1
-    MARGIN_FACTOR = 0.10  # ±10% padding around min-max for Phase 2
+    TOP_FRAC = 0.20  # Keep best 20% from exploration phase for range refinement
+    MARGIN_FACTOR = 0.10  # ±10% padding around min-max for exploitation phase
 
     def __init__(
         self,
@@ -51,6 +55,7 @@ class TwoPhaseHyperparameterOptimizer:
         optimization_metric: str = "sharpe_ratio",
         progress_bar=None,
         status_text=None,
+        feature_config: Optional[Dict[str, Any]] = None,
     ):
         self.stock_names = stock_names
         self.train_start_date = train_start_date
@@ -60,6 +65,7 @@ class TwoPhaseHyperparameterOptimizer:
         self.optimization_metric = optimization_metric
         self.progress_bar = progress_bar
         self.status_text = status_text
+        self.feature_config = feature_config
 
         # Results storage
         self.phase1_study: Optional[optuna.Study] = None
@@ -89,18 +95,18 @@ class TwoPhaseHyperparameterOptimizer:
         improvement_threshold: float = 0.01,
     ) -> optuna.Study:
         """
-        Run complete two-phase optimization.
+        Run iterative hyperparameter optimization with exploration→exploitation cycles.
 
         Args:
-            n_trials: Trials per iteration across both phases
+            n_trials: Trials per round (split between exploration and exploitation)
             pruning_enabled: Whether to enable early trial pruning
-            phase1_ratio: Fraction of trials for Phase 1 (default 60%)
-            iterative: Whether to repeat two-phase cycles until improvement stalls
-            max_rounds: Maximum refinement cycles to run
-            improvement_threshold: Minimum relative improvement needed to keep refining
+            phase1_ratio: Fraction of trials for exploration phase (default 60%)
+            iterative: Whether to repeat refinement cycles until improvement stalls
+            max_rounds: Maximum refinement rounds to run
+            improvement_threshold: Minimum relative improvement needed to continue iterating
 
         Returns:
-            The best study (from whichever phase performed better)
+            The best study across all rounds and phases
         """
         if n_trials <= 0:
             raise ValueError("n_trials must be positive to run optimization")
@@ -421,6 +427,7 @@ class TwoPhaseHyperparameterOptimizer:
                 end_date=self.train_end_date,
                 env_params=self.env_params,
                 ppo_params=ppo_params,
+                feature_config=self.feature_config,
             )
 
             trial_value = metrics.get(self.optimization_metric, float("-inf"))
@@ -581,7 +588,7 @@ class TwoPhaseHyperparameterOptimizer:
                             }
                         )
         else:
-            # Fallback to the latest two-phase run
+            # Fallback to the latest optimization run
             if self.phase1_study:
                 for t in self.phase1_study.trials:
                     if t.value is not None:
@@ -660,19 +667,23 @@ def run_hyperparameter_optimization(
     iterative_refinement: bool = False,
     improvement_threshold: float = 0.01,
     max_rounds: int = 3,
-) -> Tuple[optuna.Study, Optional[TwoPhaseHyperparameterOptimizer]]:
+    feature_config: Optional[Dict[str, Any]] = None,
+) -> Tuple[optuna.Study, Optional[IterativeHyperparameterOptimizer]]:
     """
     Run hyperparameter optimization using Optuna.
 
     Args:
-        two_phase: If True, use two-phase optimization
-        phase1_ratio: Fraction of trials for Phase 1 (only used if two_phase=True)
+        two_phase: If True, use iterative optimization with exploration→exploitation cycles
+        phase1_ratio: Fraction of trials for exploration phase in each round
+        iterative_refinement: If True, repeat rounds until improvement stalls
+        improvement_threshold: Minimum relative improvement to continue iterating
+        max_rounds: Maximum number of refinement rounds
 
     Returns:
         Tuple of (best study, optimizer instance if two_phase else None)
     """
     if two_phase:
-        optimizer = TwoPhaseHyperparameterOptimizer(
+        optimizer = IterativeHyperparameterOptimizer(
             stock_names=stock_names,
             train_start_date=train_start_date,
             train_end_date=train_end_date,
@@ -681,6 +692,7 @@ def run_hyperparameter_optimization(
             optimization_metric=optimization_metric,
             progress_bar=progress_bar,
             status_text=status_text,
+            feature_config=feature_config,
         )
 
         study = optimizer.run_optimization(
@@ -736,6 +748,7 @@ def run_hyperparameter_optimization(
                     end_date=train_end_date,
                     env_params=env_params,
                     ppo_params=ppo_params,
+                    feature_config=feature_config,
                 )
 
                 trial_value = metrics.get(optimization_metric, float("-inf"))
@@ -774,7 +787,7 @@ def load_best_params() -> Optional[Dict[str, Any]]:
 
 
 def display_optimization_results(
-    study: optuna.Study, optimizer: Optional[TwoPhaseHyperparameterOptimizer] = None
+    study: optuna.Study, optimizer: Optional[IterativeHyperparameterOptimizer] = None
 ) -> None:
     """Display optimization results using Streamlit."""
 
@@ -1020,7 +1033,7 @@ def display_optimization_results(
         )
         st.plotly_chart(history_fig, use_container_width=True)
 
-    # Tab 3: Phase Comparison (only for two-phase)
+    # Tab 3: Phase Comparison (only for iterative optimization)
     if optimizer:
         with tabs[3]:
             st.subheader("Phase Comparison")
@@ -1204,14 +1217,15 @@ def display_optimization_results(
                 )
                 st.plotly_chart(parallel_fig, use_container_width=True)
 
-    # Tab 5: Refined Ranges (only for two-phase)
+    # Tab 5: Refined Ranges (only for iterative optimization)
     if optimizer:
         with tabs[5]:
             st.subheader("Refined Parameter Ranges")
             st.markdown(
                 """
-            These ranges were extracted from the top 20% of Phase 1 trials 
-            and used for focused exploration in Phase 2.
+            These ranges show how the search space was progressively narrowed.
+            Each exploitation phase uses ranges extracted from the top 20% of the
+            preceding exploration phase, with ±10% padding.
             """
             )
 
@@ -1285,9 +1299,9 @@ def hyperparameter_tuning() -> None:
 
         with col2:
             two_phase_enabled = st.checkbox(
-                "Enable Two-Phase Optimization",
+                "Enable Iterative Optimization",
                 value=True,
-                help="Phase 1: Broad exploration, Phase 2: Focused exploitation",
+                help="Exploration→Exploitation cycles that progressively narrow the search space",
             )
 
             pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
@@ -1296,10 +1310,10 @@ def hyperparameter_tuning() -> None:
         improvement_threshold = 0.0
         max_rounds = 1
 
-        # Two-phase specific settings
+        # Iterative optimization settings
         if two_phase_enabled:
             st.markdown("---")
-            st.subheader("Two-Phase Settings")
+            st.subheader("Iterative Refinement Settings")
 
             col1, col2, col3 = st.columns(3)
 
@@ -1352,9 +1366,13 @@ def hyperparameter_tuning() -> None:
 
             st.info(
                 """
-            **Two-Phase Optimization:**
-            - **Phase 1 (Exploration):** Broadly samples the parameter space to identify promising regions
-            - **Phase 2 (Exploitation):** Narrows the search to the top 20% of Phase 1 results with ±10% padding
+            **Iterative Refinement Process:**
+            Each round consists of two phases that progressively narrow the search space:
+            - **Exploration Phase:** Broadly samples the current parameter ranges to identify promising regions
+            - **Exploitation Phase:** Focuses on the top 20% of exploration results with ±10% padding
+
+            When iterative refinement is enabled, this cycle repeats with narrower ranges until
+            improvement falls below the threshold or max rounds is reached.
             """
             )
 
@@ -1365,6 +1383,9 @@ def hyperparameter_tuning() -> None:
     if st.button("🚀 Start Hyperparameter Tuning", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
+
+        # Get feature configuration from session state
+        feature_config = st.session_state.get('feature_config', None)
 
         try:
             study, optimizer = run_hyperparameter_optimization(
@@ -1383,6 +1404,7 @@ def hyperparameter_tuning() -> None:
                 iterative_refinement=iterative_refinement if two_phase_enabled else False,
                 improvement_threshold=improvement_threshold,
                 max_rounds=max_rounds,
+                feature_config=feature_config,
             )
 
             st.success("✅ Hyperparameter tuning completed!")

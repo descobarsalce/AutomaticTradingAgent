@@ -122,10 +122,12 @@ class DataHandler:
                 df = self._fetch_from_sql(symbol, start_date, end_date)
                 logger.info(f"Using SQL cache for: {symbol}")
                 if df is not None:
-                    # logger.info(f"Retrieved df columns 1:")
                     logger.info(f"Retrieved df columns: {list(df.columns)}")
-                    # logger.info(f"Retrieved df index: {df.index.name}")
                     logger.info(f"Retrieved df shape: {df.shape}")
+                    # SQL data already has symbol suffix, just need to set Date as index
+                    if 'Date' in df.columns and df.index.name != 'Date':
+                        df.set_index('Date', inplace=True)
+                        logger.info(f"Set Date as index for {symbol}")
 
             if df is None or not use_SQL:
                 df = self._fetch_from_external(symbol, start_date, end_date, source)

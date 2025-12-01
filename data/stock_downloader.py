@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, date
 from alpha_vantage.timeseries import TimeSeries
 import logging
-from typing import Optional
+from typing import Optional, List
 import os
 import time
 import requests

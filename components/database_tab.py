@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from sqlalchemy import func, distinct
-from data.database import StockData
+from data.database import StockData, OptionsData
 from datetime import datetime, timedelta
 import os
 import logging
@@ -285,6 +285,284 @@ Troubleshooting:
 3. Try a different symbol or date range
 4. For Alpha Vantage: Check your API key is valid
 5. For Yahoo Finance: Try again in a few minutes (rate limiting)
+
+Full Error:
+{str(e)}
+                """, language="text")
+
+                if hasattr(e, '__traceback__'):
+                    import traceback
+                    st.markdown("### Stack Trace")
+                    st.code(traceback.format_exc(), language="python")
+
+    # Options Data Section
+    st.header("Download Options Data")
+
+    opt_col1, opt_col2 = st.columns(2)
+
+    with opt_col1:
+        options_symbol = st.text_input(
+            "Options Symbol",
+            value="AAPL",
+            key="options_symbol",
+            help="Enter a stock ticker to fetch its options chain"
+        )
+
+    with opt_col2:
+        option_type = st.selectbox(
+            "Option Type",
+            options=["Both", "Calls Only", "Puts Only"],
+            key="option_type"
+        )
+
+    # Fetch and display available expirations
+    if st.button("Load Available Expirations", key="load_expirations"):
+        import yfinance as yf
+
+        with st.expander("Options Query Details", expanded=True):
+            st.markdown("### Query Parameters")
+            st.code(f"""
+Symbol:           {options_symbol}
+yfinance version: {yf.__version__}
+
+API Call:
+ticker = yf.Ticker("{options_symbol}")
+expirations = ticker.options
+            """, language="text")
+
+            status_placeholder = st.empty()
+            details_placeholder = st.empty()
+
+        try:
+            status_placeholder.info("Fetching options expirations (with retry support)...")
+            details_placeholder.info("Will retry up to 3 times with exponential backoff, then fall back to direct API...")
+
+            from data.stock_downloader import StockDownloader
+            downloader = StockDownloader(source='yahoo')
+            expirations = downloader.get_options_expirations(options_symbol)
+
+            if expirations:
+                st.session_state['available_expirations'] = list(expirations)
+                st.session_state['options_symbol_loaded'] = options_symbol
+                status_placeholder.success(f"Found {len(expirations)} expiration dates for {options_symbol}")
+                details_placeholder.code(f"""
+Status:      SUCCESS
+Expirations: {len(expirations)} dates available
+First:       {expirations[0] if expirations else 'N/A'}
+Last:        {expirations[-1] if expirations else 'N/A'}
+
+All Expirations:
+{chr(10).join(expirations[:10])}{'...' if len(expirations) > 10 else ''}
+                """, language="text")
+            else:
+                status_placeholder.warning(f"No options data returned for {options_symbol}")
+                details_placeholder.code(f"""
+Status:      NO DATA
+Symbol:      {options_symbol}
+
+Possible Reasons:
+1. The symbol '{options_symbol}' may not have listed options
+2. The symbol might be incorrect or delisted
+3. Yahoo Finance API may be experiencing issues
+4. Some ETFs and stocks don't have options markets
+
+What to try:
+- Verify the symbol is correct (case-sensitive)
+- Try a major stock like AAPL, MSFT, TSLA, SPY
+- Check if the symbol has options on finance.yahoo.com
+- Try again in a few minutes (rate limiting)
+                """, language="text")
+
+        except Exception as e:
+            logger.exception(f"Error fetching options expirations for {options_symbol}")
+            status_placeholder.error(f"Failed to fetch expirations: {type(e).__name__}")
+            details_placeholder.code(f"""
+Status:        FAILED
+Error Type:    {type(e).__name__}
+Error Message: {str(e)}
+Symbol:        {options_symbol}
+
+Troubleshooting:
+1. Check your internet connection
+2. Verify the symbol exists on Yahoo Finance
+3. Try again in a few minutes (API rate limiting)
+4. Check console logs for full stack trace
+
+Full Error:
+{str(e)}
+            """, language="text")
+
+            if hasattr(e, '__traceback__'):
+                import traceback
+                st.markdown("### Stack Trace")
+                st.code(traceback.format_exc(), language="python")
+
+    # Show expiration selector if expirations were loaded
+    if 'available_expirations' in st.session_state and st.session_state['available_expirations']:
+        expirations = st.session_state['available_expirations']
+
+        exp_selection = st.radio(
+            "Expiration Selection",
+            options=["All Expirations", "Select Specific"],
+            key="exp_selection"
+        )
+
+        selected_expirations = None
+        if exp_selection == "Select Specific":
+            selected_expirations = st.multiselect(
+                "Select Expirations",
+                options=expirations,
+                default=[expirations[0]] if expirations else [],
+                key="selected_expirations"
+            )
+
+        if st.button("Download Options Data", key="download_options"):
+            import yfinance as yf
+
+            # Map option type selection
+            type_map = {
+                "Both": "both",
+                "Calls Only": "call",
+                "Puts Only": "put"
+            }
+            opt_type = type_map[option_type]
+            exps_to_fetch = selected_expirations if selected_expirations else expirations
+
+            with st.expander("Options Download Details", expanded=True):
+                st.markdown("### Download Parameters")
+                st.code(f"""
+Symbol:           {options_symbol}
+Option Type:      {option_type} ({opt_type})
+yfinance version: {yf.__version__}
+Expirations:      {len(exps_to_fetch)} dates selected
+
+API Calls:
+ticker = yf.Ticker("{options_symbol}")
+for exp in expirations:
+    chain = ticker.option_chain(exp)
+    calls = chain.calls  # if type includes calls
+    puts = chain.puts    # if type includes puts
+                """, language="text")
+
+                download_status = st.empty()
+                download_details = st.empty()
+
+            try:
+                download_status.info(f"Downloading options for {options_symbol}...")
+
+                from data.stock_downloader import StockDownloader
+                downloader = StockDownloader(source='yahoo')
+                options_df = downloader.download_options_data(
+                    symbol=options_symbol,
+                    expirations=selected_expirations,
+                    option_type=opt_type
+                )
+
+                if not options_df.empty:
+                    download_status.success(f"Downloaded {len(options_df)} option contracts")
+                    download_details.code(f"""
+Status:           SUCCESS
+Total Contracts:  {len(options_df)}
+Calls:            {len(options_df[options_df['option_type'] == 'call']) if 'option_type' in options_df.columns else 'N/A'}
+Puts:             {len(options_df[options_df['option_type'] == 'put']) if 'option_type' in options_df.columns else 'N/A'}
+Expirations:      {options_df['expiration'].nunique() if 'expiration' in options_df.columns else 'N/A'}
+Strike Range:     ${options_df['strike'].min():.2f} - ${options_df['strike'].max():.2f}
+Columns:          {', '.join(options_df.columns.tolist())}
+                    """, language="text")
+
+                    with st.expander("Options Data Preview", expanded=True):
+                        # Show summary stats
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Total Contracts", len(options_df))
+                        col2.metric("Expirations", options_df['expiration'].nunique())
+                        col3.metric("Strike Range", f"${options_df['strike'].min():.0f} - ${options_df['strike'].max():.0f}")
+
+                        # Display data
+                        display_cols = ['contract_symbol', 'option_type', 'expiration', 'strike',
+                                       'last_price', 'bid', 'ask', 'volume', 'open_interest', 'implied_volatility']
+                        display_cols = [c for c in display_cols if c in options_df.columns]
+                        st.dataframe(options_df[display_cols].head(50))
+
+                    # Save to database option
+                    if st.button("Save to Database", key="save_options"):
+                        try:
+                            from sqlalchemy.orm import Session
+                            from utils.db_config import db_config
+
+                            with Session(db_config.engine) as session:
+                                for _, row in options_df.iterrows():
+                                    option = OptionsData(
+                                        ticker=row.get('ticker'),
+                                        contract_symbol=row.get('contract_symbol'),
+                                        option_type=row.get('option_type'),
+                                        expiration=pd.to_datetime(row.get('expiration')),
+                                        strike=row.get('strike'),
+                                        last_price=row.get('last_price'),
+                                        bid=row.get('bid'),
+                                        ask=row.get('ask'),
+                                        change=row.get('change'),
+                                        percent_change=row.get('percent_change'),
+                                        volume=row.get('volume'),
+                                        open_interest=row.get('open_interest'),
+                                        implied_volatility=row.get('implied_volatility'),
+                                        in_the_money=str(row.get('in_the_money')),
+                                        contract_size=row.get('contract_size'),
+                                        currency=row.get('currency'),
+                                        last_trade_date=row.get('last_trade_date')
+                                    )
+                                    session.merge(option)
+                                session.commit()
+                            st.success(f"Saved {len(options_df)} contracts to database")
+                        except Exception as e:
+                            st.error(f"Error saving to database: {e}")
+
+                    # Download CSV option
+                    csv = options_df.to_csv(index=False)
+                    st.download_button(
+                        "Download as CSV",
+                        csv,
+                        f"{options_symbol}_options.csv",
+                        "text/csv",
+                        key='download-options-csv'
+                    )
+                else:
+                    download_status.warning(f"No options data returned for {options_symbol}")
+                    download_details.code(f"""
+Status:        NO DATA RETURNED
+Symbol:        {options_symbol}
+Option Type:   {option_type}
+Expirations:   {len(exps_to_fetch)} requested
+
+Possible Reasons:
+1. Yahoo Finance API returned empty data
+2. The requested expirations may have no contracts
+3. API rate limiting may be affecting the response
+4. Network issues during download
+
+What to try:
+- Try fewer expirations (start with just one)
+- Try a different symbol (AAPL, SPY, MSFT)
+- Wait a few minutes and retry
+- Check the console logs for more details
+                    """, language="text")
+
+            except Exception as e:
+                logger.exception(f"Error downloading options for {options_symbol}")
+                download_status.error(f"Download Failed: {type(e).__name__}")
+                download_details.code(f"""
+Status:        FAILED
+Error Type:    {type(e).__name__}
+Error Message: {str(e)}
+Symbol:        {options_symbol}
+Option Type:   {option_type}
+Expirations:   {len(exps_to_fetch)} requested
+
+Troubleshooting:
+1. Check your internet connection
+2. Yahoo Finance may be rate limiting requests
+3. Try again in a few minutes
+4. Try with fewer expirations
+5. Check console logs for full stack trace
 
 Full Error:
 {str(e)}

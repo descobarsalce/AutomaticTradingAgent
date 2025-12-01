@@ -69,12 +69,16 @@ def display_testing_interface(model, stock_names, env_params, ppo_params, use_op
                 if use_optuna_params and hasattr(st.session_state, 'ppo_params'):
                     ppo_params = st.session_state.ppo_params
 
+                # Get feature configuration from session state
+                feature_config = st.session_state.get('feature_config', None)
+
                 with st.spinner('Testing model...'):
                     test_results = model.test(
                         stock_names=stock_names,
                         start_date=test_start_date,
                         end_date=test_end_date,
-                        env_params=env_params)
+                        env_params=env_params,
+                        feature_config=feature_config)
 
                     if test_results is None:
                         st.error("Testing failed - no results returned")

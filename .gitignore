@@ -29,6 +29,8 @@ utils/__pycache__/common.cpython-311.pyc
 utils/__pycache__/db_config.cpython-311.pyc
 utils/__pycache__/stock_utils.cpython-311.pyc
 .streamlit/secrets.toml
+**/__init__.py
+__init__.py
 
 # Streamlit secrets (never commit)
 .streamlit/secrets.toml
@@ -43,3 +45,5 @@ best_model/
 # Generic model + zip ignore
 *.zip
 
+data/__init__.py
+.gitignore

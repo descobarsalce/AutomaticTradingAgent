@@ -17,6 +17,14 @@ logger.setLevel(logging.INFO)
 
 log_verbosity = "Low"  # "High" or "Low"
 
+# Try to import feature processor (optional dependency)
+try:
+    from data.feature_engineering.feature_processor import FeatureProcessor
+    HAS_FEATURE_PROCESSOR = True
+except ImportError:
+    HAS_FEATURE_PROCESSOR = False
+    FeatureProcessor = None
+
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime) -> pd.DataFrame:
@@ -74,7 +82,8 @@ class TradingEnv(gym.Env):
                  use_trading_penalty: bool = False,
                  training_mode: bool = True,
                  observation_days: int = 2,
-                 burn_in_days: int = 20):  # New parameter for burn-in period.
+                 burn_in_days: int = 20,
+                 feature_config: Optional[Dict[str, Any]] = None):  # Feature engineering config
         # Fetch trading data
         data = fetch_trading_data(stock_names, start_date, end_date)
         # New: Preprocess data: handle missing values and normalize
@@ -104,6 +113,25 @@ class TradingEnv(gym.Env):
         # initialize state & observation space.
         self.observation_days = observation_days  # Store the number of days to keep in the observation
         self.burn_in_days = burn_in_days
+
+        # Initialize feature processor if configured
+        self.feature_config = feature_config
+        self.feature_processor = None
+        self._processed_data = None
+        if HAS_FEATURE_PROCESSOR and feature_config and feature_config.get('use_feature_engineering', False):
+            try:
+                self.feature_processor = FeatureProcessor(
+                    feature_config=feature_config,
+                    symbols=stock_names
+                )
+                self.feature_processor.initialize(data)
+                # Compute features for all data upfront
+                self._processed_data = self.feature_processor.compute_features(data)
+                logger.info(f"Feature processor initialized with {len(self.feature_processor.feature_columns)} features")
+            except Exception as e:
+                logger.warning(f"Feature processor initialization failed: {e}. Using raw data.")
+                self.feature_processor = None
+
         self._initialize_state()
         self.observation_space = self._create_observation_space(
         )  # Ensure observation space is created before use
@@ -162,20 +190,39 @@ class TradingEnv(gym.Env):
 
     def _create_observation_space(self) -> spaces.Box:
         # Define a fixed observation space shape based on observation_days.
-        n_features = len(self.stock_names) * 2 + 1
+        if self.feature_processor is not None:
+            # Use feature processor's observation size
+            n_features = self.feature_processor.get_observation_size()
+        else:
+            # Default: prices + positions + balance
+            n_features = len(self.stock_names) * 2 + 1
+
         obs_dim = self.observation_days * n_features
-        return spaces.Box(low=-1, high=1, shape=(obs_dim, ), dtype=np.float32)
+        # Use wider range for feature-engineered observations
+        low = -np.inf if self.feature_processor else -1
+        high = np.inf if self.feature_processor else 1
+        return spaces.Box(low=low, high=high, shape=(obs_dim, ), dtype=np.float32)
 
     def _construct_observation(self) -> np.ndarray:
         """Collect current/past prices, positions, and balance. This is the information available             to the agent in a given day."""
         # Construct current observation
-        current_obs = []
-        for symbol in self.stock_names:
-            current_price = self._get_current_price(symbol)
-            position = self.portfolio_manager.positions.get(symbol, 0.0)
-            current_obs.extend([current_price, position])
-        current_obs.append(self.portfolio_manager.current_balance)
-        current_obs = np.array(current_obs, dtype=np.float32)
+        if self.feature_processor is not None and self._processed_data is not None:
+            # Use feature processor for rich observations
+            current_obs = self.feature_processor.get_observation_vector(
+                data=self._processed_data,
+                current_index=self.current_step,
+                positions=self.portfolio_manager.positions,
+                balance=self.portfolio_manager.current_balance,
+            )
+        else:
+            # Default observation: prices + positions + balance
+            current_obs = []
+            for symbol in self.stock_names:
+                current_price = self._get_current_price(symbol)
+                position = self.portfolio_manager.positions.get(symbol, 0.0)
+                current_obs.extend([current_price, position])
+            current_obs.append(self.portfolio_manager.current_balance)
+            current_obs = np.array(current_obs, dtype=np.float32)
 
         if log_verbosity == "High":
             logger.info(f"Current observation: {current_obs}")

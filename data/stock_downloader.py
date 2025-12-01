@@ -30,15 +30,59 @@ class StockDownloader:
 
         logger.info(f"Initialized StockDownloader with source: {source}")
 
-    def download_stock_data(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
-        """Download stock data from specified source with unified format."""
-        logger.info(f"download_stock_data called: source={self.source}, symbol={symbol}, start={start_date}, end={end_date}")
+    def download_stock_data(
+        self,
+        symbol: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        instrument_type: str = "equity",
+        expiry: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Download market data from the configured source with a unified format.
+
+        Args:
+            symbol: The ticker symbol to download.
+            start_date: Start of the query window (required for equities).
+            end_date: End of the query window (required for equities).
+            instrument_type: "equity" for historical OHLCV or "options" for option chains.
+            expiry: Optional expiration (YYYY-MM-DD) when requesting options; defaults to all expirations.
+        """
+        logger.info(
+            "download_stock_data called: source=%s, symbol=%s, start=%s, end=%s, instrument_type=%s, expiry=%s",
+            self.source,
+            symbol,
+            start_date,
+            end_date,
+            instrument_type,
+            expiry,
+        )
+
+        instrument = instrument_type.lower()
+
+        if instrument == "options":
+            if self.source != "yahoo":
+                raise ValueError(f"Options download is only supported via Yahoo Finance, not {self.source}")
+            return self._download_yahoo_options(symbol, expiry)
+
+        if instrument != "equity":
+            raise ValueError(f"Unsupported instrument type: {instrument_type}")
+
+        if start_date is None or end_date is None:
+            raise ValueError("start_date and end_date are required for equity downloads")
+
         if self.source == 'yahoo':
             return self._download_yahoo(symbol, start_date, end_date)
         elif self.source == 'alpha_vantage':
             return self._download_alpha_vantage(symbol, start_date, end_date)
         else:
             raise ValueError(f"Unsupported data source: {self.source}")
+
+    def download_options_data(self, symbol: str, expiry: Optional[str] = None) -> pd.DataFrame:
+        """Convenience wrapper to fetch option chains from Yahoo Finance."""
+        logger.info("download_options_data called: source=%s, symbol=%s, expiry=%s", self.source, symbol, expiry)
+        if self.source != "yahoo":
+            raise ValueError("download_options_data currently supports only the Yahoo source")
+        return self._download_yahoo_options(symbol, expiry)
 
     def _download_yahoo(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download and format data from Yahoo Finance."""
@@ -141,6 +185,84 @@ class StockDownloader:
             raise
         except Exception as e:
             logger.error(f"Yahoo Finance error for {symbol}: {type(e).__name__}: {str(e)}", exc_info=True)
+            raise
+
+    def _download_yahoo_options(self, symbol: str, expiry: Optional[str] = None) -> pd.DataFrame:
+        """Download and normalize option chains from Yahoo Finance."""
+        try:
+            logger.info(f"Attempting Yahoo Finance options download: symbol={symbol}, expiry={expiry or 'ALL'}")
+            logger.info("=" * 80)
+            logger.info("YAHOO FINANCE OPTIONS CALL")
+            logger.info("=" * 80)
+            logger.info(f"yfinance version: {yf.__version__}")
+            logger.info(f"Ticker Symbol:    {symbol}")
+            logger.info(f"Data Endpoint:    https://query2.finance.yahoo.com/v7/finance/options/{symbol}")
+            logger.info(f"Requested Expiry: {expiry or 'ALL AVAILABLE'}")
+            logger.info("=" * 80)
+
+            ticker = yf.Ticker(symbol)
+
+            try:
+                ticker_info = ticker.info
+                logger.info(
+                    "Ticker info retrieved: %s, longName: %s",
+                    ticker_info.get("symbol", "N/A"),
+                    ticker_info.get("longName", "N/A"),
+                )
+            except Exception as info_error:
+                logger.warning(f"Could not retrieve ticker info: {info_error}")
+
+            expirations = list(ticker.options or [])
+            logger.info(f"Available expirations ({len(expirations)}): {expirations}")
+
+            if not expirations:
+                logger.warning(f"No option expirations available for {symbol}")
+                return pd.DataFrame()
+
+            if expiry:
+                if expiry not in expirations:
+                    raise ValueError(f"Requested expiry {expiry} not available for {symbol}")
+                target_expiries = [expiry]
+            else:
+                target_expiries = expirations
+
+            frames = []
+            for exp in target_expiries:
+                logger.info(f"Fetching option chain for {symbol} expiry {exp}")
+                chain = ticker.option_chain(exp)
+                logger.info(
+                    "option_chain returned calls=%s rows, puts=%s rows",
+                    getattr(chain.calls, "shape", [0])[0],
+                    getattr(chain.puts, "shape", [0])[0],
+                )
+
+                for option_df, option_type in ((chain.calls, "call"), (chain.puts, "put")):
+                    if option_df is None or option_df.empty:
+                        logger.warning(f"No {option_type} data for expiry {exp}")
+                        continue
+
+                    normalized = self._normalize_option_chain(option_df, exp, option_type)
+                    if not normalized.empty:
+                        frames.append(normalized)
+
+            if not frames:
+                logger.warning(f"No option data retrieved for {symbol}")
+                return pd.DataFrame()
+
+            result = pd.concat(frames, ignore_index=True)
+            logger.info(
+                "Successfully processed %s option rows for %s across %s expirations",
+                len(result),
+                symbol,
+                len(target_expiries),
+            )
+            return result
+
+        except ValueError as ve:
+            logger.error(f"Validation error for {symbol} options: {str(ve)}")
+            raise
+        except Exception as e:
+            logger.error(f"Yahoo Finance options error for {symbol}: {type(e).__name__}: {str(e)}", exc_info=True)
             raise
 
     def _download_yahoo_direct(self, symbol: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
@@ -269,3 +391,36 @@ class StockDownloader:
         except Exception as e:
             logger.error(f"Data processing error: {str(e)}")
             return pd.DataFrame()
+
+    def _normalize_option_chain(self, option_df: pd.DataFrame, expiry: str, option_type: str) -> pd.DataFrame:
+        """Normalize option chain data into a consistent schema."""
+        df = option_df.copy()
+        df["Expiry"] = pd.to_datetime(expiry)
+        df["Type"] = option_type
+
+        rename_map = {
+            "strike": "Strike",
+            "bid": "Bid",
+            "ask": "Ask",
+            "lastPrice": "LastPrice",
+            "volume": "Volume",
+            "openInterest": "OpenInterest",
+        }
+
+        for src, dest in rename_map.items():
+            if src not in df.columns:
+                df[src] = pd.NA
+            df = df.rename(columns={src: dest})
+
+        desired_columns = ["Expiry", "Strike", "Type", "Bid", "Ask", "LastPrice", "Volume", "OpenInterest"]
+        df = df.reindex(columns=desired_columns)
+
+        numeric_cols = ["Strike", "Bid", "Ask", "LastPrice", "Volume", "OpenInterest"]
+        for col in numeric_cols:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        df["Volume"] = df.get("Volume", pd.Series(dtype="float")).fillna(0).astype(int)
+        df["OpenInterest"] = df.get("OpenInterest", pd.Series(dtype="float")).fillna(0).astype(int)
+
+        return df[desired_columns]

@@ -188,7 +188,12 @@ class StockDownloader:
             raise
 
     def _download_yahoo_options(self, symbol: str, expiry: Optional[str] = None) -> pd.DataFrame:
-        """Download and normalize option chains from Yahoo Finance."""
+        """Download and normalize option chains from Yahoo Finance.
+
+        Args:
+            symbol: Underlying ticker.
+            expiry: Optional expiration expressed as YYYY-MM-DD or datetime/date.
+        """
         try:
             logger.info(f"Attempting Yahoo Finance options download: symbol={symbol}, expiry={expiry or 'ALL'}")
             logger.info("=" * 80)
@@ -220,9 +225,11 @@ class StockDownloader:
                 return pd.DataFrame()
 
             if expiry:
-                if expiry not in expirations:
-                    raise ValueError(f"Requested expiry {expiry} not available for {symbol}")
-                target_expiries = [expiry]
+                normalized_expiry = self._normalize_expiry(expiry)
+                logger.info(f"Normalized requested expiry to {normalized_expiry}")
+                if normalized_expiry not in expirations:
+                    raise ValueError(f"Requested expiry {normalized_expiry} not available for {symbol}")
+                target_expiries = [normalized_expiry]
             else:
                 target_expiries = expirations
 
@@ -241,7 +248,7 @@ class StockDownloader:
                         logger.warning(f"No {option_type} data for expiry {exp}")
                         continue
 
-                    normalized = self._normalize_option_chain(option_df, exp, option_type)
+                    normalized = self._normalize_option_chain(option_df, exp, option_type, symbol)
                     if not normalized.empty:
                         frames.append(normalized)
 
@@ -326,6 +333,14 @@ class StockDownloader:
             logger.error(f"Direct API download failed: {type(e).__name__}: {str(e)}")
             raise
 
+    def _normalize_expiry(self, expiry: date) -> str:
+        """Convert an expiry value into the YYYY-MM-DD string format used by yfinance."""
+        if isinstance(expiry, str):
+            return expiry
+        if isinstance(expiry, datetime):
+            expiry = expiry.date()
+        return expiry.strftime("%Y-%m-%d")
+
     def _download_alpha_vantage(self, symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """Download and format data from Alpha Vantage with retry mechanism."""
         max_retries = 3
@@ -392,10 +407,13 @@ class StockDownloader:
             logger.error(f"Data processing error: {str(e)}")
             return pd.DataFrame()
 
-    def _normalize_option_chain(self, option_df: pd.DataFrame, expiry: str, option_type: str) -> pd.DataFrame:
+    def _normalize_option_chain(
+        self, option_df: pd.DataFrame, expiry: str, option_type: str, symbol: str
+    ) -> pd.DataFrame:
         """Normalize option chain data into a consistent schema."""
         df = option_df.copy()
-        df["Expiry"] = pd.to_datetime(expiry)
+        df["Symbol"] = symbol
+        df["Expiry"] = pd.to_datetime(self._normalize_expiry(expiry))
         df["Type"] = option_type
 
         rename_map = {
@@ -412,7 +430,17 @@ class StockDownloader:
                 df[src] = pd.NA
             df = df.rename(columns={src: dest})
 
-        desired_columns = ["Expiry", "Strike", "Type", "Bid", "Ask", "LastPrice", "Volume", "OpenInterest"]
+        desired_columns = [
+            "Symbol",
+            "Expiry",
+            "Strike",
+            "Type",
+            "Bid",
+            "Ask",
+            "LastPrice",
+            "Volume",
+            "OpenInterest",
+        ]
         df = df.reindex(columns=desired_columns)
 
         numeric_cols = ["Strike", "Bid", "Ask", "LastPrice", "Volume", "OpenInterest"]

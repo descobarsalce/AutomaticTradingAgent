@@ -97,6 +97,33 @@ Supported data providers:
 - Yahoo Finance (historical)
 - Custom SQL Database (cached data)
 
+### Downloader interface
+
+Use `StockDownloader` to retrieve both equities and Yahoo Finance option chains from a single interface.
+Equities require a start/end date window, while options can target a specific expiration or pull all expirations by default.
+Options output includes `Symbol`, `Expiry`, `Strike`, `Type`, `Bid`, `Ask`, `LastPrice`, `Volume`, and `OpenInterest` columns.
+
+```python
+from data.stock_downloader import StockDownloader
+from datetime import datetime
+
+downloader = StockDownloader(source="yahoo")
+
+# Equities
+equity_df = downloader.download_stock_data(
+    symbol="AAPL",
+    start_date=datetime(2023, 1, 1),
+    end_date=datetime(2023, 12, 31),
+)
+
+# Options (Yahoo only)
+options_df = downloader.download_stock_data(symbol="AAPL", instrument_type="options")
+# or target a specific expiry
+options_jan_df = downloader.download_options_data(symbol="AAPL", expiry="2024-01-19")
+# expiry also accepts datetime/date objects
+options_march_df = downloader.download_options_data(symbol="AAPL", expiry=datetime(2024, 3, 15))
+```
+
 ## Component Details
 
 ### Portfolio Manager

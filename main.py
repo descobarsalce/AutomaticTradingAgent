@@ -175,12 +175,13 @@ def main() -> None:
         #     return
 
         # logger.info("Setting up main UI")
-        st.title("Trading Analysis and Agent Platform")
-
-        # logger.info("Creating application tabs")
+        # Create top-level navigation at the top of the page
         # Reordered to match workflow: 1) Download data, 2) Select features, 3) Train model
         tab_database, tab_features, tab_training, tab_tuning, tab_testing, tab_analysis = st.tabs(
             ["Database Explorer", "Feature Selection", "Model Training", "Hyperparameter Tuning", "Testing Interface", "Technical Analysis"])
+
+        st.markdown("### Trading Analysis and Agent Platform")
+        st.caption("Use the tabs above to navigate the primary workflows.")
 
         # logger.info("Initializing Database Explorer tab")
         with tab_database:

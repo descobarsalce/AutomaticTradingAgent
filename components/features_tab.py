@@ -2,11 +2,15 @@
 Feature Selection Component
 Allows users to configure which features are used for model training.
 """
-import streamlit as st
-import pandas as pd
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Optional
+from typing import Any, Dict, List, Optional, Set
+
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import streamlit as st
 
 logger = logging.getLogger(__name__)
 
@@ -474,6 +478,75 @@ def compute_sample_features(
         return None
 
 
+def build_feature_columns_for_symbol(
+    sample_df: pd.DataFrame,
+    symbol: str,
+    selected_features: List[str],
+    include_raw_prices: bool,
+) -> List[str]:
+    """Collect available feature columns for a symbol based on selection."""
+
+    columns: List[str] = []
+
+    if include_raw_prices:
+        for base_col in ["Open", "High", "Low", "Close", "Volume"]:
+            candidate = f"{base_col}_{symbol}"
+            if candidate in sample_df.columns:
+                columns.append(candidate)
+
+    for feature in selected_features:
+        candidate = f"{feature}_{symbol}"
+        if candidate in sample_df.columns:
+            columns.append(candidate)
+
+    return columns
+
+
+def generate_price_prediction_preview(
+    sample_df: pd.DataFrame,
+    symbol: str,
+    feature_columns: List[str],
+) -> Optional[Dict[str, Any]]:
+    """Train a lightweight regression model to preview price predictions."""
+
+    target_col = f"Close_{symbol}"
+    if target_col not in sample_df.columns or not feature_columns:
+        return None
+
+    dataset = sample_df[[target_col, *feature_columns]].dropna().copy()
+    dataset["target_next"] = dataset[target_col].shift(-1)
+    dataset = dataset.dropna()
+
+    if len(dataset) < 12:
+        return None
+
+    split_idx = int(len(dataset) * 0.8)
+    X_train, X_test = dataset.iloc[:split_idx][feature_columns], dataset.iloc[split_idx:][feature_columns]
+    y_train, y_test = dataset.iloc[:split_idx]["target_next"], dataset.iloc[split_idx:]["target_next"]
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    predictions = model.predict(X_test)
+
+    mae = float(mean_absolute_error(y_test, predictions))
+    rmse = float(np.sqrt(mean_squared_error(y_test, predictions)))
+
+    preview_history = pd.DataFrame(
+        {
+            "Date": dataset.index[split_idx:],
+            "Actual Next Close": y_test.values,
+            "Predicted Next Close": predictions,
+        }
+    ).set_index("Date")
+
+    return {
+        "mae": mae,
+        "rmse": rmse,
+        "history": preview_history,
+    }
+
+
 def initialize_feature_config():
     """Initialize feature configuration in session state."""
     if 'feature_config' not in st.session_state:
@@ -504,11 +577,55 @@ def display_features_tab():
 
     st.divider()
 
+    st.markdown("### Observation Building Blocks")
+    st.caption("Keep the core observation inputs together so you can quickly choose how the model sees the market.")
+
+    choice_cols = st.columns(4)
+    with choice_cols[0]:
+        config['include_raw_prices'] = st.checkbox(
+            "Include Raw Prices",
+            value=config.get('include_raw_prices', True),
+            help="Add Open/High/Low/Close/Volume so you can compare engineered signals against base prices."
+        )
+    with choice_cols[1]:
+        config['include_positions'] = st.checkbox(
+            "Include Current Positions",
+            value=config.get('include_positions', True),
+            help="Track current holdings alongside features."
+        )
+    with choice_cols[2]:
+        config['include_balance'] = st.checkbox(
+            "Include Cash Balance",
+            value=config.get('include_balance', True),
+            help="Expose available cash to downstream policies."
+        )
+    with choice_cols[3]:
+        config['normalize_features'] = st.checkbox(
+            "Normalize Features",
+            value=config.get('normalize_features', True),
+            help="Keep scales consistent by applying Z-score normalization."
+        )
+
+    st.divider()
+
     # Get available features
     available_features = get_available_features()
 
     # Feature source selection with categories
     st.subheader("Feature Sources")
+
+    # Quick summary row
+    summary_cols = st.columns(3)
+    with summary_cols[0]:
+        st.metric("Sources Detected", len(available_features))
+    with summary_cols[1]:
+        st.metric(
+            "Enabled Sources",
+            sum(1 for src in config['sources'].values() if src.get('enabled', False))
+        )
+    with summary_cols[2]:
+        total_selected = sum(len(src.get('features', [])) for src in config['sources'].values())
+        st.metric("Selected Features", total_selected)
 
     for source_name, source_features in available_features.items():
         source_display = "Market Data Features" if source_name == "MarketDataSource" else "Technical Indicators"
@@ -565,43 +682,6 @@ def display_features_tab():
 
                 config['sources'][source_name]['features'] = list(selected)
                 st.caption(f"Selected: {len(selected)} / {len(source_features)} features")
-
-    st.divider()
-
-    # Additional observation components
-    st.subheader("Observation Components")
-    st.caption("Configure what additional data is included in the model's observation")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        config['include_raw_prices'] = st.checkbox(
-            "Include Raw Prices",
-            value=config.get('include_raw_prices', True),
-            help="Include Open and Close prices for each symbol in observation"
-        )
-
-    with col2:
-        config['include_positions'] = st.checkbox(
-            "Include Current Positions",
-            value=config.get('include_positions', True),
-            help="Include current portfolio positions (shares held) in observation"
-        )
-
-    with col3:
-        config['include_balance'] = st.checkbox(
-            "Include Cash Balance",
-            value=config.get('include_balance', True),
-            help="Include current cash balance in observation"
-        )
-
-    config['normalize_features'] = st.checkbox(
-        "Normalize Features",
-        value=config.get('normalize_features', True),
-        help="Apply Z-score normalization to features before feeding to the model"
-    )
-
-    st.divider()
 
     # Configuration Summary
     st.subheader("Configuration Summary")
@@ -735,6 +815,41 @@ def display_features_tab():
                                     use_container_width=True,
                                     hide_index=True
                                 )
+
+                        feature_columns = build_feature_columns_for_symbol(
+                            sample_df,
+                            preview_symbol,
+                            selected_features,
+                            config.get('include_raw_prices', True),
+                        )
+
+                        with st.expander("Machine Learning Price Preview", expanded=True):
+                            if feature_columns:
+                                preview = generate_price_prediction_preview(
+                                    sample_df,
+                                    preview_symbol,
+                                    feature_columns,
+                                )
+
+                                if preview:
+                                    metric_cols = st.columns(2)
+                                    with metric_cols[0]:
+                                        st.metric("MAE (next close)", f"{preview['mae']:.4f}")
+                                    with metric_cols[1]:
+                                        st.metric("RMSE (next close)", f"{preview['rmse']:.4f}")
+
+                                    st.caption("Quick regression preview using your selected inputs to predict the next closing price.")
+                                    st.line_chart(
+                                        preview["history"][
+                                            ["Actual Next Close", "Predicted Next Close"]
+                                        ]
+                                    )
+                                else:
+                                    st.info(
+                                        "Need a few more rows or features to preview price predictions. Try a wider date range or enable raw prices."
+                                    )
+                            else:
+                                st.info("Select at least one available column to preview machine learning behavior.")
 
                         # Download option
                         csv = display_df.to_csv(index=False)

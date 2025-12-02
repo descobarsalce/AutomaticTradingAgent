@@ -18,36 +18,32 @@ def display_tuning_tab():
     """
     start_time = datetime.now()
     logger.info("Initializing hyperparameter tuning tab...")
-    st.header("Hyperparameter Tuning Configuration")
+    st.header("Hyperparameter Tuning")
 
-    # Add a checkbox for enabling/disabling logging
-    enable_logging = st.checkbox("Enable Logging", value=False, key="tuning_enable_logging")
-    st.session_state.enable_logging = enable_logging
+    # Compact settings row
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    with col1:
+        stock_names = st.text_input(
+            "Stocks", value="AAPL,MSFT,TSLA,GOOG,NVDA", key="tuning_stock_names",
+            help="Comma-separated stock symbols"
+        )
+        st.session_state.stock_names = parse_stock_list(stock_names)
+    with col2:
+        initial_balance = st.number_input(
+            "Balance ($)", value=10000, key="tuning_initial_balance", format="%d"
+        )
+    with col3:
+        transaction_cost = st.number_input(
+            "Trans. Cost", value=0.01, step=0.001, key="tuning_transaction_cost", format="%.3f"
+        )
+    with col4:
+        enable_logging = st.checkbox("Logging", value=False, key="tuning_enable_logging")
+        st.session_state.enable_logging = enable_logging
 
-    # Set the logging level based on the checkbox
     if enable_logging:
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.CRITICAL)
-
-    # Input parameters
-    st.subheader("Training Options")
-    stock_names = st.text_input("Training Stock Symbol",
-                                value="AAPL,MSFT,TSLA,GOOG,NVDA",
-                                key="tuning_stock_names")
-    st.session_state.stock_names = parse_stock_list(stock_names)
-
-    # Environment parameters
-    st.header("Environment Parameters")
-    col1, col2 = st.columns(2)
-    with col1:
-        initial_balance = st.number_input("Initial Balance", value=10000, key="tuning_initial_balance")
-
-    with col2:
-        transaction_cost = st.number_input("Transaction Cost",
-                                           value=0.01,
-                                           step=0.001,
-                                           key="tuning_transaction_cost")
 
     st.session_state.env_params = {
         'initial_balance': initial_balance,
@@ -58,19 +54,16 @@ def display_tuning_tab():
         'use_trading_penalty': False
     }
 
-    # Training period selection
-    st.subheader("Training Period")
-    train_col1, train_col2 = st.columns(2)
-    with train_col1:
+    # Training period - compact date row
+    date_col1, date_col2 = st.columns(2)
+    with date_col1:
         train_start_date = datetime.combine(
-            st.date_input("Training Start Date",
-                          value=datetime.now() - timedelta(days=365 * 5),
+            st.date_input("Start Date", value=datetime.now() - timedelta(days=365 * 5),
                           key="tuning_train_start_date"),
             datetime.min.time())
-    with train_col2:
+    with date_col2:
         train_end_date = datetime.combine(
-            st.date_input("Training End Date",
-                          value=datetime.now() - timedelta(days=365 + 1),
+            st.date_input("End Date", value=datetime.now() - timedelta(days=365 + 1),
                           key="tuning_train_end_date"),
             datetime.min.time())
 

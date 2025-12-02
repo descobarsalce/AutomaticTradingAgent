@@ -6,6 +6,7 @@ from components.tuning_tab import display_tuning_tab
 from components.testing_tab import display_testing_tab
 from components.database_tab import display_database_explorer
 from components.features_tab import display_features_tab, initialize_feature_config
+from components.ml_models_tab import display_ml_models_tab
 from data.data_handler import DataHandler
 from datetime import datetime, timedelta
 import logging
@@ -176,9 +177,9 @@ def main() -> None:
 
         # logger.info("Setting up main UI")
         # Create top-level navigation at the top of the page
-        # Reordered to match workflow: 1) Download data, 2) Select features, 3) Train model
-        tab_database, tab_features, tab_training, tab_tuning, tab_testing, tab_analysis = st.tabs(
-            ["Database Explorer", "Feature Selection", "Model Training", "Hyperparameter Tuning", "Testing Interface", "Technical Analysis"])
+        # Workflow: 1) Download data, 2) Select features, 3) Tune hyperparameters, 4) Train model
+        tab_database, tab_features, tab_ml_models, tab_tuning, tab_training, tab_testing, tab_analysis = st.tabs(
+            ["Database Explorer", "Feature Selection", "ML Feature Models", "Hyperparameter Tuning", "Model Training", "Testing Interface", "Technical Analysis"])
 
         st.markdown("### Trading Analysis and Agent Platform")
         st.caption("Use the tabs above to navigate the primary workflows.")
@@ -199,6 +200,14 @@ def main() -> None:
             except Exception as e:
                 logger.error(f"Error in Feature Selection tab: {str(e)}")
                 st.error(f"Error loading Feature Selection tab: {str(e)}")
+
+        # ML Feature Models tab
+        with tab_ml_models:
+            try:
+                display_ml_models_tab()
+            except Exception as e:
+                logger.error(f"Error in ML Feature Models tab: {str(e)}")
+                st.error(f"Error loading ML Feature Models tab: {str(e)}")
 
         # logger.info("Initializing Model Training tab")
         with tab_training:

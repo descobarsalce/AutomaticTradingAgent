@@ -432,7 +432,7 @@ class IterativeHyperparameterOptimizer:
 
             trial_value = metrics.get(self.optimization_metric, float("-inf"))
 
-            # Store trial info
+            # Store trial info with ALL metrics for diagnostics
             self.all_trials.append(
                 {
                     "trial_number": len(self.all_trials),
@@ -440,8 +440,26 @@ class IterativeHyperparameterOptimizer:
                     "params": ppo_params,
                     "value": trial_value,
                     "state": "COMPLETE",
+                    # Store all available metrics for diagnostics
+                    "sharpe_ratio": metrics.get("sharpe_ratio", None),
+                    "sortino_ratio": metrics.get("sortino_ratio", None),
+                    "total_return": metrics.get("total_return", None),
+                    "volatility": metrics.get("volatility", None),
+                    "max_drawdown": metrics.get("max_drawdown", None),
+                    "win_rate": metrics.get("win_rate", None),
+                    "total_trades": metrics.get("total_trades", None),
+                    "information_ratio": metrics.get("information_ratio", None),
                 }
             )
+
+            # Store user attrs in optuna trial for later analysis
+            trial.set_user_attr("sharpe_ratio", metrics.get("sharpe_ratio", 0))
+            trial.set_user_attr("sortino_ratio", metrics.get("sortino_ratio", 0))
+            trial.set_user_attr("total_return", metrics.get("total_return", 0))
+            trial.set_user_attr("volatility", metrics.get("volatility", 0))
+            trial.set_user_attr("max_drawdown", metrics.get("max_drawdown", 0))
+            trial.set_user_attr("win_rate", metrics.get("win_rate", 0))
+            trial.set_user_attr("total_trades", metrics.get("total_trades", 0))
 
             return trial_value
 
@@ -567,8 +585,20 @@ class IterativeHyperparameterOptimizer:
             return self.phase2_study
 
     def get_combined_study_data(self) -> pd.DataFrame:
-        """Get combined trial data from all rounds and phases."""
+        """Get combined trial data from all rounds and phases with all metrics."""
         trials_data = []
+
+        # Helper to extract user attrs (additional metrics) from trial
+        def get_trial_metrics(t):
+            return {
+                "sharpe_ratio": t.user_attrs.get("sharpe_ratio"),
+                "sortino_ratio": t.user_attrs.get("sortino_ratio"),
+                "total_return": t.user_attrs.get("total_return"),
+                "volatility": t.user_attrs.get("volatility"),
+                "max_drawdown": t.user_attrs.get("max_drawdown"),
+                "win_rate": t.user_attrs.get("win_rate"),
+                "total_trades": t.user_attrs.get("total_trades"),
+            }
 
         if hasattr(self, "round_studies") and self.round_studies:
             for phase_record in self.round_studies:
@@ -585,6 +615,7 @@ class IterativeHyperparameterOptimizer:
                                 "Value": t.value,
                                 "State": str(t.state),
                                 **t.params,
+                                **get_trial_metrics(t),
                             }
                         )
         else:
@@ -599,6 +630,7 @@ class IterativeHyperparameterOptimizer:
                                 "Value": t.value,
                                 "State": str(t.state),
                                 **t.params,
+                                **get_trial_metrics(t),
                             }
                         )
 
@@ -613,6 +645,7 @@ class IterativeHyperparameterOptimizer:
                                 "Value": t.value,
                                 "State": str(t.state),
                                 **t.params,
+                                **get_trial_metrics(t),
                             }
                         )
 
@@ -620,26 +653,39 @@ class IterativeHyperparameterOptimizer:
 
 
 def create_parameter_ranges() -> Dict[str, Tuple[float, float]]:
-    """Get parameter ranges from user input."""
-    col1, col2 = st.columns(2)
+    """Get parameter ranges from user input - compact layout."""
+    # Row 1: Learning rate and steps
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        lr_min = st.number_input("LR Min", value=1e-5, format="%.1e", key="lr_min")
+    with c2:
+        lr_max = st.number_input("LR Max", value=5e-4, format="%.1e", key="lr_max")
+    with c3:
+        steps_min = st.number_input("Steps Min", value=512, step=64, key="steps_min")
+    with c4:
+        steps_max = st.number_input("Steps Max", value=2048, step=64, key="steps_max")
 
-    with col1:
-        st.subheader("Core Parameters")
-        lr_min = st.number_input("Learning Rate Min", value=1e-5, format="%.1e")
-        lr_max = st.number_input("Learning Rate Max", value=5e-4, format="%.1e")
-        steps_min = st.number_input("Steps Min", value=512, step=64)
-        steps_max = st.number_input("Steps Max", value=2048, step=64)
-        batch_min = st.number_input("Batch Size Min", value=64, step=32)
-        batch_max = st.number_input("Batch Size Max", value=512, step=32)
+    # Row 2: Batch and epochs
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        batch_min = st.number_input("Batch Min", value=64, step=32, key="batch_min")
+    with c2:
+        batch_max = st.number_input("Batch Max", value=512, step=32, key="batch_max")
+    with c3:
+        epochs_min = st.number_input("Epochs Min", value=3, step=1, key="epochs_min")
+    with c4:
+        epochs_max = st.number_input("Epochs Max", value=10, step=1, key="epochs_max")
 
-    with col2:
-        st.subheader("Training Parameters")
-        epochs_min = st.number_input("Training Epochs Min", value=3, step=1)
-        epochs_max = st.number_input("Training Epochs Max", value=10, step=1)
-        gamma_min = st.number_input("Gamma Min", value=0.90, step=0.01, format="%.3f")
-        gamma_max = st.number_input("Gamma Max", value=0.999, step=0.001, format="%.3f")
-        gae_min = st.number_input("GAE Lambda Min", value=0.90, step=0.01, format="%.2f")
-        gae_max = st.number_input("GAE Lambda Max", value=0.99, step=0.01, format="%.2f")
+    # Row 3: Gamma and GAE
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        gamma_min = st.number_input("Gamma Min", value=0.90, step=0.01, format="%.3f", key="gamma_min")
+    with c2:
+        gamma_max = st.number_input("Gamma Max", value=0.999, step=0.001, format="%.3f", key="gamma_max")
+    with c3:
+        gae_min = st.number_input("GAE Min", value=0.90, step=0.01, format="%.2f", key="gae_min")
+    with c4:
+        gae_max = st.number_input("GAE Max", value=0.99, step=0.01, format="%.2f", key="gae_max")
 
     return {
         "lr": (lr_min, lr_max),
@@ -843,21 +889,23 @@ def display_optimization_results(
     if optimizer:
         tabs = st.tabs(
             [
-                "Run Context & Inputs",
+                "Run Context",
                 "Best Parameters",
-                "Optimization History",
+                "History",
                 "Phase Comparison",
                 "Parameter Sensitivity",
-                "Refined Ranges",
+                "Model Diagnostics",
+                "All Trials Data",
             ]
         )
     else:
         tabs = st.tabs(
             [
-                "Run Context & Inputs",
+                "Run Context",
                 "Best Parameters",
-                "Optimization History",
+                "History",
                 "Parameter Importance",
+                "Model Diagnostics",
             ]
         )
 
@@ -1217,54 +1265,217 @@ def display_optimization_results(
                 )
                 st.plotly_chart(parallel_fig, use_container_width=True)
 
-    # Tab 5: Refined Ranges (only for iterative optimization)
+    # Tab 5: Model Diagnostics (index 5 for optimizer, 4 for non-optimizer)
+    diagnostics_tab_idx = 5 if optimizer else 4
+    with tabs[diagnostics_tab_idx]:
+        st.subheader("Model Diagnostics & Insights")
+
+        if trials_df.empty:
+            st.warning("No trial data available for diagnostics.")
+        else:
+            # Metrics available for analysis
+            metric_cols = ["sharpe_ratio", "sortino_ratio", "total_return", "volatility", "max_drawdown", "win_rate", "total_trades"]
+            available_metrics = [m for m in metric_cols if m in trials_df.columns and trials_df[m].notna().any()]
+
+            if not available_metrics:
+                st.info("Additional metrics not available. Run optimization to collect diagnostic data.")
+            else:
+                # 1. Multi-metric comparison
+                st.markdown("**Performance Metrics Distribution**")
+                metric_summary = []
+                for metric in available_metrics:
+                    valid_vals = trials_df[metric].dropna()
+                    if len(valid_vals) > 0:
+                        metric_summary.append({
+                            "Metric": metric.replace("_", " ").title(),
+                            "Mean": valid_vals.mean(),
+                            "Std": valid_vals.std(),
+                            "Min": valid_vals.min(),
+                            "Max": valid_vals.max(),
+                            "Best Trial": trials_df.loc[valid_vals.idxmax(), "Trial"] if metric != "max_drawdown" else trials_df.loc[valid_vals.idxmin(), "Trial"],
+                        })
+                if metric_summary:
+                    st.dataframe(pd.DataFrame(metric_summary), use_container_width=True)
+
+                # 2. Risk-Return Analysis
+                st.markdown("**Risk-Return Analysis**")
+                if "total_return" in available_metrics and "volatility" in available_metrics:
+                    risk_return_fig = go.Figure()
+                    risk_return_fig.add_trace(go.Scatter(
+                        x=trials_df["volatility"],
+                        y=trials_df["total_return"],
+                        mode="markers",
+                        marker=dict(
+                            size=10,
+                            color=trials_df["Value"],
+                            colorscale="Viridis",
+                            showscale=True,
+                            colorbar=dict(title="Opt. Metric")
+                        ),
+                        text=[f"Trial {t}" for t in trials_df["Trial"]],
+                        hovertemplate="Trial %{text}<br>Return: %{y:.2%}<br>Volatility: %{x:.4f}<extra></extra>"
+                    ))
+                    risk_return_fig.update_layout(
+                        title="Risk vs Return (color = optimization metric)",
+                        xaxis_title="Volatility (Risk)",
+                        yaxis_title="Total Return",
+                        height=400,
+                    )
+                    st.plotly_chart(risk_return_fig, use_container_width=True)
+
+                    # Overfitting indicators
+                    st.markdown("**Potential Overfitting Indicators**")
+                    col1, col2, col3 = st.columns(3)
+
+                    # High return with high volatility ratio
+                    if "total_return" in available_metrics and "volatility" in available_metrics:
+                        valid_df = trials_df.dropna(subset=["total_return", "volatility"])
+                        if len(valid_df) > 0 and valid_df["volatility"].std() > 0:
+                            return_vol_corr = valid_df["total_return"].corr(valid_df["volatility"])
+                            with col1:
+                                st.metric("Return-Volatility Corr", f"{return_vol_corr:.3f}",
+                                         help="High positive correlation may indicate overfitting to noise")
+                                if return_vol_corr > 0.5:
+                                    st.warning("High correlation: returns may be driven by risk-taking")
+
+                    # Sharpe vs Sortino divergence
+                    if "sharpe_ratio" in available_metrics and "sortino_ratio" in available_metrics:
+                        valid_df = trials_df.dropna(subset=["sharpe_ratio", "sortino_ratio"])
+                        if len(valid_df) > 0:
+                            sharpe_sortino_diff = (valid_df["sortino_ratio"] - valid_df["sharpe_ratio"]).mean()
+                            with col2:
+                                st.metric("Sortino - Sharpe Δ", f"{sharpe_sortino_diff:.3f}",
+                                         help="Large positive = downside risk is lower than total volatility")
+
+                    # Win rate analysis
+                    if "win_rate" in available_metrics:
+                        valid_df = trials_df.dropna(subset=["win_rate"])
+                        if len(valid_df) > 0:
+                            avg_win_rate = valid_df["win_rate"].mean()
+                            with col3:
+                                st.metric("Avg Win Rate", f"{avg_win_rate:.1%}",
+                                         help="Very high win rates (>70%) on few trades may indicate overfitting")
+
+                # 3. Parameter Impact on Metrics
+                st.markdown("**Parameter Impact on Different Metrics**")
+                param_cols = ["learning_rate", "n_steps", "batch_size", "n_epochs", "gamma", "gae_lambda"]
+                available_params = [p for p in param_cols if p in trials_df.columns]
+
+                if available_params and len(available_metrics) > 1:
+                    selected_metric = st.selectbox("Analyze metric:", available_metrics, key="diag_metric")
+                    selected_param = st.selectbox("Against parameter:", available_params, key="diag_param")
+
+                    valid_df = trials_df.dropna(subset=[selected_metric, selected_param])
+                    if len(valid_df) >= 3:
+                        param_metric_fig = go.Figure()
+                        param_metric_fig.add_trace(go.Scatter(
+                            x=valid_df[selected_param],
+                            y=valid_df[selected_metric],
+                            mode="markers",
+                            marker=dict(size=10, color="steelblue"),
+                        ))
+                        # Add trend line
+                        if len(valid_df) >= 5:
+                            z = np.polyfit(valid_df[selected_param], valid_df[selected_metric], 1)
+                            p = np.poly1d(z)
+                            x_line = np.linspace(valid_df[selected_param].min(), valid_df[selected_param].max(), 50)
+                            param_metric_fig.add_trace(go.Scatter(
+                                x=x_line, y=p(x_line), mode="lines",
+                                line=dict(color="red", dash="dash"), name="Trend"
+                            ))
+                        param_metric_fig.update_layout(
+                            title=f"{selected_metric.replace('_', ' ').title()} vs {selected_param}",
+                            xaxis_title=selected_param,
+                            yaxis_title=selected_metric.replace("_", " ").title(),
+                            height=350,
+                        )
+                        st.plotly_chart(param_metric_fig, use_container_width=True)
+
+                # 4. Regularization Recommendations
+                st.markdown("**Recommendations**")
+                recommendations = []
+
+                if "volatility" in available_metrics:
+                    avg_vol = trials_df["volatility"].dropna().mean()
+                    if avg_vol > 0.03:
+                        recommendations.append("• High volatility across trials - consider lower learning rates or more conservative gamma")
+
+                if "total_return" in available_metrics and "sharpe_ratio" in available_metrics:
+                    valid_df = trials_df.dropna(subset=["total_return", "sharpe_ratio"])
+                    if len(valid_df) > 0:
+                        high_return_low_sharpe = ((valid_df["total_return"] > valid_df["total_return"].median()) &
+                                                   (valid_df["sharpe_ratio"] < valid_df["sharpe_ratio"].median())).sum()
+                        if high_return_low_sharpe > len(valid_df) * 0.3:
+                            recommendations.append("• Many trials with high returns but low Sharpe - likely taking excessive risk")
+
+                if "learning_rate" in trials_df.columns and "Value" in trials_df.columns:
+                    valid_df = trials_df.dropna(subset=["learning_rate", "Value"])
+                    if len(valid_df) >= 5:
+                        lr_perf_corr = valid_df["learning_rate"].corr(valid_df["Value"])
+                        if lr_perf_corr < -0.3:
+                            recommendations.append("• Lower learning rates perform better - model may be overshooting optima")
+                        elif lr_perf_corr > 0.3:
+                            recommendations.append("• Higher learning rates perform better - could try even higher LR range")
+
+                if "n_epochs" in trials_df.columns and "Value" in trials_df.columns:
+                    valid_df = trials_df.dropna(subset=["n_epochs", "Value"])
+                    if len(valid_df) >= 5:
+                        epochs_corr = valid_df["n_epochs"].corr(valid_df["Value"])
+                        if epochs_corr < -0.3:
+                            recommendations.append("• Fewer epochs perform better - possible overfitting, try early stopping")
+
+                if "win_rate" in available_metrics and "total_trades" in available_metrics:
+                    valid_df = trials_df.dropna(subset=["win_rate", "total_trades"])
+                    if len(valid_df) > 0:
+                        low_trades = valid_df[valid_df["total_trades"] < 10]
+                        if len(low_trades) > len(valid_df) * 0.5:
+                            recommendations.append("• Most trials have few trades - model may be too conservative or underfitting")
+
+                if recommendations:
+                    for rec in recommendations:
+                        st.markdown(rec)
+                else:
+                    st.success("No obvious issues detected. Results appear balanced.")
+
+    # Tab 6: All Trials Data (only for optimizer)
     if optimizer:
-        with tabs[5]:
-            st.subheader("Refined Parameter Ranges")
-            st.markdown(
-                """
-            These ranges show how the search space was progressively narrowed.
-            Each exploitation phase uses ranges extracted from the top 20% of the
-            preceding exploration phase, with ±10% padding.
-            """
+        with tabs[6]:
+            st.subheader("Complete Trials Data")
+
+            # Show all available columns
+            display_cols = ["Trial", "Phase", "Value"]
+            if "Round" in trials_df.columns:
+                display_cols.insert(1, "Round")
+
+            # Add params
+            param_cols = ["learning_rate", "n_steps", "batch_size", "n_epochs", "gamma", "gae_lambda"]
+            display_cols.extend([c for c in param_cols if c in trials_df.columns])
+
+            # Add metrics
+            metric_cols = ["sharpe_ratio", "sortino_ratio", "total_return", "volatility", "max_drawdown", "win_rate", "total_trades"]
+            display_cols.extend([c for c in metric_cols if c in trials_df.columns])
+
+            available_cols = [c for c in display_cols if c in trials_df.columns]
+            st.dataframe(
+                trials_df[available_cols].style.format({
+                    "Value": "{:.4f}",
+                    "learning_rate": "{:.2e}",
+                    "gamma": "{:.4f}",
+                    "gae_lambda": "{:.4f}",
+                    "sharpe_ratio": "{:.4f}",
+                    "sortino_ratio": "{:.4f}",
+                    "total_return": "{:.4f}",
+                    "volatility": "{:.4f}",
+                    "max_drawdown": "{:.4f}",
+                    "win_rate": "{:.2%}",
+                }, na_rep="-"),
+                use_container_width=True,
+                height=400,
             )
 
-            if optimizer.refined_ranges:
-                range_data = []
-                param_names = {
-                    "lr": "Learning Rate",
-                    "steps": "N Steps",
-                    "batch": "Batch Size",
-                    "epochs": "N Epochs",
-                    "gamma": "Gamma",
-                    "gae": "GAE Lambda",
-                }
-
-                for key, (low, high) in optimizer.refined_ranges.items():
-                    orig_low, orig_high = optimizer.param_ranges.get(key, (low, high))
-                    range_data.append(
-                        {
-                            "Parameter": param_names.get(key, key),
-                            "Original Min": f"{orig_low:.4g}",
-                            "Original Max": f"{orig_high:.4g}",
-                            "Refined Min": f"{low:.4g}",
-                            "Refined Max": f"{high:.4g}",
-                            "Narrowed": "✓" if (low > orig_low or high < orig_high) else "",
-                        }
-                    )
-
-                st.dataframe(pd.DataFrame(range_data), use_container_width=True)
-            else:
-                st.info("No refined ranges available (using original ranges)")
-
-    # Download results
-    trials_df.to_csv("hyperparameter_tuning_results.csv", index=False)
-    st.download_button(
-        "Download Complete Results CSV",
-        trials_df.to_csv(index=False),
-        "hyperparameter_tuning_results.csv",
-        "text/csv",
-    )
+            # Download
+            csv_data = trials_df.to_csv(index=False)
+            st.download_button("Download All Data CSV", csv_data, "tuning_full_results.csv", "text/csv")
 
 
 def hyperparameter_tuning() -> None:
@@ -1275,112 +1486,50 @@ def hyperparameter_tuning() -> None:
     train_end_date = st.session_state.train_end_date
     env_params = st.session_state.env_params
 
-    st.header("🔧 Hyperparameter Tuning")
+    # Compact tuning options - all in one row
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        trials_number = st.number_input("Trials", min_value=10, value=30, step=5, key="trials_num")
+    with c2:
+        optimization_metric = st.selectbox("Metric", ["sharpe_ratio", "sortino_ratio", "total_return"], key="opt_metric")
+        st.session_state.optimization_metric = optimization_metric
+    with c3:
+        two_phase_enabled = st.checkbox("Iterative Opt.", value=True, key="two_phase")
+    with c4:
+        pruning_enabled = st.checkbox("Pruning", value=True, key="pruning")
 
-    with st.expander("Tuning Configuration", expanded=True):
-        # Basic settings
-        col1, col2 = st.columns(2)
+    iterative_refinement = False
+    improvement_threshold = 0.0
+    max_rounds = 1
+    phase1_ratio = 0.6
 
-        with col1:
-            trials_number = st.number_input(
-                "Total Number of Trials",
-                min_value=10,
-                value=30,
-                step=5,
-                help="Total trials across both phases",
-            )
-
-            optimization_metric = st.selectbox(
-                "Optimization Metric",
-                ["sharpe_ratio", "sortino_ratio", "total_return"],
-                help="Metric to optimize during hyperparameter search",
-            )
-            st.session_state.optimization_metric = optimization_metric
-
-        with col2:
-            two_phase_enabled = st.checkbox(
-                "Enable Iterative Optimization",
-                value=True,
-                help="Exploration→Exploitation cycles that progressively narrow the search space",
-            )
-
-            pruning_enabled = st.checkbox("Enable Early Trial Pruning", value=True)
-
-        iterative_refinement = False
-        improvement_threshold = 0.0
-        max_rounds = 1
-
-        # Iterative optimization settings
-        if two_phase_enabled:
-            st.markdown("---")
-            st.subheader("Iterative Refinement Settings")
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                phase1_ratio = st.slider(
-                    "Phase 1 Ratio",
-                    min_value=0.4,
-                    max_value=0.8,
-                    value=0.6,
-                    step=0.1,
-                    help="Fraction of trials for exploration phase",
-                )
-
-            with col2:
-                st.metric("Phase 1 Trials", int(trials_number * phase1_ratio))
-
-            with col3:
-                st.metric("Phase 2 Trials", int(trials_number * (1 - phase1_ratio)))
-
-            iterative_refinement = st.checkbox(
-                "Iterate until improvement stalls",
-                value=True,
-                help="Repeat explore→exploit cycles while best metric keeps improving above the threshold.",
-            )
-
+    # Iterative settings in compact form
+    if two_phase_enabled:
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            phase1_ratio = st.slider("Phase 1 Ratio", 0.4, 0.8, 0.6, 0.1, key="p1_ratio")
+        with c2:
+            st.caption(f"P1: {int(trials_number * phase1_ratio)} trials")
+        with c3:
+            st.caption(f"P2: {int(trials_number * (1 - phase1_ratio))} trials")
+        with c4:
+            iterative_refinement = st.checkbox("Iterate", value=True, key="iterate", help="Repeat until stalls")
+        with c5:
             if iterative_refinement:
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    max_rounds = st.number_input(
-                        "Max refinement rounds", min_value=1, value=3, step=1
-                    )
-                with col_b:
-                    improvement_threshold = st.number_input(
-                        "Min improvement to continue",
-                        min_value=0.0,
-                        value=0.01,
-                        step=0.005,
-                        format="%.3f",
-                        help="Relative improvement required to launch another refinement round.",
-                    )
-                with col_c:
-                    st.metric(
-                        "Planned Trials",
-                        f"{trials_number * max_rounds} (up to)",
-                        help="Product of trials per round and max rounds",
-                    )
-            else:
-                max_rounds = 1
-                improvement_threshold = 0.0
+                max_rounds = st.number_input("Rounds", min_value=1, value=3, step=1, key="max_rounds")
 
-            st.info(
-                """
-            **Iterative Refinement Process:**
-            Each round consists of two phases that progressively narrow the search space:
-            - **Exploration Phase:** Broadly samples the current parameter ranges to identify promising regions
-            - **Exploitation Phase:** Focuses on the top 20% of exploration results with ±10% padding
+        if iterative_refinement:
+            c1, c2 = st.columns([1, 3])
+            with c1:
+                improvement_threshold = st.number_input("Min Δ", min_value=0.0, value=0.01, step=0.005, format="%.3f", key="imp_thresh")
+            with c2:
+                st.caption(f"Up to {trials_number * max_rounds} trials | Stops when improvement < {improvement_threshold:.1%}")
 
-            When iterative refinement is enabled, this cycle repeats with narrower ranges until
-            improvement falls below the threshold or max rounds is reached.
-            """
-            )
-
-        st.markdown("---")
-        st.subheader("Parameter Ranges")
+    # Parameter ranges in expander (collapsed by default to save space)
+    with st.expander("Parameter Ranges", expanded=False):
         param_ranges = create_parameter_ranges()
 
-    if st.button("🚀 Start Hyperparameter Tuning", type="primary"):
+    if st.button("Start Tuning", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
 

@@ -35,6 +35,11 @@ class FeatureProcessor:
         self._normalization_params: Dict[str, Dict[str, float]] = {}
         self._initialized = False
 
+        # Prediction layer
+        self.prediction_engine = None
+        self.prediction_columns: List[str] = []
+        self._prediction_normalization_params: Dict[str, Dict[str, float]] = {}
+
     def initialize(self, data: pd.DataFrame) -> None:
         """Initialize feature processor with data.
 
@@ -76,10 +81,87 @@ class FeatureProcessor:
                 f"Feature processor initialized with {len(self.feature_columns)} features"
             )
 
+            # Initialize prediction layer if configured
+            if self.feature_config.get('use_predictions', False):
+                self._initialize_predictions(data)
+
         except Exception as e:
             logger.error(f"Failed to initialize feature processor: {e}")
             self._initialized = False
             raise
+
+    def _initialize_predictions(self, data: pd.DataFrame) -> None:
+        """Initialize prediction engine and train models.
+
+        Args:
+            data: Historical market data for training
+        """
+        try:
+            from data.feature_engineering.predictions import (
+                PredictionEngine,
+                PredictionRegistry,
+            )
+            from data.feature_engineering.predictions.sources import LSTMPredictor
+
+            pred_config = self.feature_config.get('predictions', {})
+            models_dir = pred_config.get('models_dir', '.prediction_models')
+            train_window = pred_config.get('train_window_days', 252)
+            horizons = pred_config.get('horizons', [1, 5, 21])
+
+            # Create registry and engine
+            registry = PredictionRegistry(models_dir=models_dir)
+            self.prediction_engine = PredictionEngine(
+                prediction_registry=registry,
+                train_window_days=train_window,
+            )
+
+            # Register configured sources
+            sources_config = pred_config.get('sources', {})
+            if sources_config.get('LSTMPredictor', {}).get('enabled', False):
+                lstm_config = sources_config['LSTMPredictor']
+                predictor = LSTMPredictor(
+                    sequence_length=lstm_config.get('sequence_length', 20),
+                    lstm_units=lstm_config.get('lstm_units', 64),
+                    horizons=horizons,
+                )
+                registry.register_source(predictor)
+
+            # Train untrained models
+            self.prediction_engine.train_all_untrained(data, self.symbols)
+
+            # Store prediction columns
+            self.prediction_columns = self.prediction_engine.get_prediction_columns(
+                self.symbols
+            )
+
+            # Compute normalization params for predictions
+            if self.feature_config.get('normalize_predictions', True):
+                pred_data = self.prediction_engine.compute_predictions_batch(
+                    data, self.symbols,
+                    start_idx=max(0, len(data) - train_window),
+                    end_idx=len(data),
+                )
+                self._compute_prediction_normalization_params(pred_data)
+
+            logger.info(
+                f"Prediction layer initialized with {len(self.prediction_columns)} columns"
+            )
+
+        except ImportError as e:
+            logger.warning(f"Prediction layer not available: {e}")
+        except Exception as e:
+            logger.error(f"Failed to initialize prediction layer: {e}")
+
+    def _compute_prediction_normalization_params(self, data: pd.DataFrame) -> None:
+        """Compute normalization parameters for prediction columns."""
+        for col in self.prediction_columns:
+            if col in data.columns:
+                col_data = data[col].dropna()
+                if len(col_data) > 0:
+                    self._prediction_normalization_params[col] = {
+                        'mean': float(col_data.mean()),
+                        'std': float(col_data.std()) or 1.0,
+                    }
 
     def _get_selected_feature_list(self) -> List[str]:
         """Get flat list of selected feature names."""
@@ -143,11 +225,59 @@ class FeatureProcessor:
             if self.feature_config.get('normalize_features', True):
                 features_df = self._normalize_features(features_df)
 
+            # Add predictions if configured
+            if (self.feature_config.get('use_predictions', False)
+                    and self.prediction_engine is not None):
+                features_df = self._compute_predictions(features_df, current_index)
+
             return features_df
 
         except Exception as e:
             logger.error(f"Error computing features: {e}")
             return data
+
+    def _compute_predictions(
+        self,
+        data: pd.DataFrame,
+        current_index: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Compute predictions and add to DataFrame.
+
+        Args:
+            data: DataFrame with features
+            current_index: Current time index
+
+        Returns:
+            DataFrame with prediction columns added
+        """
+        if self.prediction_engine is None:
+            return data
+
+        try:
+            result = self.prediction_engine.compute_predictions(
+                data, self.symbols, current_index
+            )
+
+            # Normalize predictions if configured
+            if self.feature_config.get('normalize_predictions', True):
+                result = self._normalize_predictions(result)
+
+            return result
+        except Exception as e:
+            logger.error(f"Error computing predictions: {e}")
+            return data
+
+    def _normalize_predictions(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Normalize prediction columns."""
+        result = data.copy()
+
+        for col in self.prediction_columns:
+            if col in result.columns and col in self._prediction_normalization_params:
+                params = self._prediction_normalization_params[col]
+                result[col] = (result[col] - params['mean']) / params['std']
+                result[col] = result[col].clip(-10, 10)
+
+        return result
 
     def _normalize_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Normalize feature columns."""
@@ -190,6 +320,13 @@ class FeatureProcessor:
                     value = data.iloc[current_index][col]
                     obs_components.append(float(value) if pd.notna(value) else 0.0)
 
+        # Add prediction values for current step
+        if self.feature_config.get('use_predictions', False):
+            for col in self.prediction_columns:
+                if col in data.columns:
+                    value = data.iloc[current_index][col]
+                    obs_components.append(float(value) if pd.notna(value) else 0.0)
+
         # Add raw OHLCV data if configured (default: True for backward compatibility)
         if self.feature_config.get('include_raw_prices', True):
             for symbol in self.symbols:
@@ -227,6 +364,10 @@ class FeatureProcessor:
         if self.feature_config.get('use_feature_engineering', False):
             size += len(self.feature_columns)
 
+        # Prediction columns
+        if self.feature_config.get('use_predictions', False):
+            size += len(self.prediction_columns)
+
         # Raw OHLCV (Open, Close per symbol) - optional
         if self.feature_config.get('include_raw_prices', True):
             size += len(self.symbols) * 2
@@ -252,6 +393,10 @@ class FeatureProcessor:
         # Feature columns
         if self.feature_config.get('use_feature_engineering', False):
             names.extend(self.feature_columns)
+
+        # Prediction columns
+        if self.feature_config.get('use_predictions', False):
+            names.extend(self.prediction_columns)
 
         # Raw OHLCV - optional
         if self.feature_config.get('include_raw_prices', True):

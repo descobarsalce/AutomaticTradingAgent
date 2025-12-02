@@ -540,6 +540,13 @@ def generate_price_prediction_preview(
         }
     ).set_index("Date")
 
+    coef_frame = pd.DataFrame(
+        {
+            "Feature": feature_columns,
+            "Coefficient": model.coef_,
+        }
+    ).sort_values("Coefficient", key=lambda s: s.abs(), ascending=False)
+
     return {
         "mae": mae,
         "rmse": rmse,
@@ -605,6 +612,84 @@ def display_features_tab():
             value=config.get('normalize_features', True),
             help="Keep scales consistent by applying Z-score normalization."
         )
+
+    st.divider()
+
+    st.markdown("### Core Comparisons")
+    st.caption("Pick the flavor of each common signal in one place so related knobs stay together.")
+
+    comparison_groups = [
+        {
+            "title": "Price Change Lens",
+            "source": "MarketDataSource",
+            "options": [
+                ("Absolute", "price_change"),
+                ("% Returns", "returns"),
+                ("Log Returns", "log_returns"),
+            ],
+            "help": "Choose how you want to express day-over-day movement.",
+        },
+        {
+            "title": "Intraday Context",
+            "source": "MarketDataSource",
+            "options": [
+                ("High vs Low", "high_low_ratio"),
+                ("Close vs Open", "close_open_ratio"),
+                ("Range ($)", "price_range"),
+            ],
+            "help": "Group the relative vs absolute intraday shape choices.",
+        },
+        {
+            "title": "Volatility Wrapper",
+            "source": "TechnicalSource",
+            "options": [
+                ("Bollinger %B", "bb_percent"),
+                ("Band Width", "bb_width"),
+                ("Std Dev (20d)", "volatility"),
+            ],
+            "help": "Keep the volatility selectors in a single row.",
+        },
+        {
+            "title": "Momentum Flavor",
+            "source": "TechnicalSource",
+            "options": [
+                ("RSI", "rsi"),
+                ("MACD", "macd"),
+                ("Stoch %K", "stoch_k"),
+            ],
+            "help": "Pick your primary momentum signal without digging through multiple sections.",
+        },
+    ]
+
+    comparison_cols = st.columns(len(comparison_groups))
+    for idx, group in enumerate(comparison_groups):
+        if group["source"] not in config["sources"]:
+            config["sources"][group["source"]] = {"enabled": True, "features": []}
+
+        with comparison_cols[idx]:
+            st.markdown(f"**{group['title']}**")
+            existing = set(config["sources"][group["source"]].get("features", []))
+            default_choice = next(
+                (label for label, feature in group["options"] if feature in existing),
+                group["options"][0][0],
+            )
+            chosen = st.radio(
+                "",
+                [label for label, _ in group["options"]],
+                key=f"comparison_{group['title']}",
+                help=group["help"],
+                index=[label for label, _ in group["options"]].index(default_choice),
+            )
+
+            selected_option = next(
+                feature for label, feature in group["options"] if label == chosen
+            )
+
+            for _, feature in group["options"]:
+                if feature in existing and feature != selected_option:
+                    existing.remove(feature)
+            existing.add(selected_option)
+            config["sources"][group["source"]]["features"] = list(existing)
 
     st.divider()
 
@@ -832,17 +917,25 @@ def display_features_tab():
                                 )
 
                                 if preview:
+                                    metric_cols = st.columns(3)
                                     metric_cols = st.columns(2)
                                     with metric_cols[0]:
                                         st.metric("MAE (next close)", f"{preview['mae']:.4f}")
                                     with metric_cols[1]:
                                         st.metric("RMSE (next close)", f"{preview['rmse']:.4f}")
+                                    with metric_cols[2]:
+                                        st.metric("Features Used", len(feature_columns))
 
                                     st.caption("Quick regression preview using your selected inputs to predict the next closing price.")
                                     st.line_chart(
                                         preview["history"][
                                             ["Actual Next Close", "Predicted Next Close"]
                                         ]
+                                    )
+
+                                    st.markdown("**Which signals the model leaned on**")
+                                    st.bar_chart(
+                                        preview["coefficients"].set_index("Feature")
                                     )
                                 else:
                                     st.info(

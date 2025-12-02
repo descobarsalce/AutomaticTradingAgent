@@ -551,7 +551,6 @@ def generate_price_prediction_preview(
         "mae": mae,
         "rmse": rmse,
         "history": preview_history,
-        "coefficients": coef_frame,
     }
 
 
@@ -919,6 +918,7 @@ def display_features_tab():
 
                                 if preview:
                                     metric_cols = st.columns(3)
+                                    metric_cols = st.columns(2)
                                     with metric_cols[0]:
                                         st.metric("MAE (next close)", f"{preview['mae']:.4f}")
                                     with metric_cols[1]:

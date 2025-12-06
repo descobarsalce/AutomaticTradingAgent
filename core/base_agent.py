@@ -18,6 +18,7 @@ from core.portfolio_manager import PortfolioManager
 from metrics.metric_sink import MetricsSink, MetricsSinkConfig
 from utils.data_splitter import TemporalDataSplitter
 from environment.trading_env import fetch_trading_data
+from data.providers import SessionStateProvider
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
@@ -172,7 +173,8 @@ class UnifiedTradingAgent:
     @type_check
     def initialize_env(self, stock_names: List[str], start_date: datetime,
                       end_date: datetime, env_params: Dict[str, Any],
-                      feature_config: Optional[Dict[str, Any]] = None) -> None:
+                      feature_config: Optional[Dict[str, Any]] = None,
+                      provider: Any = None) -> None:
         """Initialize trading environment with parameters.
 
         Args:
@@ -210,6 +212,7 @@ class UnifiedTradingAgent:
             logger.info(f"Feature engineering enabled: {feature_config.get('use_feature_engineering', False)}")
 
         try:
+            provider = provider or SessionStateProvider()
             # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
             self.env = TradingEnv(
                 stock_names=stock_names,
@@ -217,6 +220,7 @@ class UnifiedTradingAgent:
                 end_date=end_date,
                 **cleaned_params,
                 feature_config=feature_config,
+                provider=provider,
                 training_mode=True
             )
             logger.info("Environment initialized successfully")
@@ -277,9 +281,10 @@ class UnifiedTradingAgent:
 
     def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
                             env_params: Dict[str, Any], ppo_params: Dict[str, Any],
-                            feature_config: Optional[Dict[str, Any]] = None):
+                            feature_config: Optional[Dict[str, Any]] = None,
+                            provider: Any = None):
         """Prepare environment and configure PPO model."""
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, provider)
         # Set default action space if not provided by the environment
         if self.env.action_space is None:
             import gymnasium as gym
@@ -330,6 +335,7 @@ class UnifiedTradingAgent:
               schedule_config: Optional[Dict[str, Any]] = None,
               eval_freq: int = 1000,
               eval_seeds: Optional[List[int]] = None) -> Dict[str, float]:
+              provider: Any = None) -> Dict[str, float]:
         """Train the agent with progress logging.
 
         Args:
@@ -401,12 +407,13 @@ class UnifiedTradingAgent:
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
-             env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+             env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None,
+             provider: Any = None) -> Dict[str, Any]:
         logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
         logger.info(f"Stocks: {stock_names}")
         logger.info(f"Period: {start_date} to {end_date}")
 
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, provider)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):

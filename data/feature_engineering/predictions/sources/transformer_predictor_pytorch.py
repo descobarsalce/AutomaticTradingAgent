@@ -1,15 +1,20 @@
 """
-Transformer-based prediction source using TensorFlow/Keras.
+Transformer-based prediction source using PyTorch.
 
 Implements a Transformer encoder architecture for time series prediction
 with multi-head self-attention for capturing temporal dependencies.
 """
+import json
 import logging
+import math
 import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 
 from data.feature_engineering.predictions.base_prediction import (
     BasePredictionSource,
@@ -18,75 +23,110 @@ from data.feature_engineering.predictions.base_prediction import (
 
 logger = logging.getLogger(__name__)
 
-# TensorFlow import with fallback
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras import layers
-    HAS_TENSORFLOW = True
-except ImportError:
-    HAS_TENSORFLOW = False
-    logger.warning("TensorFlow not available. TransformerPredictor will not function.")
 
-
-class TransformerBlock(layers.Layer):
-    """Transformer encoder block with multi-head self-attention."""
-
-    def __init__(self, d_model: int, num_heads: int, ff_dim: int, dropout: float = 0.1):
-        super().__init__()
-        self.att = layers.MultiHeadAttention(
-            num_heads=num_heads,
-            key_dim=d_model // num_heads,
-            dropout=dropout,
-        )
-        self.ffn = keras.Sequential([
-            layers.Dense(ff_dim, activation='relu'),
-            layers.Dense(d_model),
-        ])
-        self.layernorm1 = layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm2 = layers.LayerNormalization(epsilon=1e-6)
-        self.dropout1 = layers.Dropout(dropout)
-        self.dropout2 = layers.Dropout(dropout)
-
-    def call(self, inputs, training=False):
-        # Self-attention with residual connection
-        attn_output = self.att(inputs, inputs, training=training)
-        attn_output = self.dropout1(attn_output, training=training)
-        out1 = self.layernorm1(inputs + attn_output)
-
-        # Feed-forward with residual connection
-        ffn_output = self.ffn(out1)
-        ffn_output = self.dropout2(ffn_output, training=training)
-        return self.layernorm2(out1 + ffn_output)
-
-
-class PositionalEncoding(layers.Layer):
+class PositionalEncoding(nn.Module):
     """Sinusoidal positional encoding for sequence position information."""
 
-    def __init__(self, sequence_length: int, d_model: int):
+    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
         super().__init__()
-        self.sequence_length = sequence_length
-        self.d_model = d_model
+        self.dropout = nn.Dropout(p=dropout)
 
-        # Create positional encoding matrix
-        position = np.arange(sequence_length)[:, np.newaxis]
-        div_term = np.exp(np.arange(0, d_model, 2) * -(np.log(10000.0) / d_model))
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
 
-        pe = np.zeros((sequence_length, d_model))
-        pe[:, 0::2] = np.sin(position * div_term)
-        if d_model > 1:
-            pe[:, 1::2] = np.cos(position * div_term[:d_model // 2])
-
-        self.pe = tf.constant(pe, dtype=tf.float32)
-
-    def call(self, x):
+    def forward(self, x):
         # x shape: (batch, seq_len, d_model)
-        seq_len = tf.shape(x)[1]
-        return x + self.pe[:seq_len, :]
+        x = x + self.pe[:x.size(1)].transpose(0, 1)
+        return self.dropout(x)
 
 
-class TransformerPredictor(BasePredictionSource):
-    """Transformer-based predictor with multi-head attention.
+class TransformerModel(nn.Module):
+    """Multi-output Transformer model for time series prediction."""
+
+    def __init__(
+        self,
+        num_features: int,
+        sequence_length: int,
+        d_model: int = 64,
+        num_heads: int = 4,
+        num_layers: int = 2,
+        ff_dim: int = 128,
+        dropout: float = 0.1,
+        horizons: List[int] = None,
+    ):
+        super().__init__()
+        horizons = horizons or [1, 5, 21]
+
+        # Input projection
+        self.input_projection = nn.Linear(num_features, d_model)
+
+        # Positional encoding
+        self.pos_encoder = PositionalEncoding(d_model, max_len=sequence_length, dropout=dropout)
+
+        # Transformer encoder layers
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=d_model,
+            nhead=num_heads,
+            dim_feedforward=ff_dim,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # Output processing
+        self.output_dense = nn.Linear(d_model, d_model // 2)
+        self.relu = nn.ReLU()
+        self.output_dropout = nn.Dropout(dropout)
+
+        # Output heads for each horizon and mode
+        self.output_heads = nn.ModuleDict()
+        for horizon in horizons:
+            self.output_heads[f'price_{horizon}d'] = nn.Linear(d_model // 2, 1)
+            self.output_heads[f'direction_{horizon}d'] = nn.Sequential(
+                nn.Linear(d_model // 2, 1),
+                nn.Tanh()
+            )
+            self.output_heads[f'volatility_{horizon}d'] = nn.Sequential(
+                nn.Linear(d_model // 2, 1),
+                nn.Softplus()
+            )
+            self.output_heads[f'confidence_{horizon}d'] = nn.Sequential(
+                nn.Linear(d_model // 2, 1),
+                nn.Sigmoid()
+            )
+
+        self.horizons = horizons
+
+    def forward(self, x):
+        # Project input features to d_model dimension
+        x = self.input_projection(x)
+
+        # Add positional encoding
+        x = self.pos_encoder(x)
+
+        # Transformer encoder
+        x = self.transformer_encoder(x)
+
+        # Global average pooling over sequence dimension
+        x = x.mean(dim=1)
+
+        # Output dense layer
+        x = self.output_dropout(self.relu(self.output_dense(x)))
+
+        # Output heads
+        outputs = {}
+        for name, head in self.output_heads.items():
+            outputs[name] = head(x)
+
+        return outputs
+
+
+class TransformerPredictorPyTorch(BasePredictionSource):
+    """Transformer-based predictor with multi-head attention using PyTorch.
 
     Produces predictions for:
     - Price change (magnitude)
@@ -135,92 +175,34 @@ class TransformerPredictor(BasePredictionSource):
         self._dropout = dropout
         self._horizons = horizons or [1, 5, 21]
 
-        self._model: Optional[Any] = None
+        self._model: Optional[TransformerModel] = None
         self._scaler_params: Dict[str, Dict[str, float]] = {}
         self._num_features: Optional[int] = None
+        self._device = torch.device('cpu')
 
-    def _build_model(self, num_features: int) -> Any:
+    def _build_model(self, num_features: int) -> TransformerModel:
         """Build the Transformer model.
 
         Args:
             num_features: Number of input features
 
         Returns:
-            Compiled Keras model
+            TransformerModel instance
         """
-        if not HAS_TENSORFLOW:
-            raise RuntimeError("TensorFlow is required for TransformerPredictor")
-
         self._num_features = num_features
 
-        # Input layer
-        inputs = keras.Input(shape=(self._sequence_length, num_features))
-
-        # Project input features to d_model dimension
-        x = layers.Dense(self._d_model)(inputs)
-
-        # Add positional encoding
-        x = PositionalEncoding(self._sequence_length, self._d_model)(x)
-        x = layers.Dropout(self._dropout)(x)
-
-        # Stack Transformer encoder blocks
-        for _ in range(self._num_layers):
-            x = TransformerBlock(
-                d_model=self._d_model,
-                num_heads=self._num_heads,
-                ff_dim=self._ff_dim,
-                dropout=self._dropout,
-            )(x)
-
-        # Global average pooling over sequence dimension
-        x = layers.GlobalAveragePooling1D()(x)
-
-        # Additional dense layer
-        shared = layers.Dense(self._d_model // 2, activation='relu')(x)
-        shared = layers.Dropout(self._dropout)(shared)
-
-        # Output heads for each horizon and mode
-        outputs = []
-        output_names = []
-
-        for horizon in self._horizons:
-            # Price prediction (regression)
-            price_out = layers.Dense(1, name=f'price_{horizon}d')(shared)
-            outputs.append(price_out)
-            output_names.append(f'price_{horizon}d')
-
-            # Direction prediction (binary classification)
-            direction_out = layers.Dense(
-                1, activation='tanh', name=f'direction_{horizon}d'
-            )(shared)
-            outputs.append(direction_out)
-            output_names.append(f'direction_{horizon}d')
-
-            # Volatility prediction (regression, positive)
-            vol_out = layers.Dense(
-                1, activation='softplus', name=f'volatility_{horizon}d'
-            )(shared)
-            outputs.append(vol_out)
-            output_names.append(f'volatility_{horizon}d')
-
-            # Confidence prediction (0-1)
-            conf_out = layers.Dense(
-                1, activation='sigmoid', name=f'confidence_{horizon}d'
-            )(shared)
-            outputs.append(conf_out)
-            output_names.append(f'confidence_{horizon}d')
-
-        model = keras.Model(inputs=inputs, outputs=outputs, name=self.name)
-
-        # Compile with appropriate losses
-        losses = {name: 'mse' for name in output_names}
-
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.001),
-            loss=losses,
+        model = TransformerModel(
+            num_features=num_features,
+            sequence_length=self._sequence_length,
+            d_model=self._d_model,
+            num_heads=self._num_heads,
+            num_layers=self._num_layers,
+            ff_dim=self._ff_dim,
+            dropout=self._dropout,
+            horizons=self._horizons,
         )
 
-        return model
+        return model.to(self._device)
 
     def _prepare_training_data(
         self,
@@ -252,7 +234,14 @@ class TransformerPredictor(BasePredictionSource):
 
         max_horizon = max(self._horizons)
 
-        for idx in range(start_idx + self._sequence_length, end_idx - max_horizon):
+        loop_start = start_idx + self._sequence_length
+        loop_end = end_idx - max_horizon
+        logger.info(
+            f"Preparing training data: loop from {loop_start} to {loop_end} "
+            f"(sequence_length={self._sequence_length}, max_horizon={max_horizon})"
+        )
+
+        for idx in range(loop_start, loop_end):
             # Get input sequence
             features = self._prepare_features(data, symbols, idx, self._sequence_length)
             if features is None:
@@ -279,6 +268,8 @@ class TransformerPredictor(BasePredictionSource):
                 X_sequences.append(features)
                 for key, value in sample_targets.items():
                     y_targets[key].append(value)
+
+        logger.info(f"Training data prep complete: {len(X_sequences)} samples")
 
         if not X_sequences:
             return None, None
@@ -322,11 +313,14 @@ class TransformerPredictor(BasePredictionSource):
         for col_name, params in self._scaler_params.items():
             if col_idx < num_cols:
                 if len(scaled.shape) > 1:
+                    std = params['std'] if params['std'] != 0 else 1.0
                     scaled[:, col_idx] = (
                         scaled[:, col_idx] - params['mean']
-                    ) / params['std']
+                    ) / std
                 col_idx += 1
 
+        # Handle NaN values and clip
+        scaled = np.nan_to_num(scaled, nan=0.0, posinf=10.0, neginf=-10.0)
         return np.clip(scaled, -10, 10)
 
     def train(
@@ -344,16 +338,12 @@ class TransformerPredictor(BasePredictionSource):
             start_idx: Start index
             end_idx: End index
         """
-        if not HAS_TENSORFLOW:
-            raise RuntimeError("TensorFlow is required for TransformerPredictor")
-
         logger.info(f"Training {self.name} on {end_idx - start_idx} samples")
 
         # Prepare training data
         X, y = self._prepare_training_data(data, symbols, start_idx, end_idx)
 
         if X is None or len(X) < 10:
-            # Debug: check why training data is insufficient
             sample_count = len(X) if X is not None else 0
             logger.warning(
                 f"Insufficient training data: got {sample_count} samples (need >= 10). "
@@ -368,23 +358,97 @@ class TransformerPredictor(BasePredictionSource):
         if self._model is None or self._num_features != num_features:
             self._model = self._build_model(num_features)
 
-        # Train with early stopping
-        self._model.fit(
-            X, y,
-            epochs=50,
-            batch_size=32,
-            validation_split=0.2,
-            verbose=0,
-            callbacks=[
-                keras.callbacks.EarlyStopping(
-                    patience=5,
-                    restore_best_weights=True,
-                ),
-            ],
-        )
+        # Convert to tensors
+        X_tensor = torch.FloatTensor(X).to(self._device)
+        y_tensors = {k: torch.FloatTensor(v).unsqueeze(1).to(self._device) for k, v in y.items()}
 
-        self._is_trained = True
-        logger.info(f"{self.name} training complete")
+        # Split into train/val
+        val_size = int(len(X_tensor) * 0.2)
+        train_size = len(X_tensor) - val_size
+
+        # Create data loaders
+        train_dataset = TensorDataset(X_tensor[:train_size], *[y_tensors[k][:train_size] for k in sorted(y_tensors.keys())])
+        val_dataset = TensorDataset(X_tensor[train_size:], *[y_tensors[k][train_size:] for k in sorted(y_tensors.keys())])
+
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=32)
+
+        # Training setup
+        optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
+        criterion = nn.MSELoss()
+
+        # Early stopping
+        best_val_loss = float('inf')
+        patience = 5
+        patience_counter = 0
+        best_model_state = None
+
+        target_keys = sorted(y_tensors.keys())
+
+        try:
+            logger.info(f"Starting model training with X shape {X.shape}")
+            self._model.train()
+
+            for epoch in range(50):
+                # Training phase
+                train_loss = 0.0
+                for batch in train_loader:
+                    X_batch = batch[0]
+                    y_batch = {k: batch[i+1] for i, k in enumerate(target_keys)}
+
+                    optimizer.zero_grad()
+                    outputs = self._model(X_batch)
+
+                    loss = sum(criterion(outputs[k], y_batch[k]) for k in target_keys)
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self._model.parameters(), max_norm=1.0)
+                    optimizer.step()
+
+                    train_loss += loss.item()
+
+                train_loss /= len(train_loader)
+
+                # Validation phase
+                self._model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for batch in val_loader:
+                        X_batch = batch[0]
+                        y_batch = {k: batch[i+1] for i, k in enumerate(target_keys)}
+
+                        outputs = self._model(X_batch)
+                        loss = sum(criterion(outputs[k], y_batch[k]) for k in target_keys)
+                        val_loss += loss.item()
+
+                val_loss /= len(val_loader)
+                self._model.train()
+
+                # Early stopping check
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    best_model_state = self._model.state_dict().copy()
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        logger.info(f"Early stopping at epoch {epoch + 1}")
+                        break
+
+                if epoch % 10 == 0:
+                    logger.debug(f"Epoch {epoch + 1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}")
+
+            # Restore best model
+            if best_model_state is not None:
+                self._model.load_state_dict(best_model_state)
+
+            self._is_trained = True
+            logger.info(f"{self.name} training complete")
+
+        except Exception as e:
+            logger.error(f"{self.name} training failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
     def predict(
         self,
@@ -415,19 +479,24 @@ class TransformerPredictor(BasePredictionSource):
 
         # Scale and reshape for prediction
         features = self._scale_features(features)
-        X = np.expand_dims(features, axis=0)
+        X = torch.FloatTensor(features).unsqueeze(0).to(self._device)
 
         # Get predictions
-        predictions = self._model.predict(X, verbose=0)
+        self._model.eval()
+        with torch.no_grad():
+            outputs = self._model(X)
 
         # Parse predictions into structured format
         result: Dict[str, Dict[int, Dict[PredictionMode, float]]] = {}
 
-        pred_idx = 0
         for horizon in self._horizons:
             for mode in self.modes:
-                value = float(predictions[pred_idx][0][0])
-                pred_idx += 1
+                key = f'{mode.value}_{horizon}d'
+                value = float(outputs[key][0][0].cpu().numpy())
+
+                # Handle NaN values
+                if np.isnan(value) or np.isinf(value):
+                    value = 0.0
 
                 # Store for each symbol (same prediction for now)
                 for symbol in symbols:
@@ -445,17 +514,13 @@ class TransformerPredictor(BasePredictionSource):
         Args:
             path: Directory path
         """
-        if not HAS_TENSORFLOW:
-            return
-
         os.makedirs(path, exist_ok=True)
 
         if self._model is not None:
-            model_path = os.path.join(path, 'model.keras')
-            self._model.save(model_path)
+            model_path = os.path.join(path, 'model.pt')
+            torch.save(self._model.state_dict(), model_path)
 
         # Save scaler params
-        import json
         scaler_path = os.path.join(path, 'scaler_params.json')
         with open(scaler_path, 'w') as f:
             json.dump(self._scaler_params, f)
@@ -471,6 +536,7 @@ class TransformerPredictor(BasePredictionSource):
             'dropout': self._dropout,
             'horizons': self._horizons,
             'num_features': self._num_features,
+            'backend': 'pytorch',
         }
         with open(config_path, 'w') as f:
             json.dump(config, f)
@@ -486,10 +552,7 @@ class TransformerPredictor(BasePredictionSource):
         Returns:
             True if loaded successfully
         """
-        if not HAS_TENSORFLOW:
-            return False
-
-        model_path = os.path.join(path, 'model.keras')
+        model_path = os.path.join(path, 'model.pt')
         scaler_path = os.path.join(path, 'scaler_params.json')
         config_path = os.path.join(path, 'config.json')
 
@@ -497,8 +560,6 @@ class TransformerPredictor(BasePredictionSource):
             return False
 
         try:
-            import json
-
             # Load config
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
@@ -517,15 +578,12 @@ class TransformerPredictor(BasePredictionSource):
                 with open(scaler_path, 'r') as f:
                     self._scaler_params = json.load(f)
 
-            # Load model with custom objects
-            self._model = keras.models.load_model(
-                model_path,
-                custom_objects={
-                    'TransformerBlock': TransformerBlock,
-                    'PositionalEncoding': PositionalEncoding,
-                }
-            )
-            self._is_trained = True
+            # Build and load model
+            if self._num_features is not None:
+                self._model = self._build_model(self._num_features)
+                self._model.load_state_dict(torch.load(model_path, map_location=self._device))
+                self._model.eval()
+                self._is_trained = True
 
             logger.info(f"Loaded {self.name} from {path}")
             return True

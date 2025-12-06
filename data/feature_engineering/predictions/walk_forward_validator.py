@@ -67,6 +67,11 @@ class WalkForwardResults:
     all_actuals: Dict[int, List[float]] = field(default_factory=dict)
     all_dates: List[str] = field(default_factory=list)
 
+    # Training stats
+    total_folds_attempted: int = 0
+    training_successes: int = 0
+    training_failures: int = 0
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for display/storage."""
         return {
@@ -234,6 +239,9 @@ class WalkForwardValidator:
         all_actuals: Dict[int, List[float]] = {h: [] for h in predictor.horizons}
         all_dates: List[str] = []
 
+        training_failures = 0
+        training_successes = 0
+
         for fold_idx, (train_start, train_end, test_start, test_end) in enumerate(folds):
             if progress_callback:
                 progress_callback(fold_idx, len(folds))
@@ -245,9 +253,27 @@ class WalkForwardValidator:
 
             # Train on this fold
             try:
+                # Reset trained state before training
+                predictor._is_trained = False
+                logger.info(f"Starting training for fold {fold_idx}: [{train_start}:{train_end}]")
                 predictor.train(data, [symbol], train_start, train_end)
+
+                if not predictor.is_trained:
+                    training_failures += 1
+                    logger.warning(
+                        f"Fold {fold_idx}: Training completed but model not marked as trained. "
+                        f"This usually means insufficient training samples were generated. "
+                        f"Check data columns and index ranges."
+                    )
+                    continue
+                else:
+                    training_successes += 1
+                    logger.info(f"Fold {fold_idx}: Training succeeded")
             except Exception as e:
-                logger.error(f"Training failed on fold {fold_idx}: {e}")
+                training_failures += 1
+                logger.error(f"Training failed on fold {fold_idx} with error: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
                 continue
 
             # Collect predictions and actuals for test window
@@ -317,10 +343,17 @@ class WalkForwardValidator:
             all_dates=all_dates,
         )
 
+        # Add training stats
+        results.total_folds_attempted = len(folds)
+        results.training_successes = training_successes
+        results.training_failures = training_failures
+
         logger.info(
-            f"Walk-forward validation complete: {len(fold_results)} folds, "
-            f"MAE={results.mae_by_horizon.get(1, 0):.4f} (1d)"
+            f"Walk-forward validation complete: {len(fold_results)} successful folds out of {len(folds)} attempted. "
+            f"Training successes: {training_successes}, failures: {training_failures}"
         )
+        if len(fold_results) > 0:
+            logger.info(f"MAE={results.mae_by_horizon.get(1, 0):.4f} (1d)")
 
         return results
 

@@ -14,11 +14,11 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-# Model type configurations
+# Model type configurations (using PyTorch backend)
 MODEL_TYPES = {
     'LSTM': {
-        'class': 'LSTMPredictor',
-        'module': 'data.feature_engineering.predictions.sources.lstm_predictor',
+        'class': 'LSTMPredictorPyTorch',
+        'module': 'data.feature_engineering.predictions.sources.lstm_predictor_pytorch',
         'params': {
             'sequence_length': {'min': 5, 'max': 100, 'default': 20, 'help': 'Input sequence length'},
             'lstm_units': {'min': 16, 'max': 256, 'default': 64, 'help': 'LSTM layer units'},
@@ -27,8 +27,8 @@ MODEL_TYPES = {
         }
     },
     'Transformer': {
-        'class': 'TransformerPredictor',
-        'module': 'data.feature_engineering.predictions.sources.transformer_predictor',
+        'class': 'TransformerPredictorPyTorch',
+        'module': 'data.feature_engineering.predictions.sources.transformer_predictor_pytorch',
         'params': {
             'sequence_length': {'min': 5, 'max': 100, 'default': 20, 'help': 'Input sequence length'},
             'd_model': {'min': 16, 'max': 256, 'default': 64, 'help': 'Model dimension'},
@@ -127,7 +127,7 @@ def _get_stock_data(symbol: str, start_date: datetime, end_date: datetime) -> Op
 
 
 def _create_predictor(model_type: str, symbol: str, params: Dict[str, Any]):
-    """Create a predictor instance."""
+    """Create a predictor instance using PyTorch backend."""
     model_config = MODEL_TYPES.get(model_type)
     if not model_config:
         raise ValueError(f"Unknown model type: {model_type}")
@@ -135,8 +135,8 @@ def _create_predictor(model_type: str, symbol: str, params: Dict[str, Any]):
     model_id = f"{model_type}_{symbol}"
 
     if model_type == 'LSTM':
-        from data.feature_engineering.predictions.sources.lstm_predictor import LSTMPredictor
-        predictor = LSTMPredictor(
+        from data.feature_engineering.predictions.sources.lstm_predictor_pytorch import LSTMPredictorPyTorch
+        predictor = LSTMPredictorPyTorch(
             name=model_id,
             sequence_length=params.get('sequence_length', 20),
             lstm_units=params.get('lstm_units', 64),
@@ -145,21 +145,17 @@ def _create_predictor(model_type: str, symbol: str, params: Dict[str, Any]):
             horizons=params.get('horizons', DEFAULT_HORIZONS),
         )
     elif model_type == 'Transformer':
-        try:
-            from data.feature_engineering.predictions.sources.transformer_predictor import TransformerPredictor
-            predictor = TransformerPredictor(
-                name=model_id,
-                sequence_length=params.get('sequence_length', 20),
-                d_model=params.get('d_model', 64),
-                num_heads=params.get('num_heads', 4),
-                num_layers=params.get('num_layers', 2),
-                ff_dim=params.get('ff_dim', 128),
-                dropout=params.get('dropout', 0.1),
-                horizons=params.get('horizons', DEFAULT_HORIZONS),
-            )
-        except ImportError:
-            st.error("Transformer predictor not yet implemented. Please use LSTM.")
-            return None
+        from data.feature_engineering.predictions.sources.transformer_predictor_pytorch import TransformerPredictorPyTorch
+        predictor = TransformerPredictorPyTorch(
+            name=model_id,
+            sequence_length=params.get('sequence_length', 20),
+            d_model=params.get('d_model', 64),
+            num_heads=params.get('num_heads', 4),
+            num_layers=params.get('num_layers', 2),
+            ff_dim=params.get('ff_dim', 128),
+            dropout=params.get('dropout', 0.1),
+            horizons=params.get('horizons', DEFAULT_HORIZONS),
+        )
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -174,6 +170,7 @@ def _run_walk_forward_validation(
     test_window: int,
     step_size: int,
     progress_bar,
+    status_container=None,
 ):
     """Run walk-forward validation with progress tracking."""
     from data.feature_engineering.predictions.walk_forward_validator import WalkForwardValidator
@@ -183,6 +180,11 @@ def _run_walk_forward_validation(
         test_window_days=test_window,
         step_days=step_size,
     )
+
+    # Calculate expected folds
+    expected_folds = validator._generate_folds(len(data))
+    if status_container:
+        status_container.info(f"Starting validation with {len(expected_folds)} expected folds...")
 
     def progress_callback(fold_idx: int, total_folds: int):
         progress = (fold_idx + 1) / total_folds
@@ -315,7 +317,7 @@ def display_validation_settings():
     with col2:
         end_date = st.date_input(
             "End Date",
-            value=datetime.now() - timedelta(days=1),
+            value=datetime(2025, 10, 1),
             key="ml_end_date",
         )
 
@@ -456,7 +458,7 @@ def display_validation_results(model_id: str):
                     yaxis_title='Price Change',
                     height=400,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"ml_chart_{model_id}")
 
 
 def display_ml_models_tab():
@@ -499,7 +501,16 @@ def display_ml_models_tab():
             st.error(f"No data available for {symbol} in the selected range")
             return
 
-        st.info(f"Loaded {len(data)} data points for {symbol}")
+        # Verify data has required columns
+        required_cols = [f'Open_{symbol}', f'Close_{symbol}', f'High_{symbol}', f'Low_{symbol}', f'Volume_{symbol}']
+        missing_cols = [col for col in required_cols if col not in data.columns]
+
+        if missing_cols:
+            st.error(f"Data missing required columns: {missing_cols}")
+            st.info(f"Available columns: {list(data.columns)[:10]}...")
+            return
+
+        st.info(f"Loaded {len(data)} data points for {symbol} with columns: {required_cols[:3]}...")
 
         # Create predictor
         try:
@@ -512,8 +523,18 @@ def display_ml_models_tab():
 
         # Run walk-forward validation
         progress_bar = st.progress(0, text="Starting validation...")
+        status_container = st.empty()
+        error_container = st.empty()
 
         try:
+            # Set up logging to capture errors
+            import io
+            import sys
+
+            # Capture stderr to show TensorFlow errors
+            old_stderr = sys.stderr
+            sys.stderr = captured_stderr = io.StringIO()
+
             results = _run_walk_forward_validation(
                 predictor=predictor,
                 data=data,
@@ -522,12 +543,36 @@ def display_ml_models_tab():
                 test_window=test_window,
                 step_size=step_size,
                 progress_bar=progress_bar,
+                status_container=status_container,
             )
+
+            # Restore stderr and check for errors
+            sys.stderr = old_stderr
+            stderr_output = captured_stderr.getvalue()
+            if stderr_output and 'error' in stderr_output.lower():
+                with error_container:
+                    st.warning("Training produced warnings/errors (see terminal for details)")
 
             progress_bar.progress(1.0, text="Validation complete!")
 
             if results.num_folds == 0:
-                st.warning("No validation folds could be completed. Try with more data or smaller windows.")
+                st.warning("No validation folds could be completed.")
+                st.info(
+                    f"Debug info: Data has {len(data)} rows. "
+                    f"Attempted {results.total_folds_attempted} folds. "
+                    f"Training successes: {results.training_successes}, failures: {results.training_failures}. "
+                    f"With train_window={train_window}, test_window={test_window}, "
+                    f"minimum data needed is {train_window + test_window} rows."
+                )
+                st.warning(
+                    "All training attempts failed. This usually means:\n"
+                    "1. Not enough training samples (try smaller train_window or sequence_length)\n"
+                    "2. TensorFlow error during model training (check terminal for details)"
+                )
+                # Show any stderr output
+                if stderr_output:
+                    with st.expander("Error Details", expanded=True):
+                        st.code(stderr_output[-2000:])  # Last 2000 chars
                 return
 
             # Save model
@@ -564,8 +609,17 @@ def display_ml_models_tab():
             display_validation_results(model_id)
 
         except Exception as e:
+            # Restore stderr
+            sys.stderr = old_stderr
+            stderr_output = captured_stderr.getvalue()
+
             logger.error(f"Validation failed: {e}", exc_info=True)
             st.error(f"Validation failed: {e}")
+
+            # Show detailed error
+            if stderr_output:
+                with st.expander("Error Details", expanded=True):
+                    st.code(stderr_output[-2000:])
 
     st.divider()
 

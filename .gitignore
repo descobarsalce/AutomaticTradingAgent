@@ -50,3 +50,4 @@ best_model/
 data/__init__.py
 .feature_cache/d70f7403e317fd21bbb9d00c269003e2.parquet
 .feature_cache/33914a951dbad6faba71ec1fa14d4e78.parquet
+.feature_cache/d719c551d1d19e0759e30224e31b31c2.parquet

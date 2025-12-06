@@ -1,0 +1,1 @@
+{"sequence_length": 20, "lstm_units": 64, "dense_units": 32, "dropout": 0.2, "horizons": [1, 5, 21], "num_features": 5, "backend": "pytorch"}

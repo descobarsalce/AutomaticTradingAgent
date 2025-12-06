@@ -196,6 +196,18 @@ class BasePredictionSource(ABC):
         start_idx = end_idx - sequence_length
         features = []
 
+        # First, verify that required columns exist
+        found_cols = []
+        for symbol in symbols:
+            for col_type in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                col_name = f'{col_type}_{symbol}'
+                if col_name in data.columns:
+                    found_cols.append(col_name)
+
+        if not found_cols:
+            # No valid columns found
+            return None
+
         for t in range(start_idx, end_idx):
             row_features = []
             for symbol in symbols:
@@ -211,6 +223,9 @@ class BasePredictionSource(ABC):
                         row_features.append(data.iloc[t][col_name])
 
             features.append(row_features)
+
+        if not features or not features[0]:
+            return None
 
         feature_array = np.array(features, dtype=np.float32)
 

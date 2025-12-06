@@ -1,14 +1,18 @@
 """
-LSTM-based prediction source using TensorFlow/Keras.
+LSTM-based prediction source using PyTorch.
 
 Produces multi-output predictions: price, direction, volatility, confidence.
 """
+import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
 
 from data.feature_engineering.predictions.base_prediction import (
     BasePredictionSource,
@@ -17,19 +21,81 @@ from data.feature_engineering.predictions.base_prediction import (
 
 logger = logging.getLogger(__name__)
 
-# TensorFlow import with fallback
-try:
-    import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras import layers
-    HAS_TENSORFLOW = True
-except ImportError:
-    HAS_TENSORFLOW = False
-    logger.warning("TensorFlow not available. LSTMPredictor will not function.")
+
+class LSTMModel(nn.Module):
+    """Multi-output LSTM model for time series prediction."""
+
+    def __init__(
+        self,
+        num_features: int,
+        sequence_length: int,
+        lstm_units: int = 64,
+        dense_units: int = 32,
+        dropout: float = 0.2,
+        horizons: List[int] = None,
+    ):
+        super().__init__()
+        horizons = horizons or [1, 5, 21]
+
+        self.lstm1 = nn.LSTM(
+            input_size=num_features,
+            hidden_size=lstm_units,
+            batch_first=True,
+            dropout=dropout if dropout > 0 else 0,
+        )
+        self.dropout1 = nn.Dropout(dropout)
+        self.lstm2 = nn.LSTM(
+            input_size=lstm_units,
+            hidden_size=lstm_units // 2,
+            batch_first=True,
+        )
+        self.dropout2 = nn.Dropout(dropout)
+        self.shared_dense = nn.Linear(lstm_units // 2, dense_units)
+        self.relu = nn.ReLU()
+
+        # Output heads for each horizon and mode
+        # Modes: price, direction, volatility, confidence
+        self.output_heads = nn.ModuleDict()
+        for horizon in horizons:
+            self.output_heads[f'price_{horizon}d'] = nn.Linear(dense_units, 1)
+            self.output_heads[f'direction_{horizon}d'] = nn.Sequential(
+                nn.Linear(dense_units, 1),
+                nn.Tanh()
+            )
+            self.output_heads[f'volatility_{horizon}d'] = nn.Sequential(
+                nn.Linear(dense_units, 1),
+                nn.Softplus()
+            )
+            self.output_heads[f'confidence_{horizon}d'] = nn.Sequential(
+                nn.Linear(dense_units, 1),
+                nn.Sigmoid()
+            )
+
+        self.horizons = horizons
+
+    def forward(self, x):
+        # LSTM layers
+        x, _ = self.lstm1(x)
+        x = self.dropout1(x)
+        x, _ = self.lstm2(x)
+        x = self.dropout2(x)
+
+        # Take the last time step
+        x = x[:, -1, :]
+
+        # Shared dense layer
+        x = self.relu(self.shared_dense(x))
+
+        # Output heads
+        outputs = {}
+        for name, head in self.output_heads.items():
+            outputs[name] = head(x)
+
+        return outputs
 
 
-class LSTMPredictor(BasePredictionSource):
-    """LSTM-based predictor with multi-head output.
+class LSTMPredictorPyTorch(BasePredictionSource):
+    """LSTM-based predictor with multi-head output using PyTorch.
 
     Produces predictions for:
     - Price change (magnitude)
@@ -70,83 +136,32 @@ class LSTMPredictor(BasePredictionSource):
         self._dropout = dropout
         self._horizons = horizons or [1, 5, 21]
 
-        self._model: Optional[Any] = None
+        self._model: Optional[LSTMModel] = None
         self._scaler_params: Dict[str, Dict[str, float]] = {}
         self._num_features: Optional[int] = None
+        self._device = torch.device('cpu')
 
-    def _build_model(self, num_features: int) -> Any:
+    def _build_model(self, num_features: int) -> LSTMModel:
         """Build the multi-output LSTM model.
 
         Args:
             num_features: Number of input features
 
         Returns:
-            Compiled Keras model
+            LSTMModel instance
         """
-        if not HAS_TENSORFLOW:
-            raise RuntimeError("TensorFlow is required for LSTMPredictor")
-
         self._num_features = num_features
 
-        # Input layer
-        inputs = keras.Input(shape=(self._sequence_length, num_features))
-
-        # LSTM layers
-        x = layers.LSTM(self._lstm_units, return_sequences=True)(inputs)
-        x = layers.Dropout(self._dropout)(x)
-        x = layers.LSTM(self._lstm_units // 2)(x)
-        x = layers.Dropout(self._dropout)(x)
-
-        # Shared dense layer
-        shared = layers.Dense(self._dense_units, activation='relu')(x)
-
-        # Output heads for each horizon and mode
-        outputs = []
-        output_names = []
-
-        for horizon in self._horizons:
-            # Price prediction (regression)
-            price_out = layers.Dense(1, name=f'price_{horizon}d')(shared)
-            outputs.append(price_out)
-            output_names.append(f'price_{horizon}d')
-
-            # Direction prediction (binary classification)
-            direction_out = layers.Dense(
-                1, activation='tanh', name=f'direction_{horizon}d'
-            )(shared)
-            outputs.append(direction_out)
-            output_names.append(f'direction_{horizon}d')
-
-            # Volatility prediction (regression, positive)
-            vol_out = layers.Dense(
-                1, activation='softplus', name=f'volatility_{horizon}d'
-            )(shared)
-            outputs.append(vol_out)
-            output_names.append(f'volatility_{horizon}d')
-
-            # Confidence prediction (0-1)
-            conf_out = layers.Dense(
-                1, activation='sigmoid', name=f'confidence_{horizon}d'
-            )(shared)
-            outputs.append(conf_out)
-            output_names.append(f'confidence_{horizon}d')
-
-        model = keras.Model(inputs=inputs, outputs=outputs, name=self.name)
-
-        # Compile with appropriate losses
-        losses = {}
-        for name in output_names:
-            if 'direction' in name:
-                losses[name] = 'mse'  # Using MSE for tanh output
-            else:
-                losses[name] = 'mse'
-
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.001),
-            loss=losses,
+        model = LSTMModel(
+            num_features=num_features,
+            sequence_length=self._sequence_length,
+            lstm_units=self._lstm_units,
+            dense_units=self._dense_units,
+            dropout=self._dropout,
+            horizons=self._horizons,
         )
 
-        return model
+        return model.to(self._device)
 
     def _prepare_training_data(
         self,
@@ -265,11 +280,14 @@ class LSTMPredictor(BasePredictionSource):
         for col_name, params in self._scaler_params.items():
             if col_idx < num_cols:
                 if len(scaled.shape) > 1:
+                    std = params['std'] if params['std'] != 0 else 1.0
                     scaled[:, col_idx] = (
                         scaled[:, col_idx] - params['mean']
-                    ) / params['std']
+                    ) / std
                 col_idx += 1
 
+        # Handle NaN values and clip
+        scaled = np.nan_to_num(scaled, nan=0.0, posinf=10.0, neginf=-10.0)
         return np.clip(scaled, -10, 10)
 
     def train(
@@ -287,9 +305,6 @@ class LSTMPredictor(BasePredictionSource):
             start_idx: Start index
             end_idx: End index
         """
-        if not HAS_TENSORFLOW:
-            raise RuntimeError("TensorFlow is required for LSTMPredictor")
-
         logger.info(f"Training {self.name} on {end_idx - start_idx} samples")
 
         # Prepare training data
@@ -311,26 +326,96 @@ class LSTMPredictor(BasePredictionSource):
         if self._model is None or self._num_features != num_features:
             self._model = self._build_model(num_features)
 
-        # Train with explicit error handling
+        # Convert to tensors
+        X_tensor = torch.FloatTensor(X).to(self._device)
+        y_tensors = {k: torch.FloatTensor(v).unsqueeze(1).to(self._device) for k, v in y.items()}
+
+        # Split into train/val
+        val_size = int(len(X_tensor) * 0.2)
+        train_size = len(X_tensor) - val_size
+
+        # Create data loaders
+        train_dataset = TensorDataset(X_tensor[:train_size], *[y_tensors[k][:train_size] for k in sorted(y_tensors.keys())])
+        val_dataset = TensorDataset(X_tensor[train_size:], *[y_tensors[k][train_size:] for k in sorted(y_tensors.keys())])
+
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=32)
+
+        # Training setup
+        optimizer = torch.optim.Adam(self._model.parameters(), lr=0.001)
+        criterion = nn.MSELoss()
+
+        # Early stopping
+        best_val_loss = float('inf')
+        patience = 5
+        patience_counter = 0
+        best_model_state = None
+
+        target_keys = sorted(y_tensors.keys())
+
         try:
-            logger.info(f"Starting model.fit() with X shape {X.shape}")
-            self._model.fit(
-                X, y,
-                epochs=50,
-                batch_size=32,
-                validation_split=0.2,
-                verbose=0,
-                callbacks=[
-                    keras.callbacks.EarlyStopping(
-                        patience=5,
-                        restore_best_weights=True,
-                    ),
-                ],
-            )
+            logger.info(f"Starting model training with X shape {X.shape}")
+            self._model.train()
+
+            for epoch in range(50):
+                # Training phase
+                train_loss = 0.0
+                for batch in train_loader:
+                    X_batch = batch[0]
+                    y_batch = {k: batch[i+1] for i, k in enumerate(target_keys)}
+
+                    optimizer.zero_grad()
+                    outputs = self._model(X_batch)
+
+                    loss = sum(criterion(outputs[k], y_batch[k]) for k in target_keys)
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self._model.parameters(), max_norm=1.0)
+                    optimizer.step()
+
+                    train_loss += loss.item()
+
+                train_loss /= len(train_loader)
+
+                # Validation phase
+                self._model.eval()
+                val_loss = 0.0
+                with torch.no_grad():
+                    for batch in val_loader:
+                        X_batch = batch[0]
+                        y_batch = {k: batch[i+1] for i, k in enumerate(target_keys)}
+
+                        outputs = self._model(X_batch)
+                        loss = sum(criterion(outputs[k], y_batch[k]) for k in target_keys)
+                        val_loss += loss.item()
+
+                val_loss /= len(val_loader)
+                self._model.train()
+
+                # Early stopping check
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience_counter = 0
+                    best_model_state = self._model.state_dict().copy()
+                else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        logger.info(f"Early stopping at epoch {epoch + 1}")
+                        break
+
+                if epoch % 10 == 0:
+                    logger.debug(f"Epoch {epoch + 1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}")
+
+            # Restore best model
+            if best_model_state is not None:
+                self._model.load_state_dict(best_model_state)
+
             self._is_trained = True
             logger.info(f"{self.name} training complete")
+
         except Exception as e:
-            logger.error(f"{self.name} training failed during model.fit(): {e}")
+            logger.error(f"{self.name} training failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise
 
     def predict(
@@ -362,19 +447,24 @@ class LSTMPredictor(BasePredictionSource):
 
         # Scale and reshape for prediction
         features = self._scale_features(features)
-        X = np.expand_dims(features, axis=0)
+        X = torch.FloatTensor(features).unsqueeze(0).to(self._device)
 
         # Get predictions
-        predictions = self._model.predict(X, verbose=0)
+        self._model.eval()
+        with torch.no_grad():
+            outputs = self._model(X)
 
         # Parse predictions into structured format
         result: Dict[str, Dict[int, Dict[PredictionMode, float]]] = {}
 
-        pred_idx = 0
         for horizon in self._horizons:
             for mode in self.modes:
-                value = float(predictions[pred_idx][0][0])
-                pred_idx += 1
+                key = f'{mode.value}_{horizon}d'
+                value = float(outputs[key][0][0].cpu().numpy())
+
+                # Handle NaN values
+                if np.isnan(value) or np.isinf(value):
+                    value = 0.0
 
                 # Store for each symbol (same prediction for now)
                 for symbol in symbols:
@@ -392,17 +482,13 @@ class LSTMPredictor(BasePredictionSource):
         Args:
             path: Directory path
         """
-        if not HAS_TENSORFLOW:
-            return
-
         os.makedirs(path, exist_ok=True)
 
         if self._model is not None:
-            model_path = os.path.join(path, 'model.keras')
-            self._model.save(model_path)
+            model_path = os.path.join(path, 'model.pt')
+            torch.save(self._model.state_dict(), model_path)
 
         # Save scaler params
-        import json
         scaler_path = os.path.join(path, 'scaler_params.json')
         with open(scaler_path, 'w') as f:
             json.dump(self._scaler_params, f)
@@ -416,6 +502,7 @@ class LSTMPredictor(BasePredictionSource):
             'dropout': self._dropout,
             'horizons': self._horizons,
             'num_features': self._num_features,
+            'backend': 'pytorch',
         }
         with open(config_path, 'w') as f:
             json.dump(config, f)
@@ -431,10 +518,7 @@ class LSTMPredictor(BasePredictionSource):
         Returns:
             True if loaded successfully
         """
-        if not HAS_TENSORFLOW:
-            return False
-
-        model_path = os.path.join(path, 'model.keras')
+        model_path = os.path.join(path, 'model.pt')
         scaler_path = os.path.join(path, 'scaler_params.json')
         config_path = os.path.join(path, 'config.json')
 
@@ -442,8 +526,6 @@ class LSTMPredictor(BasePredictionSource):
             return False
 
         try:
-            import json
-
             # Load config
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
@@ -460,9 +542,12 @@ class LSTMPredictor(BasePredictionSource):
                 with open(scaler_path, 'r') as f:
                     self._scaler_params = json.load(f)
 
-            # Load model
-            self._model = keras.models.load_model(model_path)
-            self._is_trained = True
+            # Build and load model
+            if self._num_features is not None:
+                self._model = self._build_model(self._num_features)
+                self._model.load_state_dict(torch.load(model_path, map_location=self._device))
+                self._model.eval()
+                self._is_trained = True
 
             logger.info(f"Loaded {self.name} from {path}")
             return True

@@ -1,0 +1,24 @@
+{
+  "model_id": "LSTM_AAPL",
+  "type": "LSTM",
+  "symbol": "AAPL",
+  "params": {
+    "sequence_length": 20,
+    "lstm_units": 64,
+    "dense_units": 32,
+    "dropout": 0.2,
+    "horizons": [
+      1,
+      5,
+      21
+    ]
+  },
+  "trained": true,
+  "last_trained": "2025-12-06 08:36",
+  "metrics": {
+    "mae_1d": 0.010879926940457831,
+    "rmse_1d": 0.016372198791212093,
+    "dir_acc_1d": 0.013605442176870748,
+    "num_folds": 14
+  }
+}

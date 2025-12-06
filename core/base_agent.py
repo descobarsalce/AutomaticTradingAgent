@@ -3,26 +3,28 @@ import logging
 import numpy as np
 import pandas as pd
 import os
+import random
 import warnings
 from datetime import datetime, timedelta
 from gymnasium import Env
 import gymnasium as gym
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList
+from stable_baselines3.common.callbacks import (BaseCallback, CallbackList,
+                                                CheckpointCallback,
+                                                EvalCallback)
 from typing import Dict, Any, Optional, List, Union, Tuple, cast
 from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
-from metrics.metric_sink import MetricsSink, MetricsSinkConfig
-from utils.data_splitter import TemporalDataSplitter
-from environment.trading_env import fetch_trading_data
-from data.providers import SessionStateProvider
+from core.experiments import ExperimentRegistry, hash_state_dict
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
                           DEFAULT_STOP_LOSS, MIN_TRADE_SIZE)
+import torch
+from uuid import uuid4
 
 # Environment setup
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -128,6 +130,10 @@ class UnifiedTradingAgent:
         logger.info(f"Agent state initialization completed in {(datetime.now() - start_time).total_seconds():.2f}s")
         self.stocks_data = {}
         self.portfolio_manager = None
+        self.registry = ExperimentRegistry()
+        self._loaded_manifest = None
+        self._expected_state_hash: Optional[str] = None
+        self._force_deterministic_eval = False
         self.evaluation_metrics = {
             'returns': [],
             'sharpe_ratio': 0.0,
@@ -174,7 +180,7 @@ class UnifiedTradingAgent:
     def initialize_env(self, stock_names: List[str], start_date: datetime,
                       end_date: datetime, env_params: Dict[str, Any],
                       feature_config: Optional[Dict[str, Any]] = None,
-                      provider: Any = None) -> None:
+                      training_mode: bool = True) -> None:
         """Initialize trading environment with parameters.
 
         Args:
@@ -183,6 +189,7 @@ class UnifiedTradingAgent:
             end_date: Training end date
             env_params: Environment parameters (balance, costs, etc.)
             feature_config: Optional feature engineering configuration
+            training_mode: Whether the environment should enable training-specific behavior
         """
         logger.info(f"Initializing environment with params: {env_params}")
 
@@ -220,8 +227,7 @@ class UnifiedTradingAgent:
                 end_date=end_date,
                 **cleaned_params,
                 feature_config=feature_config,
-                provider=provider,
-                training_mode=True
+                training_mode=training_mode
             )
             logger.info("Environment initialized successfully")
             self.portfolio_manager = self.env.portfolio_manager
@@ -282,9 +288,9 @@ class UnifiedTradingAgent:
     def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
                             env_params: Dict[str, Any], ppo_params: Dict[str, Any],
                             feature_config: Optional[Dict[str, Any]] = None,
-                            provider: Any = None):
+                            training_mode: bool = True):
         """Prepare environment and configure PPO model."""
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, provider)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, training_mode)
         # Set default action space if not provided by the environment
         if self.env.action_space is None:
             import gymnasium as gym
@@ -321,6 +327,25 @@ class UnifiedTradingAgent:
         # Make sure volatility is float
         metrics['volatility'] = float(metrics.get('volatility', 0.0))
         return metrics
+
+    def _hash_current_state(self) -> str:
+        if not self.model:
+            raise ValueError("Model not initialized")
+        return hash_state_dict(self.model.policy.state_dict())
+
+    def _set_deterministic_seed(self, seed: int) -> None:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        try:
+            torch.use_deterministic_algorithms(True)
+        except Exception:
+            logger.warning("Deterministic algorithms not fully available; proceeding with seeded randomness only.")
+        if hasattr(torch, "backends") and hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
     
     @type_check
     def train(self,
@@ -331,11 +356,10 @@ class UnifiedTradingAgent:
               ppo_params: Dict[str, Any],
               callback: Optional[BaseCallback] = None,
               feature_config: Optional[Dict[str, Any]] = None,
-              validation_split: float = 0.2,
-              schedule_config: Optional[Dict[str, Any]] = None,
-              eval_freq: int = 1000,
-              eval_seeds: Optional[List[int]] = None) -> Dict[str, float]:
-              provider: Any = None) -> Dict[str, float]:
+              checkpoint_dir: str = "checkpoints",
+              checkpoint_interval: Optional[int] = None,
+              manifest_filename: str = "manifest.json",
+              deterministic_eval: bool = True) -> Dict[str, float]:
         """Train the agent with progress logging.
 
         Args:
@@ -355,37 +379,62 @@ class UnifiedTradingAgent:
             Dictionary of training metrics
         """
         logger.info(f"Starting training with {len(stock_names)} stocks from {start_date} to {end_date}")
-        splitter = TemporalDataSplitter(validation_fraction=validation_split)
-        date_index = self._get_data_index(stock_names, start_date, end_date)
-        train_range, val_range = splitter.split_dates(start_date, end_date, date_index)
-        logger.info(f"Train window: {train_range[0]} to {train_range[1]}")
-        logger.info(f"Validation window: {val_range[0]} to {val_range[1]}")
+        self._force_deterministic_eval = deterministic_eval
+        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params, feature_config)
 
-        self._init_env_and_model(stock_names, train_range[0], train_range[1], env_params, ppo_params, feature_config)
+        run_id = f"run_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
+        run_dir = os.path.join(checkpoint_dir, run_id)
+        os.makedirs(run_dir, exist_ok=True)
+        checkpoint_path = os.path.join(run_dir, "checkpoints")
 
-        schedule = self._build_training_schedule(len(self.env.data), schedule_config)
-        logger.info(f"Training schedule: {schedule}")
-
-        validation_env = self._create_validation_env(stock_names, val_range, env_params, feature_config)
-        metrics_sink = MetricsSink(MetricsSinkConfig())
-        visualizer = TradingVisualizer()
-        eval_callback = MetricStreamingEvalCallback(
-            validation_env,
-            metrics_sink,
-            visualizer,
-            eval_freq=eval_freq,
-            seeds=eval_seeds or [7, 21]
-        )
+        total_timesteps = max(1, (end_date - start_date).days)
+        eval_callback = EvalCallback(self.env,
+                                   best_model_save_path=os.path.join(run_dir, "best_model"),
+                                   log_path=os.path.join(run_dir, "eval_logs"),
+                                   eval_freq=1000,
+                                   deterministic=True,
+                                   render=False)
 
         callbacks: List[BaseCallback] = [eval_callback]
+        if checkpoint_interval and checkpoint_interval > 0:
+            os.makedirs(checkpoint_path, exist_ok=True)
+            callbacks.append(
+                CheckpointCallback(
+                    save_freq=checkpoint_interval,
+                    save_path=checkpoint_path,
+                    name_prefix="ppo_checkpoint",
+                ))
         if callback:
-            callbacks.insert(0, callback)
-        callback_to_use: BaseCallback = CallbackList(callbacks) if len(callbacks) > 1 else callbacks[0]
+            callbacks.append(callback)
+
+        combined_callback: Optional[BaseCallback] = None
+        if callbacks:
+            combined_callback = callbacks[0] if len(callbacks) == 1 else CallbackList(callbacks)
 
         try:
-            self.model.learn(total_timesteps=schedule['total_timesteps'],
-                           callback=callback_to_use)
-            self.save("trained_model.zip")
+            self.model.learn(total_timesteps=total_timesteps,
+                           callback=combined_callback)
+            final_model_path = os.path.join(run_dir, "trained_model.zip")
+            self.save(final_model_path)
+            state_hash = self._hash_current_state()
+            manifest_path = os.path.join(run_dir, manifest_filename)
+            manifest = ExperimentRegistry.build_manifest(
+                run_id=run_id,
+                env_params=env_params,
+                ppo_params=self.ppo_params,
+                feature_config=feature_config,
+                data_range={
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat()
+                },
+                model_path=final_model_path,
+                state_dict_hash=state_hash,
+                artifacts=[run_dir],
+                deterministic_eval=deterministic_eval)
+            ExperimentRegistry.save_manifest(manifest, manifest_path)
+            self.registry.register_run(manifest)
+            self._expected_state_hash = state_hash
+            self._loaded_manifest = manifest
             return self._calculate_training_metrics()
         except Exception as e:
             logger.exception("Error during training")
@@ -395,12 +444,20 @@ class UnifiedTradingAgent:
     def predict(self, observation: NDArray, deterministic: bool = True) -> NDArray:
         logger.info(f"\nGenerating prediction")
         logger.info(f"Input observation: {observation}")
-        
+
         if self.model is None:
             logger.error("Model not initialized")
             raise ValueError("Model not initialized")
-            
-        action, _ = self.model.predict(observation, deterministic=deterministic)
+
+        if self._expected_state_hash:
+            actual_hash = self._hash_current_state()
+            if actual_hash != self._expected_state_hash:
+                raise ValueError(
+                    "Loaded model state hash does not match manifest. "
+                    "Reload the checkpoint to ensure determinism.")
+
+        final_deterministic = True if self._force_deterministic_eval else deterministic
+        action, _ = self.model.predict(observation, deterministic=final_deterministic)
         action = np.array(action, dtype=np.float32)
         logger.info(f"Generated action: {action}")
         return action
@@ -519,10 +576,74 @@ class UnifiedTradingAgent:
         self.model.save(path)
 
     @type_check
-    def load(self, path: str) -> None:
-        """Load model with validation."""
+    def load(self, path: str, manifest_path: Optional[str] = None,
+             enforce_hash: bool = True, deterministic_eval: bool = True) -> None:
+        """Load model with validation and manifest verification."""
         if not path.strip():
             raise ValueError("Empty path")
         if not self.env:
             raise ValueError("Environment not initialized")
+
+        if enforce_hash and not os.path.exists(path):
+            raise FileNotFoundError(f"Model checkpoint not found at {path}")
+
+        resolved_manifest_path = manifest_path or os.path.join(os.path.dirname(path), "manifest.json")
+        manifest = None
+        if resolved_manifest_path and os.path.exists(resolved_manifest_path):
+            manifest = ExperimentRegistry.load_manifest(resolved_manifest_path)
+        elif enforce_hash:
+            raise FileNotFoundError(f"Manifest not found at {resolved_manifest_path}; cannot verify checkpoint integrity.")
+
         self.model = PPO.load(path, env=self.env)
+        if enforce_hash:
+            if manifest is None or not manifest.state_dict_hash:
+                raise ValueError("Manifest missing state_dict_hash; cannot verify checkpoint integrity.")
+            if manifest.model_path and os.path.abspath(manifest.model_path) != os.path.abspath(path):
+                raise ValueError("Manifest model_path does not match the requested checkpoint path.")
+            loaded_hash = self._hash_current_state()
+            if loaded_hash != manifest.state_dict_hash:
+                raise ValueError("Checkpoint hash mismatch between manifest and loaded state.")
+            self._expected_state_hash = manifest.state_dict_hash
+        else:
+            self._expected_state_hash = None
+
+        self._loaded_manifest = manifest
+        self._force_deterministic_eval = manifest.deterministic_eval if manifest else deterministic_eval
+
+    @type_check
+    def load_for_inference(self,
+                           model_path: str,
+                           stock_names: List,
+                           start_date: datetime,
+                           end_date: datetime,
+                           env_params: Optional[Dict[str, Any]],
+                           feature_config: Optional[Dict[str, Any]] = None,
+                           manifest_path: Optional[str] = None,
+                           seed: int = 42) -> None:
+        """Set up an evaluation-only environment and load a model deterministically."""
+        manifest = None
+        if manifest_path:
+            manifest = ExperimentRegistry.load_manifest(manifest_path)
+            if manifest.model_path and os.path.abspath(manifest.model_path) != os.path.abspath(model_path):
+                raise ValueError("Manifest model_path does not match the provided model_path.")
+
+            feature_config = feature_config or manifest.feature_config
+            env_params = env_params or manifest.env_params
+            if manifest.data_range:
+                start_date = datetime.fromisoformat(manifest.data_range.get('start_date')) if 'start_date' in manifest.data_range else start_date
+                end_date = datetime.fromisoformat(manifest.data_range.get('end_date')) if 'end_date' in manifest.data_range else end_date
+            ppo_params = manifest.ppo_params or self.ppo_params
+            deterministic_eval = manifest.deterministic_eval
+        else:
+            ppo_params = self.ppo_params
+            deterministic_eval = True
+
+        if env_params is None:
+            raise ValueError("Environment parameters must be provided directly or via the manifest for inference.")
+
+        self._set_deterministic_seed(seed)
+        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params,
+                                 feature_config, training_mode=False)
+        self.load(model_path, manifest_path=manifest_path, deterministic_eval=deterministic_eval)
+        if self.env:
+            self.env.reset(seed=seed)

@@ -1,6 +1,5 @@
 from datetime import datetime
 import gymnasium as gym
-import streamlit as st
 from metrics.metrics_calculator import MetricsCalculator
 from environment.rewards_calculator import RewardsCalculator
 import numpy as np
@@ -11,8 +10,8 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                           POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
-from data.providers import DataProvider, SessionStateProvider
-from pydantic import BaseModel, ConfigDict, FieldValidationInfo, field_validator
+from data.data_handler import ensure_utc_timestamp, validate_ohlcv_frame
+from data.providers import DataProvider
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -28,54 +27,20 @@ except ImportError:
     FeatureProcessor = None
 
 
-class OHLCVDataValidator(BaseModel):
-    """Validate core OHLCV schema and timezone awareness."""
-
-    data: pd.DataFrame
-    symbols: List[str]
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @field_validator("data")
-    @classmethod
-    def validate_dataframe(cls, value: pd.DataFrame, info: FieldValidationInfo):
-        symbols: List[str] = info.data.get("symbols", [])
-        if not isinstance(value, pd.DataFrame):
-            raise TypeError("data must be a pandas DataFrame")
-        if value.empty:
-            raise ValueError("Empty data provided")
-
-        try:
-            value.index = pd.DatetimeIndex(value.index)
-        except Exception as exc:  # pragma: no cover - defensive branch
-            raise ValueError("DataFrame index must be datetime-like") from exc
-
-        if value.index.tz is None:
-            value.index = value.index.tz_localize("UTC")
-
-        if value.index.isna().any():
-            raise ValueError("DataFrame index contains NaT values")
-
-        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        for symbol in symbols:
-            for col in required_cols:
-                col_name = f"{col}_{symbol}"
-                if col_name not in value.columns:
-                    raise ValueError(f"Missing column {col_name}")
-                if value[col_name].isna().any():
-                    raise ValueError(f"Column {col_name} contains null values")
-        return value
-
-
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime,
-                       provider: Optional[DataProvider] = None) -> pd.DataFrame:
+                       provider: DataProvider) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling.
     Uses current day's open price and previous day's high, low, volume."""
-    provider = provider or SessionStateProvider()
-    data = provider.fetch(stock_names, start_date, end_date).copy()
+    if provider is None:
+        raise ValueError("A data provider instance is required")
 
-    OHLCVDataValidator(data=data, symbols=stock_names)
+    start_ts = ensure_utc_timestamp(start_date)
+    end_ts = ensure_utc_timestamp(end_date)
+
+    data = provider.fetch(stock_names, start_ts, end_ts).copy()
+
+    data = validate_ohlcv_frame(data, stock_names)
 
     # Shift previous day's data
     for symbol in stock_names:
@@ -107,9 +72,12 @@ class TradingEnv(gym.Env):
                  observation_days: int = 2,
                  burn_in_days: int = 20,
                  feature_config: Optional[Dict[str, Any]] = None,
-                 provider: Optional[DataProvider] = None):  # Feature engineering config
+                 provider: DataProvider = None):  # Feature engineering config
         # Fetch trading data
-        self.provider = provider or SessionStateProvider()
+        if provider is None:
+            raise ValueError("TradingEnv requires an explicit data provider")
+
+        self.provider = provider
         data = fetch_trading_data(stock_names, start_date, end_date, self.provider)
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)

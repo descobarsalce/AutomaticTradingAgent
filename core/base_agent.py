@@ -38,6 +38,73 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+
+class MetricStreamingEvalCallback(BaseCallback):
+    """Periodic validation episodes that stream metrics to a sink."""
+
+    def __init__(self, eval_env: Env, metrics_sink: MetricsSink,
+                 visualizer: TradingVisualizer, eval_freq: int = 1000,
+                 seeds: Optional[List[int]] = None,
+                 log_dir: str = "metrics/eval") -> None:
+        super().__init__()
+        self.eval_env = eval_env
+        self.metrics_sink = metrics_sink
+        self.visualizer = visualizer
+        self.eval_freq = eval_freq
+        self.seeds = seeds or [0]
+        self.log_dir = log_dir
+        os.makedirs(self.log_dir, exist_ok=True)
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.eval_freq != 0:
+            return True
+
+        for seed in self.seeds:
+            self._run_validation_episode(seed)
+        return True
+
+    def _run_validation_episode(self, seed: int) -> None:
+        obs, info = self.eval_env.reset(seed=seed)
+        done = False
+        info_history: List[Dict[str, Any]] = []
+
+        while not done:
+            action, _ = self.model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, info = self.eval_env.step(action)
+            done = terminated or truncated
+            info_history.append(info)
+
+        self._log_results(info_history)
+
+    def _log_results(self, info_history: List[Dict[str, Any]]) -> None:
+        portfolio_history = self.eval_env.get_portfolio_history()
+        returns = MetricsCalculator.calculate_returns(portfolio_history)
+        pm = self.eval_env.portfolio_manager
+
+        metrics_payload = {
+            'pnl': pm.get_total_value() - pm.initial_balance,
+            'max_drawdown': MetricsCalculator.calculate_maximum_drawdown(portfolio_history),
+            'turnover': pm.calculate_turnover(),
+            'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
+            'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
+            'information_ratio': MetricsCalculator.calculate_information_ratio(returns),
+            'portfolio': {
+                'positions': pm.positions.copy(),
+                'balance': pm.current_balance,
+                'total_value': pm.get_total_value(),
+            }
+        }
+
+        if info_history and self.eval_env.data is not None:
+            last_date = info_history[-1].get('date', datetime.utcnow())
+            filename = f"eval_actions_{last_date.strftime('%Y%m%d_%H%M%S')}"
+            snapshot_path = os.path.join(self.log_dir, f"{filename}.html")
+            metrics_payload['action_snapshot'] = self.visualizer.snapshot_actions_with_price(
+                info_history, self.eval_env.data, snapshot_path)
+
+        self.metrics_sink.emit("validation_episode", metrics_payload)
+
+
 class UnifiedTradingAgent:
     """Unified trading agent with modular components for trading functionality."""
 
@@ -76,6 +143,38 @@ class UnifiedTradingAgent:
             'total_trades': 0,
             'win_rate': 0.0
         }
+
+    def _build_training_schedule(self, data_points: int,
+                                 schedule_config: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
+        config = {
+            'episode_length': 256,
+            'epochs': 3,
+            'warmup_fraction': 0.1,
+        }
+        if schedule_config:
+            config.update(schedule_config)
+
+        episode_length = max(1, min(config['episode_length'], data_points))
+        warmup_steps = int(data_points * config['warmup_fraction'])
+        total_timesteps = warmup_steps + (episode_length * config['epochs'])
+
+        return {
+            'episode_length': episode_length,
+            'warmup_steps': warmup_steps,
+            'total_timesteps': max(total_timesteps, data_points)
+        }
+
+    def _get_data_index(self, stock_names: List[str], start_date: datetime,
+                        end_date: datetime):
+        try:
+            data = fetch_trading_data(stock_names, start_date, end_date)
+            return data.index
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Falling back to naive date split; unable to fetch data index for split: %s",
+                exc,
+            )
+            return None
 
     @type_check
     def initialize_env(self, stock_names: List[str], start_date: datetime,
@@ -120,6 +219,7 @@ class UnifiedTradingAgent:
             logger.info(f"Feature engineering enabled: {feature_config.get('use_feature_engineering', False)}")
 
         try:
+            provider = provider or SessionStateProvider()
             # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
             self.env = TradingEnv(
                 stock_names=stock_names,
@@ -201,6 +301,24 @@ class UnifiedTradingAgent:
                 dtype=np.float32
             )
         self.configure_ppo(ppo_params)
+
+    def _create_validation_env(self, stock_names: List[str], date_range: Tuple[datetime, datetime],
+                               env_params: Dict[str, Any],
+                               feature_config: Optional[Dict[str, Any]]) -> TradingEnv:
+        return TradingEnv(
+            stock_names=stock_names,
+            start_date=date_range[0],
+            end_date=date_range[1],
+            initial_balance=env_params.get('initial_balance', 10000),
+            transaction_cost=env_params.get('transaction_cost', 0.0),
+            max_pct_position_by_asset=env_params.get('max_pct_position_by_asset', 0.2),
+            use_position_profit=env_params.get('use_position_profit', False),
+            use_holding_bonus=env_params.get('use_holding_bonus', False),
+            use_trading_penalty=env_params.get('use_trading_penalty', False),
+            observation_days=env_params.get('history_length', 3),
+            feature_config=feature_config,
+            training_mode=False
+        )
     
     def _calculate_training_metrics(self) -> Dict[str, float]:
         if not self.env or not self.env.portfolio_manager:
@@ -252,6 +370,10 @@ class UnifiedTradingAgent:
             ppo_params: PPO hyperparameters
             callback: Optional training callback
             feature_config: Optional feature engineering configuration
+            validation_split: Fraction of data to reserve for validation episodes
+            schedule_config: Optional configuration for episode length and warmup
+            eval_freq: Steps between validation episodes
+            eval_seeds: Fixed seeds for validation rollouts
 
         Returns:
             Dictionary of training metrics
@@ -342,12 +464,13 @@ class UnifiedTradingAgent:
 
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
-             env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+             env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None,
+             provider: Any = None) -> Dict[str, Any]:
         logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
         logger.info(f"Stocks: {stock_names}")
         logger.info(f"Period: {start_date} to {end_date}")
 
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, provider)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):

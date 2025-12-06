@@ -50,8 +50,11 @@ def execute_training(
     progress_callback = None
     if progress_bar and status_placeholder:
         # Correct the timestep calculation: use end_date - start_date
-        total_timesteps = (st.session_state.train_end_date - st.session_state.train_start_date).days
-        logger.info(f"Training for {total_timesteps} timesteps")  # Debug training timesteps
+        approx_data_points = max(1, (st.session_state.train_end_date - st.session_state.train_start_date).days)
+        schedule_estimate = st.session_state.model._build_training_schedule(
+            approx_data_points, st.session_state.get('schedule_config'))
+        total_timesteps = schedule_estimate['total_timesteps']
+        logger.info(f"Training for ~{total_timesteps} timesteps (scheduled)")
         progress_callback = ProgressBarCallback(
             total_timesteps=total_timesteps,
             progress_bar=progress_bar,
@@ -69,7 +72,11 @@ def execute_training(
         env_params=st.session_state.env_params,
         ppo_params=ppo_params,
         callback=progress_callback,
-        feature_config=feature_config)
+        feature_config=feature_config,
+        validation_split=st.session_state.get('validation_split', 0.2),
+        schedule_config=st.session_state.get('schedule_config'),
+        eval_freq=st.session_state.get('eval_frequency', 500),
+        eval_seeds=st.session_state.get('eval_seeds', [7, 21]))
 
 
 def get_training_parameters(use_optuna_params: bool = False) -> Dict[str, Any]:

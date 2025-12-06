@@ -529,6 +529,15 @@ class TradingVisualizer:
 
         return fig
 
+    def snapshot_actions_with_price(self,
+                                     info_history: List[Dict],
+                                     price_data: pd.DataFrame,
+                                     output_path: str) -> str:
+        """Persist the combined action/price plot for dashboarding."""
+        fig = self.plot_actions_with_price(info_history, price_data)
+        fig.write_html(output_path)
+        return output_path
+
     @staticmethod
     def display_trade_history(trade_history,
                               title="Trading History",

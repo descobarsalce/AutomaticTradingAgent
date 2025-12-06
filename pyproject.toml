@@ -15,6 +15,7 @@ dependencies = [
     "stable-baselines3>=2.3.2",
     "streamlit>=1.40.2",
     "ta>=0.11.0",
+    "pydantic>=2.9.2",
     "tensorboard>=2.18.0",
     "yfinance>=0.2.50",
     "gymnasium>=0.29.1",

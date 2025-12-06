@@ -12,6 +12,12 @@ class TemporalDataSplitter:
     min_train_window: int = 30
     min_validation_window: int = 7
 
+    def __post_init__(self) -> None:
+        if not 0 < self.validation_fraction < 1:
+            raise ValueError("validation_fraction must be between 0 and 1")
+        if self.min_train_window < 1 or self.min_validation_window < 1:
+            raise ValueError("Minimum window sizes must be positive")
+
     def split_dates(
         self,
         start_date: datetime,
@@ -22,7 +28,7 @@ class TemporalDataSplitter:
             raise ValueError("End date must be after start date for splitting")
 
         total_points = (
-            len(date_index) if date_index is not None else (end_date - start_date).days
+            len(date_index) if date_index is not None else (end_date - start_date).days + 1
         )
         if total_points <= self.min_validation_window + self.min_train_window:
             raise ValueError("Not enough data to create train and validation windows")

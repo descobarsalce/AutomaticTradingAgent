@@ -17,6 +17,7 @@ from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
 from metrics.metric_sink import MetricsSink, MetricsSinkConfig
 from utils.data_splitter import TemporalDataSplitter
+from environment.trading_env import fetch_trading_data
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
@@ -155,6 +156,18 @@ class UnifiedTradingAgent:
             'warmup_steps': warmup_steps,
             'total_timesteps': max(total_timesteps, data_points)
         }
+
+    def _get_data_index(self, stock_names: List[str], start_date: datetime,
+                        end_date: datetime):
+        try:
+            data = fetch_trading_data(stock_names, start_date, end_date)
+            return data.index
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Falling back to naive date split; unable to fetch data index for split: %s",
+                exc,
+            )
+            return None
 
     @type_check
     def initialize_env(self, stock_names: List[str], start_date: datetime,
@@ -337,7 +350,8 @@ class UnifiedTradingAgent:
         """
         logger.info(f"Starting training with {len(stock_names)} stocks from {start_date} to {end_date}")
         splitter = TemporalDataSplitter(validation_fraction=validation_split)
-        train_range, val_range = splitter.split_dates(start_date, end_date)
+        date_index = self._get_data_index(stock_names, start_date, end_date)
+        train_range, val_range = splitter.split_dates(start_date, end_date, date_index)
         logger.info(f"Train window: {train_range[0]} to {train_range[1]}")
         logger.info(f"Validation window: {val_range[0]} to {val_range[1]}")
 

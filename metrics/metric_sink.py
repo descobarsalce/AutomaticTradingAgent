@@ -17,7 +17,9 @@ class MetricsSink:
 
     def __init__(self, config: Optional[MetricsSinkConfig] = None) -> None:
         self.config = config or MetricsSinkConfig()
-        os.makedirs(os.path.dirname(self.config.jsonl_path), exist_ok=True)
+        directory = os.path.dirname(self.config.jsonl_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
 
     def emit(self, event_type: str, payload: Dict[str, Any]) -> None:
         enriched = {

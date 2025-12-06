@@ -156,6 +156,59 @@ Monitor training:
 tensorboard --logdir=tensorboard_logs
 ```
 
+## Checkpoints, manifests, and offline inference
+
+- **Experiment registry**: Every training run registers metadata (timestamps, git hash, PPO/env params, artifact paths) under `artifacts/experiments_log.jsonl` and writes a run-specific folder in `checkpoints/<run_id>/`.
+- **Manifests**: A `manifest.json` lives next to the saved model (e.g., `checkpoints/<run_id>/trained_model.zip`). It captures PPO hyperparameters, feature configuration, dataset date range, deterministic evaluation preference, and a hash of the model state dict for integrity checks.
+- **Periodic checkpoints**: Pass `checkpoint_interval=<int>` to `UnifiedTradingAgent.train(...)` to emit intermediate Stable-Baselines3 checkpoints into `checkpoints/<run_id>/checkpoints/` while training. The default best-model and evaluation logs are also stored inside the same run directory.
+- **Integrity and determinism checks**: Loading with a manifest enforces the recorded `model_path` and a hash of the saved state dict before allowing predictions. `load_for_inference` seeds Python, NumPy, Torch (including CUDA where available), and flips on deterministic algorithms when supported to make evaluation repeatable.
+
+### Resume training from a manifest
+
+```python
+from core.base_agent import UnifiedTradingAgent
+from datetime import datetime
+
+agent = UnifiedTradingAgent()
+agent.initialize_env(
+    stock_names=["AAPL", "MSFT"],
+    start_date=datetime(2023, 1, 1),
+    end_date=datetime(2023, 6, 1),
+    env_params={"initial_balance": 10000},
+)
+
+# Validate the checkpoint against its manifest before resuming
+agent.load(
+    path="checkpoints/<run_id>/trained_model.zip",
+    manifest_path="checkpoints/<run_id>/manifest.json",
+)
+
+# Continue training with the same environment and PPO config
+agent.model.learn(total_timesteps=10_000)
+agent.save("checkpoints/<run_id>/trained_model_resumed.zip")
+```
+
+### Offline inference with deterministic evaluation
+
+```python
+from core.base_agent import UnifiedTradingAgent
+from datetime import datetime
+
+agent = UnifiedTradingAgent()
+agent.load_for_inference(
+    model_path="checkpoints/<run_id>/trained_model.zip",
+    manifest_path="checkpoints/<run_id>/manifest.json",
+    stock_names=["AAPL", "MSFT"],
+    start_date=datetime(2023, 6, 2),
+    end_date=datetime(2023, 7, 1),
+    env_params=None,  # Defaults to manifest env_params when provided
+    seed=1234,
+)
+
+obs, _ = agent.env.reset()
+action = agent.predict(obs)  # Deterministic by default and hash-checked against the manifest
+```
+
 ## Limitations & Considerations
 
 - Market data latency may affect real-time performance

@@ -7,7 +7,11 @@ from typing import List, Protocol, runtime_checkable
 
 import pandas as pd
 
-from data.data_handler import DataHandler
+from data.data_handler import (
+    DataHandler,
+    ensure_utc_timestamp,
+    validate_ohlcv_frame,
+)
 
 REQUIRED_OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 
@@ -104,4 +108,7 @@ class FileSystemProvider:
 
         frame = validate_ohlcv_frame(frame, symbols)
 
-        return frame.loc[(frame.index >= start) & (frame.index <= end)]
+        start_ts = ensure_utc_timestamp(start)
+        end_ts = ensure_utc_timestamp(end)
+
+        return frame.loc[(frame.index >= start_ts) & (frame.index <= end_ts)]

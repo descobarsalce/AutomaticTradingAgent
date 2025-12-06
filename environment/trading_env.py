@@ -10,8 +10,8 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                           POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
+from data.data_handler import ensure_utc_timestamp, validate_ohlcv_frame
 from data.providers import DataProvider
-from pydantic import BaseModel, ConfigDict, FieldValidationInfo, field_validator
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -27,45 +27,6 @@ except ImportError:
     FeatureProcessor = None
 
 
-class OHLCVDataValidator(BaseModel):
-    """Validate core OHLCV schema and timezone awareness."""
-
-    data: pd.DataFrame
-    symbols: List[str]
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    @field_validator("data")
-    @classmethod
-    def validate_dataframe(cls, value: pd.DataFrame, info: FieldValidationInfo):
-        symbols: List[str] = info.data.get("symbols", [])
-        if not isinstance(value, pd.DataFrame):
-            raise TypeError("data must be a pandas DataFrame")
-        if value.empty:
-            raise ValueError("Empty data provided")
-
-        try:
-            value.index = pd.DatetimeIndex(value.index)
-        except Exception as exc:  # pragma: no cover - defensive branch
-            raise ValueError("DataFrame index must be datetime-like") from exc
-
-        if value.index.tz is None:
-            value.index = value.index.tz_localize("UTC")
-
-        if value.index.isna().any():
-            raise ValueError("DataFrame index contains NaT values")
-
-        required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
-        for symbol in symbols:
-            for col in required_cols:
-                col_name = f"{col}_{symbol}"
-                if col_name not in value.columns:
-                    raise ValueError(f"Missing column {col_name}")
-                if value[col_name].isna().any():
-                    raise ValueError(f"Column {col_name} contains null values")
-        return value
-
-
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime,
                        provider: DataProvider) -> pd.DataFrame:
@@ -74,9 +35,12 @@ def fetch_trading_data(stock_names: List[str], start_date: datetime,
     if provider is None:
         raise ValueError("A data provider instance is required")
 
-    data = provider.fetch(stock_names, start_date, end_date).copy()
+    start_ts = ensure_utc_timestamp(start_date)
+    end_ts = ensure_utc_timestamp(end_date)
 
-    OHLCVDataValidator(data=data, symbols=stock_names)
+    data = provider.fetch(stock_names, start_ts, end_ts).copy()
+
+    data = validate_ohlcv_frame(data, stock_names)
 
     # Shift previous day's data
     for symbol in stock_names:

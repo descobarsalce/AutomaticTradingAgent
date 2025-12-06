@@ -1,15 +1,59 @@
 """Data handler with data source abstraction and improved caching."""
 
-import pandas as pd
 from datetime import datetime
 import logging
-from typing import List, Dict, Optional, Protocol, Union
+from typing import List, Dict, Optional, Union
+
+import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
 
 from data.data_SQL_interaction import SQLHandler
 from data.stock_downloader import StockDownloader
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
+
+
+def ensure_utc_timestamp(value: datetime | pd.Timestamp) -> pd.Timestamp:
+    """Convert a datetime-like object to a timezone-aware UTC Timestamp."""
+    ts = pd.Timestamp(value)
+    if ts.tzinfo is None:
+        return ts.tz_localize("UTC")
+    return ts.tz_convert("UTC")
+
+
+def ensure_datetime_index(frame: pd.DataFrame) -> pd.DataFrame:
+    """Ensure the DataFrame index is a timezone-aware DatetimeIndex sorted by time."""
+    if not isinstance(frame.index, pd.DatetimeIndex):
+        frame.index = pd.to_datetime(frame.index)
+    if frame.index.tz is None:
+        frame.index = frame.index.tz_localize("UTC")
+    else:
+        frame.index = frame.index.tz_convert("UTC")
+    frame = frame.sort_index()
+    if frame.index.isna().any():
+        raise ValueError("DataFrame index contains NaT values")
+    return frame
+
+
+def validate_ohlcv_frame(frame: pd.DataFrame, symbols: List[str]) -> pd.DataFrame:
+    """Validate OHLCV schema, non-null columns, and timezone-aware index."""
+    if frame is None or frame.empty:
+        raise ValueError("Empty data provided")
+
+    frame = ensure_datetime_index(frame)
+
+    for symbol in symbols:
+        for col in REQUIRED_OHLCV_COLUMNS:
+            col_name = f"{col}_{symbol}"
+            if col_name not in frame.columns:
+                raise ValueError(f"Missing column {col_name}")
+            if frame[col_name].isna().any():
+                raise ValueError(f"Column {col_name} contains null values")
+
+    return frame
+
 
 class DataHandler:
     def __init__(self):
@@ -104,11 +148,10 @@ class DataHandler:
             DataFrame containing the fetched data
         """
         # INPUT VALIDATION
-        if not isinstance(start_date, datetime):
-            raise TypeError(f"start_date must be datetime, got {type(start_date).__name__}")
-        if not isinstance(end_date, datetime):
-            raise TypeError(f"end_date must be datetime, got {type(end_date).__name__}")
-        if start_date > end_date:
+        start_ts = ensure_utc_timestamp(start_date)
+        end_ts = ensure_utc_timestamp(end_date)
+
+        if start_ts > end_ts:
             raise ValueError(f"start_date ({start_date}) cannot be after end_date ({end_date})")
 
         logger.info(f"Fetching data for {symbols} from {source}: [{start_date}, {end_date}]")
@@ -119,7 +162,7 @@ class DataHandler:
         for symbol in symbols:
             df = None
             if use_SQL:
-                df = self._fetch_from_sql(symbol, start_date, end_date)
+                df = self._fetch_from_sql(symbol, start_ts.to_pydatetime(), end_ts.to_pydatetime())
                 logger.info(f"Using SQL cache for: {symbol}")
                 if df is not None:
                     logger.info(f"Retrieved df columns: {list(df.columns)}")
@@ -130,7 +173,7 @@ class DataHandler:
                         logger.info(f"Set Date as index for {symbol}")
 
             if df is None or not use_SQL:
-                df = self._fetch_from_external(symbol, start_date, end_date, source)
+                df = self._fetch_from_external(symbol, start_ts.to_pydatetime(), end_ts.to_pydatetime(), source)
                 if df is not None:
                     if not df.empty:
                         df = self._process_dataframe(df, symbol)
@@ -141,13 +184,19 @@ class DataHandler:
             else:
                 logger.error(f"Failed to fetch data for {symbol} from all sources")
 
-        if result_df is None:
+        if result_df is None or result_df.empty:
             logger.info(f"No data retrieved for any symbols")
             raise ValueError("No data retrieved for any symbols")
-        
+
+        result_df = validate_ohlcv_frame(result_df, symbols)
+
         return result_df.copy()
     
     def __del__(self):
         """Cleanup database session"""
         if hasattr(self, '_sql_handler'):
-            self._sql_handler._cleanup_session()
+            try:
+                self._sql_handler._cleanup_session()
+            except Exception:
+                logger.debug("SQLHandler cleanup failed", exc_info=True)
+

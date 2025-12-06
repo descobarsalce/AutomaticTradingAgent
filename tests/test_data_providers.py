@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime
 
 from environment.trading_env import TradingEnv, fetch_trading_data
+from data.providers import FileSystemProvider
 
 
 class DummyProvider:
@@ -43,6 +44,18 @@ def test_trading_env_uses_injected_provider():
     assert env.data.index.tz is not None
 
 
+def test_trading_env_requires_provider():
+    symbols = ["AAPL"]
+
+    with pytest.raises(ValueError):
+        TradingEnv(
+            stock_names=symbols,
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 1, 3),
+            provider=None  # type: ignore[arg-type]
+        )
+
+
 def test_validation_missing_column_raises_error():
     symbols = ["MSFT"]
     frame = _sample_frame(symbols)
@@ -71,3 +84,42 @@ def test_timezone_is_enforced():
     validated = fetch_trading_data(symbols, datetime(2024, 1, 1), datetime(2024, 1, 3), provider)
     assert validated.index.tz is not None
     assert str(validated.index.tz) == "UTC"
+
+
+def test_filesystem_provider_loads_cached_frame(tmp_path):
+    symbols = ["NFLX"]
+    frame = _sample_frame(symbols)
+    cached = frame.reset_index().rename(columns={"index": "Date"})
+    file_path = tmp_path / "ohlcv.csv"
+    cached.to_csv(file_path, index=False)
+
+    provider = FileSystemProvider(file_path)
+    fetched = provider.fetch(symbols, datetime(2024, 1, 1), datetime(2024, 1, 3))
+
+    assert fetched.index.tz is not None
+    pd.testing.assert_frame_equal(fetched, frame.tz_localize("UTC"))
+
+
+def test_environment_handles_provider_swap():
+    symbols = ["TSLA"]
+    frame_one = _sample_frame(symbols)
+    frame_two = _sample_frame(symbols) * 2
+
+    provider_one = DummyProvider(frame_one)
+    env_one = TradingEnv(
+        stock_names=symbols,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 3),
+        provider=provider_one
+    )
+
+    provider_two = DummyProvider(frame_two)
+    env_two = TradingEnv(
+        stock_names=symbols,
+        start_date=datetime(2024, 1, 1),
+        end_date=datetime(2024, 1, 3),
+        provider=provider_two
+    )
+
+    assert provider_one.called and provider_two.called
+    assert not env_one.data.equals(env_two.data)

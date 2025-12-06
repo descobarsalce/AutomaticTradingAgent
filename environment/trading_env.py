@@ -1,6 +1,5 @@
 from datetime import datetime
 import gymnasium as gym
-import streamlit as st
 from metrics.metrics_calculator import MetricsCalculator
 from environment.rewards_calculator import RewardsCalculator
 import numpy as np
@@ -11,7 +10,7 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                           POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
-from data.providers import DataProvider, SessionStateProvider
+from data.providers import DataProvider
 from pydantic import BaseModel, ConfigDict, FieldValidationInfo, field_validator
 
 logger = logging.getLogger(__name__)
@@ -69,10 +68,12 @@ class OHLCVDataValidator(BaseModel):
 
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime,
-                       provider: Optional[DataProvider] = None) -> pd.DataFrame:
+                       provider: DataProvider) -> pd.DataFrame:
     """Fetch and validate trading data with improved error handling.
     Uses current day's open price and previous day's high, low, volume."""
-    provider = provider or SessionStateProvider()
+    if provider is None:
+        raise ValueError("A data provider instance is required")
+
     data = provider.fetch(stock_names, start_date, end_date).copy()
 
     OHLCVDataValidator(data=data, symbols=stock_names)
@@ -107,9 +108,12 @@ class TradingEnv(gym.Env):
                  observation_days: int = 2,
                  burn_in_days: int = 20,
                  feature_config: Optional[Dict[str, Any]] = None,
-                 provider: Optional[DataProvider] = None):  # Feature engineering config
+                 provider: DataProvider = None):  # Feature engineering config
         # Fetch trading data
-        self.provider = provider or SessionStateProvider()
+        if provider is None:
+            raise ValueError("TradingEnv requires an explicit data provider")
+
+        self.provider = provider
         data = fetch_trading_data(stock_names, start_date, end_date, self.provider)
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)

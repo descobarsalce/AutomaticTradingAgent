@@ -78,6 +78,11 @@ Key configurable parameters:
 - Observation window size
 - Training episode length
 
+## Training & Validation Defaults
+- **Data split**: 80% training / 20% validation by date with a minimum 30-day train and 7-day validation window.
+- **Training schedule**: warm-up phase of 10% of available steps, 256-step episodes, and 3 epochs (adjustable via `schedule_config`).
+- **Evaluation**: Validation rollouts every 500 steps with fixed seeds `[7, 21]`, logging PnL, drawdown, turnover, risk ratios, and action/price snapshots to `metrics/metrics_stream.jsonl`.
+
 ## Performance Metrics
 
 The platform tracks:

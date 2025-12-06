@@ -203,6 +203,7 @@ class PortfolioManager:
     def get_portfolio_metrics(self) -> Dict:
         """Get key portfolio metrics using MetricsCalculator."""
         returns = MetricsCalculator.calculate_returns(self.portfolio_value_history)
+        turnover = self.calculate_turnover()
         return {
             'total_value': self.get_total_value(),
             'cash_balance': self.current_balance,
@@ -211,8 +212,27 @@ class PortfolioManager:
             'sharpe_ratio': MetricsCalculator.calculate_sharpe_ratio(returns),
             'sortino_ratio': MetricsCalculator.calculate_sortino_ratio(returns),
             'total_trades': len(self.trades_history),
-            'total_return': (self.get_total_value() - self.initial_balance) / self.initial_balance
+            'total_return': (self.get_total_value() - self.initial_balance) / self.initial_balance,
+            'turnover': turnover
         }
+
+    def calculate_turnover(self) -> float:
+        if not self.trades_history:
+            return 0.0
+
+        total_traded = sum(
+            abs(trade.get('quantity', 0) * trade.get('price', 0))
+            for trade in self.trades_history
+        )
+        if self.portfolio_value_history:
+            average_value = float(np.mean(self.portfolio_value_history))
+        else:
+            average_value = self.initial_balance
+
+        if average_value <= 0:
+            return 0.0
+
+        return float(total_traded / average_value)
 
     def _calculate_trade_quantity(self, action: float, symbol: str, price: float, max_pct_position_by_asset: float) -> float:
         if price <= 0:

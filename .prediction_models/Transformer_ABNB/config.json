@@ -1,0 +1,1 @@
+{"sequence_length": 20, "d_model": 64, "num_heads": 4, "num_layers": 2, "ff_dim": 128, "dropout": 0.1, "horizons": [1, 5, 21], "num_features": 5, "backend": "pytorch"}

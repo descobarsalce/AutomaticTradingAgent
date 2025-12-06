@@ -195,4 +195,8 @@ class DataHandler:
     def __del__(self):
         """Cleanup database session"""
         if hasattr(self, '_sql_handler'):
-            self._sql_handler._cleanup_session()
+            try:
+                self._sql_handler._cleanup_session()
+            except Exception:
+                logger.debug("SQLHandler cleanup failed", exc_info=True)
+

@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from core.callbacks import MetricStreamingEvalCallback
+from metrics.metric_sink import MetricsSink, MetricsSinkConfig
 from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
 from core.experiments import ExperimentRegistry, hash_state_dict
@@ -265,6 +266,34 @@ class UnifiedTradingAgent:
             training_mode=False,
             provider=provider
         )
+
+    def _prepare_evaluation_config(self, evaluation_config: Optional[Dict[str, Any]], run_dir: str) -> Dict[str, Any]:
+        """Merge caller-supplied evaluation options with defaults and materialize a sink."""
+        config: Dict[str, Any] = {
+            'eval_freq': 1000,
+            'seeds': [0],
+            'log_dir': os.path.join(run_dir, "eval_stream"),
+            'sink': None,
+            'sink_config': None,
+        }
+
+        if evaluation_config:
+            config.update({k: v for k, v in evaluation_config.items() if v is not None})
+
+        sink = config.get('sink')
+        sink_config = config.get('sink_config')
+        if sink is None:
+            if sink_config is None:
+                sink = MetricsSink()
+            elif isinstance(sink_config, MetricsSinkConfig):
+                sink = MetricsSink(sink_config)
+            elif isinstance(sink_config, dict):
+                sink = MetricsSink(MetricsSinkConfig(**sink_config))
+            else:
+                raise TypeError("sink_config must be a MetricsSinkConfig instance or mapping of initialization args")
+
+        config['sink'] = sink
+        return config
     
     def _calculate_training_metrics(self) -> Dict[str, float]:
         if not self.env or not self.env.portfolio_manager:
@@ -306,7 +335,8 @@ class UnifiedTradingAgent:
               checkpoint_interval: Optional[int] = None,
               manifest_filename: str = "manifest.json",
               deterministic_eval: bool = True,
-              provider: Optional[DataProvider] = None) -> Dict[str, float]:
+              provider: Optional[DataProvider] = None,
+              evaluation_config: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
         """Train the agent with progress logging.
 
         Args:
@@ -321,6 +351,14 @@ class UnifiedTradingAgent:
             schedule_config: Optional configuration for episode length and warmup
             eval_freq: Steps between validation episodes
             eval_seeds: Fixed seeds for validation rollouts
+            evaluation_config: Evaluation callback configuration block. Example:
+                {
+                    "eval_freq": 750,
+                    "seeds": [0, 42],
+                    "sink": MetricsSink(MetricsSinkConfig(jsonl_path="metrics/stream.jsonl")),
+                }
+            The agent composes a MetricStreamingEvalCallback from this block without
+            mutating the callback itself.
 
         Returns:
             Dictionary of training metrics
@@ -339,6 +377,8 @@ class UnifiedTradingAgent:
         checkpoint_path = os.path.join(run_dir, "checkpoints")
 
         total_timesteps = max(1, (end_date - start_date).days)
+        eval_config = self._prepare_evaluation_config(evaluation_config, run_dir)
+        eval_env = self._create_validation_env(stock_names, (start_date, end_date), env_params, feature_config, provider_to_use)
         eval_callback = EvalCallback(self.env,
                                    best_model_save_path=os.path.join(run_dir, "best_model"),
                                    log_path=os.path.join(run_dir, "eval_logs"),
@@ -346,7 +386,16 @@ class UnifiedTradingAgent:
                                    deterministic=True,
                                    render=False)
 
-        callbacks: List[BaseCallback] = [eval_callback]
+        metric_streaming_callback = MetricStreamingEvalCallback(
+            eval_env=eval_env,
+            metrics_sink=eval_config['sink'],
+            visualizer=TradingVisualizer(),
+            eval_freq=eval_config['eval_freq'],
+            seeds=eval_config['seeds'],
+            log_dir=eval_config['log_dir'],
+        )
+
+        callbacks: List[BaseCallback] = [eval_callback, metric_streaming_callback]
         if checkpoint_interval and checkpoint_interval > 0:
             os.makedirs(checkpoint_path, exist_ok=True)
             callbacks.append(

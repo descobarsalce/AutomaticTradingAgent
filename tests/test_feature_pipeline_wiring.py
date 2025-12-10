@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-import numpy as np
-import pandas as pd
+import pytest
+
+np = pytest.importorskip("numpy")
+pd = pytest.importorskip("pandas")
 
 from core.base_agent import UnifiedTradingAgent
 from environment.trading_env import TradingEnv

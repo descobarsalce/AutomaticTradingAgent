@@ -51,13 +51,20 @@ class TradingEnv(gym.Env):
                  observation_days: int = 2,
                  burn_in_days: int = 20,
                  feature_config: Optional[Dict[str, Any]] = None,
+                 feature_processor: Optional[FeatureProcessor] = None,
+                 feature_data: Optional[pd.DataFrame] = None,
+                 prefetched_data: Optional[pd.DataFrame] = None,
                  provider: DataProvider = None):  # Feature engineering config
         # Fetch trading data
         if provider is None:
             raise ValueError("TradingEnv requires an explicit data provider")
 
         self.provider = provider
-        data = fetch_trading_data(stock_names, start_date, end_date, self.provider)
+        if prefetched_data is not None:
+            data = prefetched_data.copy()
+        else:
+            data = fetch_trading_data(stock_names, start_date, end_date,
+                                      self.provider)
         # New: Preprocess data: handle missing values and normalize
         # data = preprocess_data(data)
         self._validate_init_params(data, initial_balance, transaction_cost,
@@ -88,20 +95,22 @@ class TradingEnv(gym.Env):
 
         # Initialize feature processor if configured
         self.feature_config = feature_config
-        self.feature_processor = None
-        self._processed_data = None
-        if HAS_FEATURE_PROCESSOR and feature_config and feature_config.get('use_feature_engineering', False):
+        self.feature_processor = feature_processor
+        self._processed_data = feature_data
+        self.feature_config = feature_config
+        if self.feature_processor is not None:
+            self._processed_data = self._processed_data or self._initialize_feature_processor(
+                data)
+        elif HAS_FEATURE_PROCESSOR and feature_config and feature_config.get(
+                'use_feature_engineering', False):
             try:
                 self.feature_processor = FeatureProcessor(
                     feature_config=feature_config,
-                    symbols=stock_names
-                )
-                self.feature_processor.initialize(data)
-                # Compute features for all data upfront
-                self._processed_data = self.feature_processor.compute_features(data)
-                logger.info(f"Feature processor initialized with {len(self.feature_processor.feature_columns)} features")
+                    symbols=stock_names)
+                self._processed_data = self._initialize_feature_processor(data)
             except Exception as e:
-                logger.warning(f"Feature processor initialization failed: {e}. Using raw data.")
+                logger.warning(
+                    f"Feature processor initialization failed: {e}. Using raw data.")
                 self.feature_processor = None
 
         self._initialize_state()
@@ -113,6 +122,25 @@ class TradingEnv(gym.Env):
                                        high=1,
                                        shape=(len(stock_names), ),
                                        dtype=np.float32)
+
+    def _initialize_feature_processor(self, data: pd.DataFrame
+                                      ) -> Optional[pd.DataFrame]:
+        """Initialize and compute features using the provided processor."""
+        try:
+            if hasattr(self.feature_processor, 'initialize') and not getattr(
+                    self.feature_processor, '_initialized', False):
+                self.feature_processor.initialize(data)
+            processed = self.feature_processor.compute_features(data)
+            feature_count = len(getattr(self.feature_processor, 'feature_columns',
+                                        []))
+            logger.info(
+                f"Feature processor initialized with {feature_count} features")
+            return processed
+        except Exception as exc:
+            logger.warning(
+                f"Feature processor initialization failed: {exc}. Using raw data.")
+            self.feature_processor = None
+            return None
 
     def _validate_init_params(self, data: Union[pd.DataFrame,
                                                 Dict[str, pd.DataFrame]],

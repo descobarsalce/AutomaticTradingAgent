@@ -58,8 +58,7 @@ class TradingEnv(gym.Env):
 
         self.provider = provider
         data = fetch_trading_data(stock_names, start_date, end_date, self.provider)
-        # New: Preprocess data: handle missing values and normalize
-        # data = preprocess_data(data)
+        # Data arrives fully preprocessed from the TradingDataManager.
         self._validate_init_params(data, initial_balance, transaction_cost,
                                    max_pct_position_by_asset)
         self._full_data = data.copy()

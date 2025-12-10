@@ -161,6 +161,32 @@ Monitor training:
 tensorboard --logdir=tensorboard_logs
 ```
 
+## Feature pipeline configuration for PPO
+
+You can wire a feature pipeline directly into PPO setup instead of letting the
+environment build one implicitly. Pass either a fully configured
+`FeatureProcessor` instance or a list of feature names via the
+`feature_pipeline` argument on `UnifiedTradingAgent.initialize_env`, `train`,
+or `test`. When a list is provided, it is treated as the explicit set of
+features to compute, allowing you to opt in or out of individual engineered
+features from a training configuration.
+
+```python
+from core.base_agent import UnifiedTradingAgent
+from datetime import datetime
+
+agent = UnifiedTradingAgent()
+agent.initialize_env(
+    stock_names=["AAPL"],
+    start_date=datetime(2024, 1, 1),
+    end_date=datetime(2024, 6, 1),
+    env_params={"history_length": 2},
+    feature_config={"use_feature_engineering": True},
+    feature_pipeline=["rsi", "bollinger_band", "ema_crossover"],
+    provider=your_provider,
+)
+```
+
 ## Checkpoints, manifests, and offline inference
 
 - **Experiment registry**: Every training run registers metadata (timestamps, git hash, PPO/env params, artifact paths) under `artifacts/experiments_log.jsonl` and writes a run-specific folder in `checkpoints/<run_id>/`.

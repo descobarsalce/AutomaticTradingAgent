@@ -16,7 +16,7 @@ from typing import Dict, Any, Optional, List, Union, Tuple, cast
 from numpy.typing import NDArray
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
-from environment import TradingEnv
+from environment.trading_env import TradingEnv, fetch_trading_data
 from core.portfolio_manager import PortfolioManager
 from core.experiments import ExperimentRegistry, hash_state_dict
 from data.providers import DataProvider
@@ -180,10 +180,70 @@ class UnifiedTradingAgent:
             )
             return None
 
+    def _prepare_feature_processor(self, stock_names: List[str],
+                                   data: pd.DataFrame,
+                                   feature_config: Optional[Dict[str, Any]],
+                                   feature_pipeline: Optional[Union[List[str], Any]]
+                                   ) -> Tuple[Optional[Any], Optional[pd.DataFrame]]:
+        """Prepare a feature processor based on configuration and pipeline input."""
+        if feature_pipeline is None and not (feature_config
+                                             and feature_config.get(
+                                                 'use_feature_engineering',
+                                                 False)):
+            return None, None
+
+        try:
+            from data.feature_engineering.feature_processor import FeatureProcessor
+        except ImportError:
+            logger.warning(
+                "FeatureProcessor is unavailable; proceeding without feature engineering"
+            )
+            return None, None
+
+        effective_config = dict(feature_config or {})
+        processor: Optional[FeatureProcessor] = None
+
+        if feature_pipeline is not None:
+            if isinstance(feature_pipeline, list):
+                sources = effective_config.get('sources', {}).copy()
+                sources['manual_pipeline'] = {
+                    'enabled': True,
+                    'features': feature_pipeline
+                }
+                effective_config['sources'] = sources
+                effective_config['use_feature_engineering'] = True
+                processor = FeatureProcessor(feature_config=effective_config,
+                                             symbols=stock_names)
+            elif isinstance(feature_pipeline, FeatureProcessor):
+                processor = feature_pipeline
+                effective_config = getattr(processor, 'feature_config',
+                                           effective_config)
+            else:
+                raise TypeError(
+                    "feature_pipeline must be a list of features or a FeatureProcessor instance"
+                )
+        elif effective_config.get('use_feature_engineering', False):
+            processor = FeatureProcessor(feature_config=effective_config,
+                                         symbols=stock_names)
+
+        if processor is None:
+            return None, None
+
+        try:
+            processor.initialize(data)
+            feature_data = processor.compute_features(data)
+            return processor, feature_data
+        except Exception as exc:
+            logger.warning(
+                "Feature processor setup failed; continuing without features: %s",
+                exc)
+            return None, None
+
     @type_check
     def initialize_env(self, stock_names: List[str], start_date: datetime,
                       end_date: datetime, env_params: Dict[str, Any],
                       feature_config: Optional[Dict[str, Any]] = None,
+                      feature_pipeline: Optional[Union[List[str], Any]] = None,
                       training_mode: bool = True,
                       provider: Optional[DataProvider] = None) -> None:
         """Initialize trading environment with parameters.
@@ -194,6 +254,8 @@ class UnifiedTradingAgent:
             end_date: Training end date
             env_params: Environment parameters (balance, costs, etc.)
             feature_config: Optional feature engineering configuration
+            feature_pipeline: Explicit feature pipeline to use (FeatureProcessor
+                instance or list of feature names)
             training_mode: Whether the environment should enable training-specific behavior
         """
         logger.info(f"Initializing environment with params: {env_params}")
@@ -228,6 +290,10 @@ class UnifiedTradingAgent:
 
         try:
             self.provider = provider
+            data = fetch_trading_data(stock_names, start_date, end_date, provider)
+            feature_processor, feature_data = self._prepare_feature_processor(
+                stock_names, data, feature_config, feature_pipeline)
+
             # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
             self.env = TradingEnv(
                 stock_names=stock_names,
@@ -235,6 +301,9 @@ class UnifiedTradingAgent:
                 end_date=end_date,
                 **cleaned_params,
                 feature_config=feature_config,
+                feature_processor=feature_processor,
+                feature_data=feature_data,
+                prefetched_data=data,
                 training_mode=training_mode,
                 provider=provider
             )
@@ -297,10 +366,11 @@ class UnifiedTradingAgent:
     def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
                             env_params: Dict[str, Any], ppo_params: Dict[str, Any],
                             feature_config: Optional[Dict[str, Any]] = None,
+                            feature_pipeline: Optional[Union[List[str], Any]] = None,
                             training_mode: bool = True,
                             provider: Optional[DataProvider] = None):
         """Prepare environment and configure PPO model."""
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, training_mode, provider)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, feature_pipeline, training_mode, provider)
         # Set default action space if not provided by the environment
         if self.env.action_space is None:
             import gymnasium as gym
@@ -368,6 +438,7 @@ class UnifiedTradingAgent:
               ppo_params: Dict[str, Any],
               callback: Optional[BaseCallback] = None,
               feature_config: Optional[Dict[str, Any]] = None,
+              feature_pipeline: Optional[Union[List[str], Any]] = None,
               checkpoint_dir: str = "checkpoints",
               checkpoint_interval: Optional[int] = None,
               manifest_filename: str = "manifest.json",
@@ -397,7 +468,9 @@ class UnifiedTradingAgent:
         if provider_to_use is None:
             raise ValueError("train requires an explicit data provider")
 
-        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params, feature_config, True, provider_to_use)
+        self._init_env_and_model(stock_names, start_date, end_date, env_params,
+                                 ppo_params, feature_config, feature_pipeline,
+                                 True, provider_to_use)
 
         run_id = f"run_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
         run_dir = os.path.join(checkpoint_dir, run_id)
@@ -482,6 +555,7 @@ class UnifiedTradingAgent:
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None,
+             feature_pipeline: Optional[Union[List[str], Any]] = None,
              provider: Optional[DataProvider] = None) -> Dict[str, Any]:
         logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
         logger.info(f"Stocks: {stock_names}")
@@ -492,7 +566,7 @@ class UnifiedTradingAgent:
             raise ValueError("test requires an explicit data provider")
 
         self.initialize_env(stock_names, start_date, end_date, env_params, feature_config,
-                            training_mode=True, provider=provider_to_use)
+                            feature_pipeline, training_mode=True, provider=provider_to_use)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):

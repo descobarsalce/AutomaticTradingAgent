@@ -13,34 +13,6 @@ from data.data_handler import (
     validate_ohlcv_frame,
 )
 
-REQUIRED_OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
-
-
-def _ensure_datetime_index(frame: pd.DataFrame) -> pd.DataFrame:
-    """Ensure the DataFrame index is a timezone-aware DatetimeIndex."""
-    if not isinstance(frame.index, pd.DatetimeIndex):
-        frame.index = pd.to_datetime(frame.index)
-    if frame.index.tz is None:
-        frame.index = frame.index.tz_localize("UTC")
-    return frame
-
-
-def validate_ohlcv_frame(frame: pd.DataFrame, symbols: List[str]) -> pd.DataFrame:
-    """Validate OHLCV columns and timezone awareness for the requested symbols."""
-    if frame.empty:
-        raise ValueError("Empty data provided")
-
-    frame = _ensure_datetime_index(frame)
-
-    for symbol in symbols:
-        for col in REQUIRED_OHLCV_COLUMNS:
-            col_name = f"{col}_{symbol}"
-            if col_name not in frame.columns:
-                raise ValueError(f"Missing column {col_name}")
-            if frame[col_name].isna().any():
-                raise ValueError(f"Column {col_name} contains null values")
-    return frame
-
 
 @runtime_checkable
 class DataProvider(Protocol):

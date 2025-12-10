@@ -118,6 +118,7 @@ class UnifiedTradingAgent:
     def initialize_env(self, stock_names: List[str], start_date: datetime,
                       end_date: datetime, env_params: Dict[str, Any],
                       feature_config: Optional[Dict[str, Any]] = None,
+                      feature_pipeline: Optional[Any] = None,
                       training_mode: bool = True,
                       provider: Optional[DataProvider] = None) -> None:
         """Initialize trading environment with parameters.
@@ -128,6 +129,7 @@ class UnifiedTradingAgent:
             end_date: Training end date
             env_params: Environment parameters (balance, costs, etc.)
             feature_config: Optional feature engineering configuration
+            feature_pipeline: Optional feature processor instance or precomputed feature data
             training_mode: Whether the environment should enable training-specific behavior
         """
         logger.info(f"Initializing environment with params: {env_params}")
@@ -156,6 +158,9 @@ class UnifiedTradingAgent:
         # Log feature configuration
         if feature_config:
             logger.info(f"Feature engineering enabled: {feature_config.get('use_feature_engineering', False)}")
+            logger.warning("feature_config support is deprecated; please provide feature_pipeline instead.")
+        if feature_pipeline is not None:
+            logger.info("Using explicit feature_pipeline provided by caller.")
 
         if provider is None:
             raise ValueError("initialize_env requires an explicit data provider")
@@ -169,6 +174,7 @@ class UnifiedTradingAgent:
                 end_date=end_date,
                 **cleaned_params,
                 feature_config=feature_config,
+                feature_pipeline=feature_pipeline,
                 training_mode=training_mode,
                 provider=provider
             )
@@ -231,10 +237,11 @@ class UnifiedTradingAgent:
     def _init_env_and_model(self, stock_names: List, start_date: datetime, end_date: datetime,
                             env_params: Dict[str, Any], ppo_params: Dict[str, Any],
                             feature_config: Optional[Dict[str, Any]] = None,
+                            feature_pipeline: Optional[Any] = None,
                             training_mode: bool = True,
                             provider: Optional[DataProvider] = None):
         """Prepare environment and configure PPO model."""
-        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, training_mode, provider)
+        self.initialize_env(stock_names, start_date, end_date, env_params, feature_config, feature_pipeline, training_mode, provider)
         # Set default action space if not provided by the environment
         if self.env.action_space is None:
             import gymnasium as gym
@@ -249,6 +256,7 @@ class UnifiedTradingAgent:
     def _create_validation_env(self, stock_names: List[str], date_range: Tuple[datetime, datetime],
                                env_params: Dict[str, Any],
                                feature_config: Optional[Dict[str, Any]],
+                               feature_pipeline: Optional[Any],
                                provider: DataProvider) -> TradingEnv:
         return TradingEnv(
             stock_names=stock_names,
@@ -262,6 +270,7 @@ class UnifiedTradingAgent:
             use_trading_penalty=env_params.get('use_trading_penalty', False),
             observation_days=env_params.get('history_length', 3),
             feature_config=feature_config,
+            feature_pipeline=feature_pipeline,
             training_mode=False,
             provider=provider
         )
@@ -302,6 +311,7 @@ class UnifiedTradingAgent:
               ppo_params: Dict[str, Any],
               callback: Optional[BaseCallback] = None,
               feature_config: Optional[Dict[str, Any]] = None,
+              feature_pipeline: Optional[Any] = None,
               checkpoint_dir: str = "checkpoints",
               checkpoint_interval: Optional[int] = None,
               manifest_filename: str = "manifest.json",
@@ -331,7 +341,7 @@ class UnifiedTradingAgent:
         if provider_to_use is None:
             raise ValueError("train requires an explicit data provider")
 
-        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params, feature_config, True, provider_to_use)
+        self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params, feature_config, feature_pipeline, True, provider_to_use)
 
         run_id = f"run_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid4().hex[:6]}"
         run_dir = os.path.join(checkpoint_dir, run_id)
@@ -416,6 +426,7 @@ class UnifiedTradingAgent:
     @type_check
     def test(self, stock_names: List, start_date: datetime, end_date: datetime,
              env_params: Dict[str, Any], feature_config: Optional[Dict[str, Any]] = None,
+             feature_pipeline: Optional[Any] = None,
              provider: Optional[DataProvider] = None) -> Dict[str, Any]:
         logger.info(f"\n{'='*50}\nStarting test run\n{'='*50}")
         logger.info(f"Stocks: {stock_names}")
@@ -426,7 +437,7 @@ class UnifiedTradingAgent:
             raise ValueError("test requires an explicit data provider")
 
         self.initialize_env(stock_names, start_date, end_date, env_params, feature_config,
-                            training_mode=True, provider=provider_to_use)
+                            feature_pipeline, training_mode=True, provider=provider_to_use)
         self.load("trained_model.zip")
 
         if hasattr(self.env, '_trade_history'):
@@ -574,6 +585,7 @@ class UnifiedTradingAgent:
                            end_date: datetime,
                            env_params: Optional[Dict[str, Any]],
                            feature_config: Optional[Dict[str, Any]] = None,
+                           feature_pipeline: Optional[Any] = None,
                            manifest_path: Optional[str] = None,
                            seed: int = 42) -> None:
         """Set up an evaluation-only environment and load a model deterministically."""
@@ -599,7 +611,7 @@ class UnifiedTradingAgent:
 
         self._set_deterministic_seed(seed)
         self._init_env_and_model(stock_names, start_date, end_date, env_params, ppo_params,
-                                 feature_config, training_mode=False)
+                                 feature_config, feature_pipeline, training_mode=False)
         self.load(model_path, manifest_path=manifest_path, deterministic_eval=deterministic_eval)
         if self.env:
             self.env.reset(seed=seed)

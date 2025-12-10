@@ -51,6 +51,7 @@ class TradingEnv(gym.Env):
                  observation_days: int = 2,
                  burn_in_days: int = 20,
                  feature_config: Optional[Dict[str, Any]] = None,
+                 feature_pipeline: Optional[Any] = None,
                  provider: DataProvider = None):  # Feature engineering config
         # Fetch trading data
         if provider is None:
@@ -90,19 +91,13 @@ class TradingEnv(gym.Env):
         self.feature_config = feature_config
         self.feature_processor = None
         self._processed_data = None
-        if HAS_FEATURE_PROCESSOR and feature_config and feature_config.get('use_feature_engineering', False):
-            try:
-                self.feature_processor = FeatureProcessor(
-                    feature_config=feature_config,
-                    symbols=stock_names
-                )
-                self.feature_processor.initialize(data)
-                # Compute features for all data upfront
-                self._processed_data = self.feature_processor.compute_features(data)
-                logger.info(f"Feature processor initialized with {len(self.feature_processor.feature_columns)} features")
-            except Exception as e:
-                logger.warning(f"Feature processor initialization failed: {e}. Using raw data.")
-                self.feature_processor = None
+
+        if feature_config:
+            logger.warning(
+                "feature_config-based initialization is deprecated; provide a prebuilt feature_pipeline instead.")
+
+        if feature_pipeline is not None:
+            self._processed_data = self._prepare_features(feature_pipeline, data)
 
         self._initialize_state()
         self.observation_space = self._create_observation_space(
@@ -165,6 +160,8 @@ class TradingEnv(gym.Env):
         if self.feature_processor is not None:
             # Use feature processor's observation size
             n_features = self.feature_processor.get_observation_size()
+        elif self._processed_data is not None:
+            n_features = len(self._processed_data.columns) + len(self.stock_names) + 1
         else:
             # Default: prices + positions + balance
             n_features = len(self.stock_names) * 2 + 1
@@ -186,6 +183,14 @@ class TradingEnv(gym.Env):
                 positions=self.portfolio_manager.positions,
                 balance=self.portfolio_manager.current_balance,
             )
+        elif self._processed_data is not None:
+            feature_row = self._processed_data.iloc[self.current_step]
+            feature_array = feature_row.to_numpy(dtype=np.float32)
+            positions = np.array(
+                [self.portfolio_manager.positions.get(symbol, 0.0) for symbol in self.stock_names],
+                dtype=np.float32)
+            balance = np.array([self.portfolio_manager.current_balance], dtype=np.float32)
+            current_obs = np.concatenate([feature_array, positions, balance])
         else:
             # Default observation: prices + positions + balance
             current_obs = []
@@ -389,6 +394,47 @@ class TradingEnv(gym.Env):
 
     def _burn_in_done(self) -> bool:
         return len(self.observation_history) >= self.observation_days
+
+    def _prepare_features(self, feature_pipeline: Any, data: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Normalize feature inputs from the agent into processed data for observation construction."""
+
+        if HAS_FEATURE_PROCESSOR and isinstance(feature_pipeline, FeatureProcessor):
+            self.feature_processor = feature_pipeline
+            try:
+                if hasattr(self.feature_processor, "initialize"):
+                    self.feature_processor.initialize(data)
+                if hasattr(self.feature_processor, "compute_features"):
+                    return self.feature_processor.compute_features(data)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(f"Feature processor failed during initialization: {exc}. Using raw data instead.")
+                self.feature_processor = None
+            return None
+
+        if isinstance(feature_pipeline, pd.DataFrame):
+            if not feature_pipeline.index.equals(data.index):
+                logger.warning(
+                    "Provided feature data index does not match trading data; aligning via reindex.")
+            return feature_pipeline.reindex(data.index).copy()
+
+        if isinstance(feature_pipeline, dict):
+            try:
+                feature_frame = pd.DataFrame(feature_pipeline)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(f"Unable to convert feature mapping to DataFrame: {exc}")
+                return None
+            if not feature_frame.index.equals(data.index):
+                feature_frame = feature_frame.reindex(data.index)
+            return feature_frame
+
+        if isinstance(feature_pipeline, list):
+            missing = [col for col in feature_pipeline if col not in data.columns]
+            if missing:
+                logger.warning(
+                    f"Requested feature columns missing from trading data: {missing}. Using available columns only.")
+            available = [col for col in feature_pipeline if col in data.columns]
+            if available:
+                return data[available].copy()
+        return None
 
     def verify_env_state(self) -> Dict[str, Any]:
         """Verify environment state consistency"""

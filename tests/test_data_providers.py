@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime
 
 from environment.trading_env import TradingEnv, fetch_trading_data
+from data.data_handler import TradingDataManager
 from data.providers import FileSystemProvider
 
 
@@ -98,6 +99,23 @@ def test_filesystem_provider_loads_cached_frame(tmp_path):
 
     assert fetched.index.tz is not None
     pd.testing.assert_frame_equal(fetched, frame.tz_localize("UTC"))
+
+
+def test_trading_data_manager_applies_alignment_and_metadata():
+    symbols = ["META"]
+    frame = _sample_frame(symbols)
+    provider = DummyProvider(frame)
+    manager = TradingDataManager(provider)
+
+    processed = manager.fetch(symbols, datetime(2024, 1, 1), datetime(2024, 1, 3))
+
+    # First row should represent the second calendar day after alignment
+    assert len(processed) == len(frame) - 1
+    availability = processed.attrs.get("availability", {})
+    assert availability[f"Open_{symbols[0]}"] == "open"
+    assert availability[f"Close_{symbols[0]}"] == "close"
+    # Close is shifted by one day
+    assert processed.iloc[0][f"Close_{symbols[0]}"] == frame.iloc[0][f"Close_{symbols[0]}"]
 
 
 def test_environment_handles_provider_swap():

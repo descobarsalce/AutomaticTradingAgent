@@ -10,7 +10,7 @@ from gymnasium import spaces
 from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
                           POSITION_PRECISION)
 from core.portfolio_manager import PortfolioManager
-from data.data_handler import ensure_utc_timestamp, validate_ohlcv_frame
+from data.data_handler import TradingDataManager
 from data.providers import DataProvider
 
 logger = logging.getLogger(__name__)
@@ -30,30 +30,9 @@ except ImportError:
 def fetch_trading_data(stock_names: List[str], start_date: datetime,
                        end_date: datetime,
                        provider: DataProvider) -> pd.DataFrame:
-    """Fetch and validate trading data with improved error handling.
-    Uses current day's open price and previous day's high, low, volume."""
-    if provider is None:
-        raise ValueError("A data provider instance is required")
-
-    start_ts = ensure_utc_timestamp(start_date)
-    end_ts = ensure_utc_timestamp(end_date)
-
-    data = provider.fetch(stock_names, start_ts, end_ts).copy()
-
-    data = validate_ohlcv_frame(data, stock_names)
-
-    # Shift previous day's data
-    for symbol in stock_names:
-        # Shift high, low, and volume by 1 day (t-1)
-        data[f'High_{symbol}'] = data[f'High_{symbol}'].shift(1)
-        data[f'Low_{symbol}'] = data[f'Low_{symbol}'].shift(1)
-        data[f'Volume_{symbol}'] = data[f'Volume_{symbol}'].shift(1)
-        data[f'Close_{symbol}'] = data[f'Close_{symbol}'].shift(1)
-
-    # Remove first row since it won't have t-1 data
-    data = data.iloc[1:]
-
-    return data
+    """Fetch preprocessed trading data using the data manager."""
+    manager = TradingDataManager(provider)
+    return manager.fetch(stock_names, start_date, end_date)
 
 
 class TradingEnv(gym.Env):

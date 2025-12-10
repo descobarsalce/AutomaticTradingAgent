@@ -55,6 +55,48 @@ def validate_ohlcv_frame(frame: pd.DataFrame, symbols: List[str]) -> pd.DataFram
     return frame
 
 
+class TradingDataManager:
+    """Prepare trading-ready OHLCV frames with availability annotations."""
+
+    def __init__(self, provider):
+        if provider is None:
+            raise ValueError("A data provider instance is required")
+        self._provider = provider
+
+    def _apply_previous_day_alignment(self, frame: pd.DataFrame,
+                                      symbols: List[str]) -> pd.DataFrame:
+        """Shift close-of-day fields to the next session's open."""
+        aligned = frame.copy()
+        for symbol in symbols:
+            for col in ["High", "Low", "Volume", "Close"]:
+                aligned[f"{col}_{symbol}"] = aligned[f"{col}_{symbol}"].shift(1)
+        return aligned.iloc[1:]
+
+    def _annotate_availability(self, frame: pd.DataFrame,
+                               symbols: List[str]) -> pd.DataFrame:
+        """Attach availability metadata for each column."""
+        availability: Dict[str, str] = {}
+        for symbol in symbols:
+            availability[f"Open_{symbol}"] = "open"
+            for col in ["High", "Low", "Close", "Volume"]:
+                availability[f"{col}_{symbol}"] = "close"
+        frame.attrs["availability"] = availability
+        return frame
+
+    def fetch(self, stock_names: List[str], start_date: datetime,
+              end_date: datetime) -> pd.DataFrame:
+        start_ts = ensure_utc_timestamp(start_date)
+        end_ts = ensure_utc_timestamp(end_date)
+
+        if start_ts > end_ts:
+            raise ValueError("start_date cannot be after end_date")
+
+        raw = self._provider.fetch(stock_names, start_ts, end_ts).copy()
+        validated = validate_ohlcv_frame(raw, stock_names)
+        aligned = self._apply_previous_day_alignment(validated, stock_names)
+        return self._annotate_availability(aligned, stock_names)
+
+
 class DataHandler:
     def __init__(self):
         self._sql_handler = SQLHandler()

@@ -65,8 +65,9 @@ The platform implements a custom Gymnasium environment with:
   - Risk metrics
   - Trading costs
   - Position holding incentives
-- Configurable observation space with technical indicators
+- Configurable observation space with optional feature pipelines injected from the PPO configuration
 - Built-in transaction cost modeling
+- Availability-aware market data supplied by the `TradingDataManager`, which preprocesses OHLCV frames (timezone normalization, schema validation, release-time annotations) before the environment consumes them.
 
 ## Model Configuration
 
@@ -81,7 +82,8 @@ Key configurable parameters:
 ## Training & Validation Defaults
 - **Data split**: 80% training / 20% validation by date with a minimum 30-day train and 7-day validation window.
 - **Training schedule**: warm-up phase of 10% of available steps, 256-step episodes, and 3 epochs (adjustable via `schedule_config`).
-- **Evaluation**: Validation rollouts every 500 steps with fixed seeds `[7, 21]`, logging PnL, drawdown, turnover, risk ratios, and action/price snapshots to `metrics/metrics_stream.jsonl`.
+- **Evaluation**: `MetricStreamingEvalCallback` runs validation rollouts every 1,000 steps (configurable) with deterministic seeds, streams metrics through `MetricsSink`, and writes action/price snapshots under `metrics/eval/` by default.
+- **Feature pipelines**: PPO configuration can inject a prebuilt feature pipeline (e.g., `FeatureProcessor` or engineered feature set). The environment consumes the provided pipeline output instead of constructing feature processors internally, keeping feature selection in the training configuration.
 
 ## Performance Metrics
 

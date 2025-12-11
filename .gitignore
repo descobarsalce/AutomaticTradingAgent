@@ -31,6 +31,8 @@ utils/__pycache__/stock_utils.cpython-311.pyc
 .streamlit/secrets.toml
 **/__init__.py
 __init__.py
+# allow validation package to export its public API
+!data/validation/__init__.py
 
 # Streamlit secrets (never commit)
 .streamlit/secrets.toml

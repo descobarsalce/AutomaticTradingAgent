@@ -8,7 +8,7 @@ from typing import List, Protocol, runtime_checkable
 import pandas as pd
 
 from data.data_handler import DataHandler
-from data.validation import ensure_utc_timestamp, validate_ohlcv_frame
+from data.validation import ensure_utc_date_range, validate_ohlcv_frame
 
 
 @runtime_checkable
@@ -77,7 +77,6 @@ class FileSystemProvider:
 
         frame = validate_ohlcv_frame(frame, symbols)
 
-        start_ts = ensure_utc_timestamp(start)
-        end_ts = ensure_utc_timestamp(end)
+        start_ts, end_ts = ensure_utc_date_range(start, end)
 
         return frame.loc[(frame.index >= start_ts) & (frame.index <= end_ts)]

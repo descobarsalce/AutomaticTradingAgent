@@ -9,51 +9,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from data.data_SQL_interaction import SQLHandler
 from data.stock_downloader import StockDownloader
+from data.validation import (
+    annotate_availability,
+    ensure_utc_timestamp,
+    validate_ohlcv_frame,
+)
 
 logger = logging.getLogger(__name__)
-
-REQUIRED_OHLCV_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
-
-
-def ensure_utc_timestamp(value: datetime | pd.Timestamp) -> pd.Timestamp:
-    """Convert a datetime-like object to a timezone-aware UTC Timestamp."""
-    ts = pd.Timestamp(value)
-    if ts.tzinfo is None:
-        return ts.tz_localize("UTC")
-    return ts.tz_convert("UTC")
-
-
-def ensure_datetime_index(frame: pd.DataFrame) -> pd.DataFrame:
-    """Ensure the DataFrame index is a timezone-aware DatetimeIndex sorted by time."""
-    if not isinstance(frame.index, pd.DatetimeIndex):
-        frame.index = pd.to_datetime(frame.index)
-    if frame.index.tz is None:
-        frame.index = frame.index.tz_localize("UTC")
-    else:
-        frame.index = frame.index.tz_convert("UTC")
-    frame = frame.sort_index()
-    if frame.index.isna().any():
-        raise ValueError("DataFrame index contains NaT values")
-    return frame
-
-
-def validate_ohlcv_frame(frame: pd.DataFrame, symbols: List[str]) -> pd.DataFrame:
-    """Validate OHLCV schema, non-null columns, and timezone-aware index."""
-    if frame is None or frame.empty:
-        raise ValueError("Empty data provided")
-
-    frame = ensure_datetime_index(frame)
-
-    for symbol in symbols:
-        for col in REQUIRED_OHLCV_COLUMNS:
-            col_name = f"{col}_{symbol}"
-            if col_name not in frame.columns:
-                raise ValueError(f"Missing column {col_name}")
-            if frame[col_name].isna().any():
-                raise ValueError(f"Column {col_name} contains null values")
-
-    return frame
-
 
 class TradingDataManager:
     """Prepare trading-ready OHLCV frames with availability annotations."""
@@ -72,36 +34,6 @@ class TradingDataManager:
                 aligned[f"{col}_{symbol}"] = aligned[f"{col}_{symbol}"].shift(1)
         return aligned.iloc[1:]
 
-    def _annotate_availability(self, aligned: pd.DataFrame,
-                               validated: pd.DataFrame,
-                               symbols: List[str]) -> pd.DataFrame:
-        """Attach availability labels and release timestamps for each column."""
-        availability: Dict[str, str] = {}
-        release_times: Dict[str, pd.Series] = {}
-
-        # Use the validated index to compute release instants before alignment.
-        validated_index = validated.index.to_series()
-        aligned_index = aligned.index
-
-        open_release = validated_index.iloc[1:]
-        shifted_release = validated_index.shift(1).iloc[1:]
-        open_release.index = aligned_index
-        shifted_release.index = aligned_index
-
-        for symbol in symbols:
-            open_col = f"Open_{symbol}"
-            availability[open_col] = "open"
-            release_times[open_col] = open_release.copy()
-
-            for col in ["High", "Low", "Close", "Volume"]:
-                col_name = f"{col}_{symbol}"
-                availability[col_name] = "close"
-                release_times[col_name] = shifted_release.copy()
-
-        aligned.attrs["availability"] = availability
-        aligned.attrs["release_times"] = release_times
-        return aligned
-
     def fetch(self, stock_names: List[str], start_date: datetime,
               end_date: datetime) -> pd.DataFrame:
         start_ts = ensure_utc_timestamp(start_date)
@@ -113,7 +45,7 @@ class TradingDataManager:
         raw = self._provider.fetch(stock_names, start_ts, end_ts).copy()
         validated = validate_ohlcv_frame(raw, stock_names)
         aligned = self._apply_previous_day_alignment(validated, stock_names)
-        processed = self._annotate_availability(aligned, validated, stock_names)
+        processed = annotate_availability(aligned, validated.index, stock_names)
         return processed
 
 

@@ -7,11 +7,8 @@ from typing import List, Protocol, runtime_checkable
 
 import pandas as pd
 
-from data.data_handler import (
-    DataHandler,
-    ensure_utc_timestamp,
-    validate_ohlcv_frame,
-)
+from data.data_handler import DataHandler
+from data.validation import ensure_utc_timestamp, validate_ohlcv_frame
 
 
 @runtime_checkable

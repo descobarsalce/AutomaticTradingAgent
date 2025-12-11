@@ -11,16 +11,23 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (BaseCallback, CallbackList,
                                                 CheckpointCallback,
                                                 EvalCallback)
-from typing import Dict, Any, Optional, List, Union, Tuple, cast
+from typing import Dict, Any, Optional, List, Union, Tuple, cast, TYPE_CHECKING
 from numpy.typing import NDArray
+from core.agent_interfaces import (AgentRuntimeConfig, EnvConfig,
+                                   EvaluationHooks)
+from core.checkpoint_io import load_checkpoint, save_checkpoint
+from core.env_factory import build_trading_env
+from core.schedule_builder import build_training_schedule
 from core.visualization import TradingVisualizer
 from metrics.metrics_calculator import MetricsCalculator
 from core.callbacks import MetricStreamingEvalCallback
 from metrics.metric_sink import MetricsSink, MetricsSinkConfig
-from environment import TradingEnv
 from core.portfolio_manager import PortfolioManager
 from core.experiments import ExperimentRegistry, hash_state_dict
 from data.providers import DataProvider
+
+if TYPE_CHECKING:
+    from environment import TradingEnv
 
 from core.config import DEFAULT_PPO_PARAMS, PARAM_RANGES, DEFAULT_POLICY_KWARGS
 from utils.common import (type_check, MAX_POSITION_SIZE, MIN_POSITION_SIZE,
@@ -79,26 +86,6 @@ class UnifiedTradingAgent:
             'max_drawdown': 0.0,
             'total_trades': 0,
             'win_rate': 0.0
-        }
-
-    def _build_training_schedule(self, data_points: int,
-                                 schedule_config: Optional[Dict[str, Any]] = None) -> Dict[str, int]:
-        config = {
-            'episode_length': 256,
-            'epochs': 3,
-            'warmup_fraction': 0.1,
-        }
-        if schedule_config:
-            config.update(schedule_config)
-
-        episode_length = max(1, min(config['episode_length'], data_points))
-        warmup_steps = int(data_points * config['warmup_fraction'])
-        total_timesteps = warmup_steps + (episode_length * config['epochs'])
-
-        return {
-            'episode_length': episode_length,
-            'warmup_steps': warmup_steps,
-            'total_timesteps': max(total_timesteps, data_points)
         }
 
     def _get_data_index(self, stock_names: List[str], start_date: datetime,
@@ -168,17 +155,18 @@ class UnifiedTradingAgent:
 
         try:
             self.provider = provider
-            # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
-            self.env = TradingEnv(
+            env_config = EnvConfig(
                 stock_names=stock_names,
                 start_date=start_date,
                 end_date=end_date,
-                **cleaned_params,
+                params=cleaned_params,
                 feature_config=feature_config,
                 feature_pipeline=feature_pipeline,
                 training_mode=training_mode,
-                provider=provider
+                provider=provider,
             )
+            # Initializes the TradingEnv which uses PortfolioManager with balance check in execute_trade
+            self.env = build_trading_env(env_config)
             logger.info("Environment initialized successfully")
             self.portfolio_manager = self.env.portfolio_manager
         except Exception as e:
@@ -259,22 +247,17 @@ class UnifiedTradingAgent:
                                feature_config: Optional[Dict[str, Any]],
                                feature_pipeline: Optional[Any],
                                provider: DataProvider) -> TradingEnv:
-        return TradingEnv(
+        config = EnvConfig(
             stock_names=stock_names,
             start_date=date_range[0],
             end_date=date_range[1],
-            initial_balance=env_params.get('initial_balance', 10000),
-            transaction_cost=env_params.get('transaction_cost', 0.0),
-            max_pct_position_by_asset=env_params.get('max_pct_position_by_asset', 0.2),
-            use_position_profit=env_params.get('use_position_profit', False),
-            use_holding_bonus=env_params.get('use_holding_bonus', False),
-            use_trading_penalty=env_params.get('use_trading_penalty', False),
-            observation_days=env_params.get('history_length', 3),
+            params=env_params,
             feature_config=feature_config,
             feature_pipeline=feature_pipeline,
             training_mode=False,
-            provider=provider
+            provider=provider,
         )
+        return build_trading_env(config)
 
     def _prepare_evaluation_config(self, evaluation_config: Optional[Dict[str, Any]], run_dir: str) -> Dict[str, Any]:
         """Merge caller-supplied evaluation options with defaults and materialize a sink."""
@@ -346,7 +329,9 @@ class UnifiedTradingAgent:
               manifest_filename: str = "manifest.json",
               deterministic_eval: bool = True,
               provider: Optional[DataProvider] = None,
-              evaluation_config: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
+              evaluation_config: Optional[Dict[str, Any]] = None,
+              schedule_config: Optional[Dict[str, Any]] = None,
+              evaluation_hooks: Optional[EvaluationHooks] = None) -> Dict[str, float]:
         """Train the agent with progress logging.
 
         Args:
@@ -385,8 +370,7 @@ class UnifiedTradingAgent:
         run_dir = os.path.join(checkpoint_dir, run_id)
         os.makedirs(run_dir, exist_ok=True)
         checkpoint_path = os.path.join(run_dir, "checkpoints")
-
-        total_timesteps = max(1, (end_date - start_date).days)
+        schedule = build_training_schedule(len(self.env.data), schedule_config)
         eval_config = self._prepare_evaluation_config(evaluation_config, run_dir)
         eval_env = self._create_validation_env(stock_names, (start_date, end_date), env_params, feature_config, provider_to_use)
         eval_callback = EvalCallback(self.env,
@@ -405,7 +389,8 @@ class UnifiedTradingAgent:
             log_dir=eval_config['log_dir'],
         )
 
-        callbacks: List[BaseCallback] = [eval_callback, metric_streaming_callback]
+        injected_hooks = (evaluation_hooks or EvaluationHooks()).build(self.env)
+        callbacks: List[BaseCallback] = [eval_callback, metric_streaming_callback, *injected_hooks]
         if checkpoint_interval and checkpoint_interval > 0:
             os.makedirs(checkpoint_path, exist_ok=True)
             callbacks.append(
@@ -422,7 +407,7 @@ class UnifiedTradingAgent:
             combined_callback = callbacks[0] if len(callbacks) == 1 else CallbackList(callbacks)
 
         try:
-            self.model.learn(total_timesteps=total_timesteps,
+            self.model.learn(total_timesteps=schedule.total_timesteps,
                            callback=combined_callback)
             final_model_path = os.path.join(run_dir, "trained_model.zip")
             self.save(final_model_path)
@@ -589,7 +574,7 @@ class UnifiedTradingAgent:
             raise ValueError("Empty path")
         if not self.model:
             raise ValueError("Model not initialized")
-        self.model.save(path)
+        save_checkpoint(self.model, path)
 
     @type_check
     def load(self, path: str, manifest_path: Optional[str] = None,
@@ -610,7 +595,7 @@ class UnifiedTradingAgent:
         elif enforce_hash:
             raise FileNotFoundError(f"Manifest not found at {resolved_manifest_path}; cannot verify checkpoint integrity.")
 
-        self.model = PPO.load(path, env=self.env)
+        self.model, manifest = load_checkpoint(path, env=self.env, manifest_path=manifest_path, enforce_hash=enforce_hash)
         if enforce_hash:
             if manifest is None or not manifest.state_dict_hash:
                 raise ValueError("Manifest missing state_dict_hash; cannot verify checkpoint integrity.")

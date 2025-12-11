@@ -7,6 +7,7 @@ pd = pytest.importorskip("pandas")
 from data.validation import (
     annotate_availability,
     ensure_datetime_index,
+    ensure_utc_date_range,
     ensure_utc_timestamp,
     validate_ohlcv_frame,
 )
@@ -45,6 +46,20 @@ def test_ensure_datetime_index_sorts_and_localizes(sample_frame):
     assert isinstance(ensured.index, pd.DatetimeIndex)
     assert ensured.index.is_monotonic_increasing
     assert str(ensured.index.tz) == "UTC"
+
+
+def test_ensure_utc_date_range_normalizes_and_validates():
+    naive_start = datetime(2024, 1, 1)
+    naive_end = datetime(2024, 1, 2)
+
+    start_ts, end_ts = ensure_utc_date_range(naive_start, naive_end)
+
+    assert str(start_ts.tz) == "UTC"
+    assert str(end_ts.tz) == "UTC"
+    assert start_ts <= end_ts
+
+    with pytest.raises(ValueError):
+        ensure_utc_date_range(naive_end, naive_start)
 
 
 def test_validate_ohlcv_frame_enforces_required_columns(sample_frame):

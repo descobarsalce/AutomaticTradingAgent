@@ -11,7 +11,7 @@ from data.data_SQL_interaction import SQLHandler
 from data.stock_downloader import StockDownloader
 from data.validation import (
     annotate_availability,
-    ensure_utc_timestamp,
+    ensure_utc_date_range,
     validate_ohlcv_frame,
 )
 
@@ -36,11 +36,7 @@ class TradingDataManager:
 
     def fetch(self, stock_names: List[str], start_date: datetime,
               end_date: datetime) -> pd.DataFrame:
-        start_ts = ensure_utc_timestamp(start_date)
-        end_ts = ensure_utc_timestamp(end_date)
-
-        if start_ts > end_ts:
-            raise ValueError("start_date cannot be after end_date")
+        start_ts, end_ts = ensure_utc_date_range(start_date, end_date)
 
         raw = self._provider.fetch(stock_names, start_ts, end_ts).copy()
         validated = validate_ohlcv_frame(raw, stock_names)
@@ -142,11 +138,7 @@ class DataHandler:
             DataFrame containing the fetched data
         """
         # INPUT VALIDATION
-        start_ts = ensure_utc_timestamp(start_date)
-        end_ts = ensure_utc_timestamp(end_date)
-
-        if start_ts > end_ts:
-            raise ValueError(f"start_date ({start_date}) cannot be after end_date ({end_date})")
+        start_ts, end_ts = ensure_utc_date_range(start_date, end_date)
 
         logger.info(f"Fetching data for {symbols} from {source}: [{start_date}, {end_date}]")
 

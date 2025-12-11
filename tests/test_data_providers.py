@@ -114,6 +114,9 @@ def test_trading_data_manager_applies_alignment_and_metadata():
     availability = processed.attrs.get("availability", {})
     assert availability[f"Open_{symbols[0]}"] == "open"
     assert availability[f"Close_{symbols[0]}"] == "close"
+    release_times = processed.attrs.get("release_times", {})
+    assert release_times[f"Open_{symbols[0]}"].iloc[0] == processed.index[0]
+    assert release_times[f"Close_{symbols[0]}"].iloc[0] == processed.index[0] - pd.Timedelta(days=1)
     # Close is shifted by one day
     assert processed.iloc[0][f"Close_{symbols[0]}"] == frame.iloc[0][f"Close_{symbols[0]}"]
 

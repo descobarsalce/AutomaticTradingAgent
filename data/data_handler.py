@@ -72,16 +72,35 @@ class TradingDataManager:
                 aligned[f"{col}_{symbol}"] = aligned[f"{col}_{symbol}"].shift(1)
         return aligned.iloc[1:]
 
-    def _annotate_availability(self, frame: pd.DataFrame,
+    def _annotate_availability(self, aligned: pd.DataFrame,
+                               validated: pd.DataFrame,
                                symbols: List[str]) -> pd.DataFrame:
-        """Attach availability metadata for each column."""
+        """Attach availability labels and release timestamps for each column."""
         availability: Dict[str, str] = {}
+        release_times: Dict[str, pd.Series] = {}
+
+        # Use the validated index to compute release instants before alignment.
+        validated_index = validated.index.to_series()
+        aligned_index = aligned.index
+
+        open_release = validated_index.iloc[1:]
+        shifted_release = validated_index.shift(1).iloc[1:]
+        open_release.index = aligned_index
+        shifted_release.index = aligned_index
+
         for symbol in symbols:
-            availability[f"Open_{symbol}"] = "open"
+            open_col = f"Open_{symbol}"
+            availability[open_col] = "open"
+            release_times[open_col] = open_release.copy()
+
             for col in ["High", "Low", "Close", "Volume"]:
-                availability[f"{col}_{symbol}"] = "close"
-        frame.attrs["availability"] = availability
-        return frame
+                col_name = f"{col}_{symbol}"
+                availability[col_name] = "close"
+                release_times[col_name] = shifted_release.copy()
+
+        aligned.attrs["availability"] = availability
+        aligned.attrs["release_times"] = release_times
+        return aligned
 
     def fetch(self, stock_names: List[str], start_date: datetime,
               end_date: datetime) -> pd.DataFrame:
@@ -94,7 +113,8 @@ class TradingDataManager:
         raw = self._provider.fetch(stock_names, start_ts, end_ts).copy()
         validated = validate_ohlcv_frame(raw, stock_names)
         aligned = self._apply_previous_day_alignment(validated, stock_names)
-        return self._annotate_availability(aligned, stock_names)
+        processed = self._annotate_availability(aligned, validated, stock_names)
+        return processed
 
 
 class DataHandler:

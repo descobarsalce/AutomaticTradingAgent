@@ -12,6 +12,7 @@ from utils.common import (MAX_POSITION_SIZE, MIN_POSITION_SIZE, MIN_TRADE_SIZE,
 from core.portfolio_manager import PortfolioManager
 from data.data_handler import TradingDataManager
 from data.providers import DataProvider
+from metrics.metric_sink import MetricsSink
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -52,7 +53,10 @@ class TradingEnv(gym.Env):
                  burn_in_days: int = 20,
                  feature_config: Optional[Dict[str, Any]] = None,
                  feature_pipeline: Optional[Any] = None,
-                 provider: DataProvider = None):  # Feature engineering config
+                 provider: DataProvider = None,
+                 risk_budget_params: Optional[Dict[str, float]] = None,
+                 metrics_sink: Optional[MetricsSink] = None,
+                 risk_window: int = 20):  # Feature engineering config
         # Fetch trading data
         if provider is None:
             raise ValueError("TradingEnv requires an explicit data provider")
@@ -68,6 +72,9 @@ class TradingEnv(gym.Env):
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
         self.stock_names = stock_names
+        self.risk_budget_params = risk_budget_params or {}
+        self.metrics_sink = metrics_sink or MetricsSink()
+        self.risk_window = risk_window
 
         # Set reward shaping flags
         # Initialize rewards calculator
@@ -80,7 +87,9 @@ class TradingEnv(gym.Env):
         # Initialize portfolio manager before constructing observation space.
         self.portfolio_manager = PortfolioManager(
             initial_balance,
-            transaction_cost)
+            transaction_cost,
+            risk_budget_params=self.risk_budget_params,
+            metrics_sink=self.metrics_sink)
 
         # initialize state & observation space.
         self.observation_days = observation_days  # Store the number of days to keep in the observation
@@ -151,6 +160,28 @@ class TradingEnv(gym.Env):
     def _get_current_data(self) -> pd.Series:
         """Retrieve the current data row."""
         return self.data.iloc[self.current_step]
+
+    def _compute_risk_controls(self) -> Dict[str, float]:
+        """Derive forecast volatility, correlation, and drawdown inputs."""
+
+        forecast_vol = 0.0
+        corr_proxy = 0.0
+        close_cols = [f'Close_{symbol}' for symbol in self.stock_names]
+        start_idx = max(0, self.current_step - self.risk_window + 1)
+
+        if self.current_step > 0 and all(col in self._full_data.columns for col in close_cols):
+            window_frame = self._full_data.iloc[start_idx:self.current_step + 1][close_cols]
+            returns = window_frame.pct_change().dropna()
+            if not returns.empty:
+                forecast_vol = float(returns.stack().std(ddof=0))
+                corr_proxy = float(returns.corr().abs().mean().mean()) if returns.shape[0] > 1 else 0.0
+
+        drawdown = float(self.portfolio_manager.max_drawdown or 0.0)
+        return {
+            'forecast_volatility': forecast_vol,
+            'correlation_proxy': corr_proxy,
+            'drawdown': drawdown,
+        }
 
     # --- End Auxiliary functions ---
 
@@ -262,15 +293,23 @@ class TradingEnv(gym.Env):
             timestamp = self.data.index[self.current_step]
             actions_arr = np.array(action, dtype=np.float32)
 
+            risk_controls = self._compute_risk_controls()
+            risk_adjusted_actions, preview_scale, _ = self.portfolio_manager.risk_budget_manager.apply_risk_budget(
+                actions_arr,
+                risk_controls['forecast_volatility'],
+                risk_controls['correlation_proxy'],
+                risk_controls['drawdown'])
+            risk_adjusted_actions_list = risk_adjusted_actions.tolist()
+
             trades_executed = self.portfolio_manager.execute_all_trades(
                 self.stock_names, actions_arr, self._get_current_price,
-                self.max_pct_position_by_asset, timestamp)
+                self.max_pct_position_by_asset, timestamp, risk_controls=risk_controls)
 
             # Merge rejected BUY trade info into one log message.
             rejected = [
-                f"{symbol} (Action: {actions_arr[idx]}, Price: {self._get_current_price(symbol)})"
+                f"{symbol} (Action: {risk_adjusted_actions_list[idx]}, Price: {self._get_current_price(symbol)})"
                 for idx, symbol in enumerate(self.stock_names)
-                if actions_arr[idx] > 0
+                if risk_adjusted_actions_list[idx] > 0
                 and not trades_executed.get(symbol, False)
             ]
             if rejected and log_verbosity == "High":
@@ -306,10 +345,15 @@ class TradingEnv(gym.Env):
                 'trades_executed': trades_executed,
                 'episode_trades': self.episode_trades.copy(),
                 'actions': action,
+                'risk_adjusted_actions': risk_adjusted_actions_list,
                 'date': timestamp,
                 'current_data': self._get_current_data(),
                 'portfolio_value': self.portfolio_manager.get_total_value(),
-                'step': self.current_step
+                'step': self.current_step,
+                'forecast_volatility': risk_controls['forecast_volatility'],
+                'correlation_proxy': risk_controls['correlation_proxy'],
+                'risk_scale': self.portfolio_manager.risk_ledger[-1]['scale']
+                if self.portfolio_manager.risk_ledger else preview_scale,
             }
             return obs, reward, done, False, info
 
@@ -358,8 +402,11 @@ class TradingEnv(gym.Env):
 
     def reset(self, seed=None, options=None) -> Tuple[np.ndarray, Dict]:
         self._initialize_state()
-        self.portfolio_manager = PortfolioManager(self.initial_balance,
-                                                  self.transaction_cost)
+        self.portfolio_manager = PortfolioManager(
+            self.initial_balance,
+            self.transaction_cost,
+            risk_budget_params=self.risk_budget_params,
+            metrics_sink=self.metrics_sink)
         self.portfolio_manager.portfolio_value_history = [self.initial_balance]
         self.current_step = 0
         self.observation_history.clear()

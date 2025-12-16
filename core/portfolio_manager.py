@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import logging
 from utils.common import validate_numeric, round_price, MAX_POSITION_SIZE, MIN_POSITION_SIZE
+from metrics.metric_sink import MetricsSink
 from metrics.metrics_calculator import MetricsCalculator
 import random
 
@@ -11,11 +12,80 @@ logger = logging.getLogger(__name__)
 
 high_verbosity = False
 
+
+class RiskBudgetManager:
+    """Controls risk scaling based on forward-looking signals."""
+
+    def __init__(
+        self,
+        target_volatility: float = 0.2,
+        max_scale: float = 1.5,
+        min_scale: float = 0.1,
+        corr_sensitivity: float = 0.5,
+        drawdown_sensitivity: float = 1.0,
+        per_asset_cap: float = 0.35,
+        max_leverage: float = 1.0,
+    ) -> None:
+        self.target_volatility = target_volatility
+        self.max_scale = max_scale
+        self.min_scale = min_scale
+        self.corr_sensitivity = corr_sensitivity
+        self.drawdown_sensitivity = drawdown_sensitivity
+        self.per_asset_cap = per_asset_cap
+        self.max_leverage = max_leverage
+        self._eps = 1e-6
+
+    def compute_scale(
+        self,
+        forecast_volatility: float,
+        correlation_proxy: float,
+        drawdown: float,
+    ) -> float:
+        """Compute a scalar to down/up-weight raw actions."""
+
+        effective_vol = max(forecast_volatility, self._eps)
+        base_scale = self.target_volatility / effective_vol
+
+        risk_penalty = 1 + (self.corr_sensitivity * max(correlation_proxy, 0.0))
+        risk_penalty += self.drawdown_sensitivity * max(drawdown, 0.0)
+
+        scaled = base_scale / risk_penalty
+        clipped = float(np.clip(scaled, self.min_scale, self.max_scale))
+        return clipped
+
+    def apply_risk_budget(
+        self,
+        raw_weights: np.ndarray,
+        forecast_volatility: float,
+        correlation_proxy: float,
+        drawdown: float,
+    ) -> Tuple[np.ndarray, float, float]:
+        """Return scaled weights plus the scaling factor and cap used."""
+
+        scale = self.compute_scale(forecast_volatility, correlation_proxy, drawdown)
+        weights = np.array(raw_weights, dtype=float) * scale
+
+        if self.per_asset_cap is not None:
+            weights = np.clip(weights, -self.per_asset_cap, self.per_asset_cap)
+
+        gross_exposure = float(np.abs(weights).sum())
+        if gross_exposure > self.max_leverage:
+            weights = weights * (self.max_leverage / gross_exposure)
+
+        return weights, scale, self.per_asset_cap
+
+
 class PortfolioManager:
-    def __init__(self, initial_balance: float, transaction_cost: float = 0.0):  # <-- new parameter
+    def __init__(self, initial_balance: float, transaction_cost: float = 0.0,
+                 risk_budget_params: Optional[Dict[str, float]] = None,
+                 metrics_sink: Optional[MetricsSink] = None):  # <-- new parameter
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
         self.transaction_cost = transaction_cost
+
+        self.risk_budget_manager = RiskBudgetManager(**(risk_budget_params or {}))
+        self.metrics_sink = metrics_sink or MetricsSink()
+        self.risk_ledger: List[Dict] = []
 
         # Portfolio state
         self.positions: Dict[str, float] = {}
@@ -213,6 +283,27 @@ class PortfolioManager:
         """Get environment-specific trade history."""
         return self._trade_history
 
+    def record_risk_event(
+        self,
+        timestamp: datetime,
+        forecast_volatility: float,
+        correlation_proxy: float,
+        drawdown: float,
+        scale: float,
+        per_asset_cap: float,
+    ) -> None:
+        event = {
+            'timestamp': timestamp,
+            'forecast_volatility': float(forecast_volatility),
+            'correlation_proxy': float(correlation_proxy),
+            'drawdown': float(drawdown),
+            'scale': float(scale),
+            'per_asset_cap': float(per_asset_cap),
+        }
+        self.risk_ledger.append(event)
+        if self.metrics_sink:
+            self.metrics_sink.emit("risk_budget", event)
+
     def get_portfolio_metrics(self) -> Dict:
         """Get key portfolio metrics using MetricsCalculator."""
         returns = MetricsCalculator.calculate_returns(self.portfolio_value_history)
@@ -266,37 +357,39 @@ class PortfolioManager:
 
     def execute_all_trades(self, stock_names: List[str], actions: np.ndarray,
                            get_current_price: callable, max_pct_position_by_asset: float,
-                           timestamp: 'datetime') -> Dict[str, bool]:
+                           timestamp: 'datetime', risk_controls: Optional[Dict[str, float]] = None) -> Dict[str, bool]:
+        risk_controls = risk_controls or {}
         trades_executed = {symbol: False for symbol in stock_names}
-        all_zeros = np.all(np.isclose(actions, 0))
-        
+
+        forecast_vol = float(risk_controls.get('forecast_volatility', 0.0))
+        corr_proxy = float(risk_controls.get('correlation_proxy', 0.0))
+        drawdown = float(risk_controls.get('drawdown', 0.0))
+
+        actions_for_trading, scale, per_asset_cap = self.risk_budget_manager.apply_risk_budget(
+            actions, forecast_vol, corr_proxy, drawdown)
+        self.record_risk_event(timestamp, forecast_vol, corr_proxy, drawdown, scale, per_asset_cap)
+
         # First process all sell actions
-        for symbol, action in zip(stock_names, actions):
+        for symbol, action in zip(stock_names, actions_for_trading):
             if action < 0:  # Only process sells first
                 price = get_current_price(symbol, open_price=True)
                 qty = self._calculate_trade_quantity(action, symbol, price, max_pct_position_by_asset)
-                # if not all_zeros:
-                    # logger.info(f"Intended SELL action for {symbol}: action={action}, price={price}, calculated quantity={qty}")
                 if qty > 0:
                     if self.execute_trade(symbol, -qty, price, timestamp):  # Note the negative qty for sells
                         trades_executed[symbol] = True
-                        
+
                         self._update_metrics(price, symbol)
                     else:
                         if high_verbosity:
                             logger.error(f"Sell trade for {symbol} failed in execution.")
 
-        # Zip the lists into pairs.
-        pairs = list(zip(stock_names, actions))
+        # Then process all buy actions (randomize order to reduce bias)
+        pairs = list(zip(stock_names, actions_for_trading))
         random.shuffle(pairs)
-        
-        # Then process all buy actions
         for symbol, action in pairs:
             if action > 0:  # Only process buys after sells
                 price = get_current_price(symbol, open_price=True)
                 qty = self._calculate_trade_quantity(action, symbol, price, max_pct_position_by_asset)
-                # if not all_zeros:
-                #     logger.info(f"Intended BUY action for {symbol}: action={action}, price={price}, calculated quantity={qty}")
                 if qty > 0:
                     if self.execute_trade(symbol, qty, price, timestamp):
                         trades_executed[symbol] = True
@@ -304,53 +397,5 @@ class PortfolioManager:
                     else:
                         if high_verbosity:
                             logger.error(f"Buy trade for {symbol} failed in execution.")
-
-        # logger.debug(f"Trades executed: {trades_executed}")
-        return trades_executed
-
-    def rebalance_to_weights(
-        self,
-        stock_names: List[str],
-        target_weights: np.ndarray,
-        prices: Dict[str, float],
-        max_pct_position_by_asset: float,
-        timestamp: 'datetime',
-    ) -> Dict[str, bool]:
-        """Rebalance positions to match the requested portfolio weights."""
-
-        trades_executed = {symbol: False for symbol in stock_names}
-        total_value = self.get_total_value()
-
-        if total_value <= 0:
-            return trades_executed
-
-        target_weights = np.asarray(target_weights, dtype=float)
-        target_weights = np.clip(target_weights, -max_pct_position_by_asset,
-                                 max_pct_position_by_asset)
-
-        desired_values = target_weights * total_value
-        current_values = np.array([
-            self.positions.get(symbol, 0.0) * prices.get(symbol, 0.0)
-            for symbol in stock_names
-        ], dtype=float)
-        deltas = desired_values - current_values
-
-        # Execute sells first to free up capital
-        for symbol, delta in zip(stock_names, deltas):
-            if delta < 0:
-                price = prices[symbol]
-                qty = abs(delta) / price if price > 0 else 0.0
-                if qty > 0 and self.execute_trade(symbol, -qty, price, timestamp):
-                    trades_executed[symbol] = True
-                    self._update_metrics(price, symbol)
-
-        # Then execute buys
-        for symbol, delta in zip(stock_names, deltas):
-            if delta > 0:
-                price = prices[symbol]
-                qty = delta / price if price > 0 else 0.0
-                if qty > 0 and self.execute_trade(symbol, qty, price, timestamp):
-                    trades_executed[symbol] = True
-                    self._update_metrics(price, symbol)
 
         return trades_executed

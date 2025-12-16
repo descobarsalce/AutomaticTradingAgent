@@ -111,11 +111,11 @@ class TradingEnv(gym.Env):
         self.observation_space = self._create_observation_space(
         )  # Ensure observation space is created before use
 
-        # Set the action space to Box with shape (n_stocks,) and range [-1, 1]
-        self.action_space = spaces.Box(low=-1,
-                                       high=1,
-                                       shape=(len(stock_names), ),
-                                       dtype=np.float32)
+        # Set the action space to Box with shape (n_stocks + gate,) where the
+        # final component controls the blending gate in [0, 1].
+        lows = np.concatenate([np.full(len(stock_names), -1.0), np.array([0.0])])
+        highs = np.concatenate([np.full(len(stock_names), 1.0), np.array([1.0])])
+        self.action_space = spaces.Box(low=lows, high=highs, dtype=np.float32)
 
     def _validate_init_params(self, data: Union[pd.DataFrame,
                                                 Dict[str, pd.DataFrame]],
@@ -135,6 +135,7 @@ class TradingEnv(gym.Env):
         self.episode_trades = {symbol: 0 for symbol in self.stock_names}
         self.observation_history: List[np.ndarray] = [
         ]  # New observation history
+        self.gate_history: List[float] = []
 
     # --- Auxiliary functions to reduce repetition ---
     def _get_current_price(self, symbol: str, open_price=True) -> float:
@@ -291,30 +292,40 @@ class TradingEnv(gym.Env):
     ) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         try:
             timestamp = self.data.index[self.current_step]
-            actions_arr = np.array(action, dtype=np.float32)
+            actions_arr = np.array(action, dtype=np.float32).flatten()
 
-            risk_controls = self._compute_risk_controls()
-            risk_adjusted_actions, preview_scale, _ = self.portfolio_manager.risk_budget_manager.apply_risk_budget(
-                actions_arr,
-                risk_controls['forecast_volatility'],
-                risk_controls['correlation_proxy'],
-                risk_controls['drawdown'])
-            risk_adjusted_actions_list = risk_adjusted_actions.tolist()
+            if actions_arr.shape[0] == len(self.stock_names) + 1:
+                gate_value = float(np.clip(actions_arr[-1], 0.0, 1.0))
+                weight_actions = actions_arr[:-1]
+            else:
+                gate_value = 1.0
+                weight_actions = actions_arr[:len(self.stock_names)]
 
-            trades_executed = self.portfolio_manager.execute_all_trades(
-                self.stock_names, actions_arr, self._get_current_price,
-                self.max_pct_position_by_asset, timestamp, risk_controls=risk_controls)
+            abs_sum = np.sum(np.abs(weight_actions))
+            if abs_sum > 0:
+                w_proposed = weight_actions / abs_sum
+            else:
+                w_proposed = np.zeros_like(weight_actions)
 
-            # Merge rejected BUY trade info into one log message.
-            rejected = [
-                f"{symbol} (Action: {risk_adjusted_actions_list[idx]}, Price: {self._get_current_price(symbol)})"
-                for idx, symbol in enumerate(self.stock_names)
-                if risk_adjusted_actions_list[idx] > 0
-                and not trades_executed.get(symbol, False)
-            ]
-            if rejected and log_verbosity == "High":
-                logger.info(f"Rejected trades: {rejected}")
-                logger.info(f"Rejected BUY trades for: {', '.join(rejected)}")
+            prices = {
+                symbol: self._get_current_price(symbol, open_price=True)
+                for symbol in self.stock_names
+            }
+            w_prev = self.portfolio_manager.get_current_weights(prices)
+            w_final = (1 - gate_value) * w_prev + gate_value * w_proposed
+
+            max_weight = self.max_pct_position_by_asset
+            w_final = np.clip(w_final, -max_weight, max_weight)
+
+            # Ensure we stay within aggregate exposure limits
+            weight_norm = np.sum(np.abs(w_final))
+            if weight_norm > 0 and weight_norm > max_weight * len(self.stock_names):
+                w_final = w_final * (max_weight * len(self.stock_names) / weight_norm)
+
+            trades_executed = self.portfolio_manager.rebalance_to_weights(
+                self.stock_names, w_final, prices, self.max_pct_position_by_asset,
+                timestamp)
+            self.gate_history.append(gate_value)
 
             # Calculate reward and update environment state.
             reward = self.use_rewards_calculator(trades_executed)
@@ -345,7 +356,8 @@ class TradingEnv(gym.Env):
                 'trades_executed': trades_executed,
                 'episode_trades': self.episode_trades.copy(),
                 'actions': action,
-                'risk_adjusted_actions': risk_adjusted_actions_list,
+                'gate_value': gate_value,
+                'target_weights': w_final.tolist(),
                 'date': timestamp,
                 'current_data': self._get_current_data(),
                 'portfolio_value': self.portfolio_manager.get_total_value(),
@@ -500,6 +512,9 @@ class TradingEnv(gym.Env):
 
     def get_portfolio_history(self) -> List[float]:
         return self.portfolio_manager.portfolio_value_history
+
+    def get_gate_history(self) -> List[float]:
+        return self.gate_history
 
     def _prepare_test_results(self,
                               info_history: List[Dict]) -> Dict[str, Any]:

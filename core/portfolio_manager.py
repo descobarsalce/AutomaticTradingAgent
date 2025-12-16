@@ -104,6 +104,19 @@ class PortfolioManager:
         self.max_drawdown = 0.0
         self.peak_value = initial_balance
 
+    def get_current_weights(self, prices: Dict[str, float]) -> np.ndarray:
+        """Return current portfolio weights (excluding cash)."""
+
+        total_value = self.get_total_value()
+        if total_value <= 0:
+            return np.zeros(len(prices), dtype=float)
+
+        weights = []
+        for symbol, price in prices.items():
+            position_value = self.positions.get(symbol, 0.0) * price
+            weights.append(position_value / total_value)
+        return np.array(weights, dtype=float)
+
     def update_position_values(self, price: float, symbol: str):
         self.position_values[symbol] = self.positions[symbol] * price
         

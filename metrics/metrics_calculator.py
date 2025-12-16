@@ -136,3 +136,33 @@ class MetricsCalculator(BaseTechnicalIndicators):
             return 0.0
         volatility = np.std(returns, ddof=1) * np.sqrt(252)
         return float(np.clip(volatility, 0, 100))
+
+    @staticmethod
+    def gate_quantile_performance(gates: List[float], returns: np.ndarray,
+                                  num_quantiles: int = 4) -> Dict[str, float]:
+        """Calculate average performance per gate quantile."""
+
+        if not isinstance(returns, np.ndarray) or len(returns) == 0 or not gates:
+            return {}
+
+        gate_array = np.array(gates[:len(returns)], dtype=float)
+        returns = returns[:len(gate_array)]
+
+        if len(gate_array) < num_quantiles:
+            num_quantiles = max(1, len(gate_array))
+
+        quantile_edges = np.linspace(0, 1, num_quantiles + 1)
+        gate_quantiles = np.quantile(gate_array, quantile_edges)
+
+        performance: Dict[str, float] = {}
+        for i in range(num_quantiles):
+            low, high = gate_quantiles[i], gate_quantiles[i + 1]
+            if i == num_quantiles - 1:
+                mask = (gate_array >= low) & (gate_array <= high)
+            else:
+                mask = (gate_array >= low) & (gate_array < high)
+
+            label = f"{low:.2f}-{high:.2f}"
+            performance[label] = float(np.mean(returns[mask])) if np.any(mask) else 0.0
+
+        return performance

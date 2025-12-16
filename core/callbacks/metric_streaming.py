@@ -2,6 +2,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+
 from stable_baselines3.common.callbacks import BaseCallback
 
 from core.visualization import TradingVisualizer
@@ -64,6 +66,15 @@ class MetricStreamingEvalCallback(BaseCallback):
                 'total_value': pm.get_total_value(),
             }
         }
+
+        gate_history = getattr(self.eval_env, "gate_history", [])
+        if gate_history and len(returns) > 0:
+            gate_array = np.array(gate_history[:len(returns)], dtype=float)
+            metrics_payload['gating'] = {
+                'average_gate': float(np.mean(gate_array)),
+                'quantile_performance': MetricsCalculator.gate_quantile_performance(
+                    gate_array.tolist(), returns),
+            }
 
         if info_history and self.eval_env.data is not None:
             last_date = info_history[-1].get('date', datetime.utcnow())

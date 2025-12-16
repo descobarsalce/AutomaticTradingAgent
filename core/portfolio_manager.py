@@ -34,6 +34,19 @@ class PortfolioManager:
         self.max_drawdown = 0.0
         self.peak_value = initial_balance
 
+    def get_current_weights(self, prices: Dict[str, float]) -> np.ndarray:
+        """Return current portfolio weights (excluding cash)."""
+
+        total_value = self.get_total_value()
+        if total_value <= 0:
+            return np.zeros(len(prices), dtype=float)
+
+        weights = []
+        for symbol, price in prices.items():
+            position_value = self.positions.get(symbol, 0.0) * price
+            weights.append(position_value / total_value)
+        return np.array(weights, dtype=float)
+
     def update_position_values(self, price: float, symbol: str):
         self.position_values[symbol] = self.positions[symbol] * price
         
@@ -293,4 +306,51 @@ class PortfolioManager:
                             logger.error(f"Buy trade for {symbol} failed in execution.")
 
         # logger.debug(f"Trades executed: {trades_executed}")
+        return trades_executed
+
+    def rebalance_to_weights(
+        self,
+        stock_names: List[str],
+        target_weights: np.ndarray,
+        prices: Dict[str, float],
+        max_pct_position_by_asset: float,
+        timestamp: 'datetime',
+    ) -> Dict[str, bool]:
+        """Rebalance positions to match the requested portfolio weights."""
+
+        trades_executed = {symbol: False for symbol in stock_names}
+        total_value = self.get_total_value()
+
+        if total_value <= 0:
+            return trades_executed
+
+        target_weights = np.asarray(target_weights, dtype=float)
+        target_weights = np.clip(target_weights, -max_pct_position_by_asset,
+                                 max_pct_position_by_asset)
+
+        desired_values = target_weights * total_value
+        current_values = np.array([
+            self.positions.get(symbol, 0.0) * prices.get(symbol, 0.0)
+            for symbol in stock_names
+        ], dtype=float)
+        deltas = desired_values - current_values
+
+        # Execute sells first to free up capital
+        for symbol, delta in zip(stock_names, deltas):
+            if delta < 0:
+                price = prices[symbol]
+                qty = abs(delta) / price if price > 0 else 0.0
+                if qty > 0 and self.execute_trade(symbol, -qty, price, timestamp):
+                    trades_executed[symbol] = True
+                    self._update_metrics(price, symbol)
+
+        # Then execute buys
+        for symbol, delta in zip(stock_names, deltas):
+            if delta > 0:
+                price = prices[symbol]
+                qty = delta / price if price > 0 else 0.0
+                if qty > 0 and self.execute_trade(symbol, qty, price, timestamp):
+                    trades_executed[symbol] = True
+                    self._update_metrics(price, symbol)
+
         return trades_executed

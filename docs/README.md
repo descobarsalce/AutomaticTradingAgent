@@ -14,7 +14,6 @@ This directory is the authoritative home for project documentation. Use the sect
 
 ## Planning
 - `planning/architecture_reorg_plan.md` — Evidence-first reorganization plan and phase outputs.
-- `planning/performance_improvement_plan.md` — Performance improvement plan and questions for finance agents.
 
 ## Reference
 - `reference/dependencies.md` — Dependency manifest and install notes.

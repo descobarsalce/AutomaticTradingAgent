@@ -4,6 +4,8 @@
 Comprehensive reinforcement-learning trading workstation with a Streamlit UI, availability-aware data layer, modular feature engineering, and deterministic checkpointing for reproducible research.
 
 ## Table of Contents
+- [How to use this README](#how-to-use-this-readme)
+- [Documentation map (start here)](#documentation-map-start-here)
 - [Highlights](#highlights)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Repository layout](#repository-layout)
@@ -14,9 +16,32 @@ Comprehensive reinforcement-learning trading workstation with a Streamlit UI, av
 - [Training, tuning, and checkpoints](#training-tuning-and-checkpoints)
 - [Feature engineering pipeline](#feature-engineering-pipeline)
 - [Testing](#testing)
-- [Additional docs](#additional-docs)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
+
+## How to use this README
+This README is the **single entry point** for onboarding. It explains the codebase at a high level and points to the precise documents that contain deeper instructions. If you are a new agent, start with the **Documentation map** below and follow the section that matches your task (feature engineering, database setup, broker integration, architecture, or dependencies).
+
+## Documentation maintenance (required for agents)
+When you make changes that affect behavior, configuration, dependencies, or workflow, you **must** update the relevant documentation in the same change. This keeps the README and the linked docs accurate and prevents drift.
+
+**Update docs when you change:**
+- **Dependencies or setup steps** → `docs/dependencies.md` and the setup section in this README.
+- **Feature engineering pipeline or API** → `docs/FeatureEngineerImprovementPlan.md` (roadmap/architecture) and the Feature Engineering section in this README if behavior changed.
+- **Database setup or storage behavior** → `docs/local_db_setup.md` and the Data sources/caching section in this README.
+- **Broker/Lean/IBKR workflows** → `docs/quantconnect_ibkr_overview.md`.
+- **Architecture/module boundaries** → `docs/section_b_architecture.md` and the Architecture/Repository layout sections here.
+
+## Documentation map (start here)
+Use this map to jump to the right instruction set quickly. Each document is authoritative for its topic.
+
+| Task / Topic | Go to | What you'll find there |
+| --- | --- | --- |
+| Feature engineering roadmap & architecture | `docs/FeatureEngineerImprovementPlan.md` | Full migration plan, plugin architecture, selection/competition, data sources, caching, and phased roadmap. |
+| Local database setup (SQLite/Postgres) | `docs/local_db_setup.md` | Mac-focused local DB instructions, `DATABASE_URL` guidance, and connectivity checks. |
+| Lean + IBKR integration | `docs/quantconnect_ibkr_overview.md` | Roles of Lean/IBKR, paper-first workflow, setup plan, and example commands. |
+| Architectural decomposition plan | `docs/section_b_architecture.md` | Module boundaries, responsibilities, and cross-module interaction rules. |
+| Dependency manifest & install options | `docs/dependencies.md` | Version list and full dependency install command (mirrors `pyproject.toml`). |
 
 ## Highlights
 - **Unified PPO agent** orchestrates environment creation, training, evaluation callbacks, manifests, and checkpoint integrity checks (`core/base_agent.py`).
@@ -46,6 +71,7 @@ Comprehensive reinforcement-learning trading workstation with a Streamlit UI, av
 ├── metrics/                   # Metric calculators and streaming sinks
 ├── integrations/              # Lean + IBKR adapters and integration notes
 ├── scripts/                   # Utility scripts (e.g., IBKR session runner)
+├── archive/                   # Legacy/unused files retained for reference
 ├── docs/                      # Additional documentation (architecture, broker integration, local DB)
 └── tests/                     # Pytest suite
 ```
@@ -71,7 +97,7 @@ Comprehensive reinforcement-learning trading workstation with a Streamlit UI, av
   - Common constants (`common.py`), data splits (`data_splitter.py`), progress callbacks (`callbacks.py`), DB config/pooling (`db_config.py`), logging helpers (`logging_utils.py`), and stock parsing (`stock_utils.py`).
 - **Scripts, configs, and plans**
   - `scripts/run_ibkr_session.py` smoke-tests IBKR connectivity using `config/ibkr.paper.example.yaml`.
-  - `FeatureEngineerImprovementPlan.md` outlines the roadmap for the feature pipeline; `dependencies.md` lists environment notes.
+  - `docs/FeatureEngineerImprovementPlan.md` outlines the roadmap for the feature pipeline; `docs/dependencies.md` lists environment notes.
   - `debug_training.py` offers a synthetic-data harness for debugging LSTM prediction features.
 
 ## Requirements & environment setup
@@ -191,7 +217,7 @@ python -m pytest tests/ -v
 - **Architecture decomposition**: `docs/section_b_architecture.md`
 - **Broker + Lean integration**: `docs/quantconnect_ibkr_overview.md`
 - **Local database setup**: `docs/local_db_setup.md`
-- **Feature engineering roadmap**: `FeatureEngineerImprovementPlan.md`
+- **Feature engineering roadmap**: `docs/FeatureEngineerImprovementPlan.md`
 
 ## Limitations
 - Training can be compute-intensive; default config forces CPU-only Torch to avoid GPU portability issues.

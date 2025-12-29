@@ -2,11 +2,13 @@
 
 import pytest
 import tempfile
-import pandas as pd
+import pytest
+
+pd = pytest.importorskip("pandas")
 import numpy as np
 from pathlib import Path
 
-from data.feature_engineering.core.cache_manager import FeatureCacheManager
+from src.data.feature_engineering.core.cache_manager import FeatureCacheManager
 
 
 def create_sample_df() -> pd.DataFrame:

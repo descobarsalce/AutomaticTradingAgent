@@ -5,34 +5,34 @@ tensorboard_logs/
 __pycache__/
 *.pyc
 *.pyo
-components/__pycache__/analysis_tab.cpython-311.pyc
-components/__pycache__/database_tab.cpython-311.pyc
-components/__pycache__/training_tab.cpython-311.pyc
-core/__pycache__/__init__.cpython-311.pyc
-core/__pycache__/base_agent.cpython-311.pyc
-core/__pycache__/config.cpython-311.pyc
-core/__pycache__/hyperparameter_search.cpython-311.pyc
-core/__pycache__/portfolio_manager.cpython-311.pyc
-core/__pycache__/testing_functions.cpython-311.pyc
-core/__pycache__/training_functions.cpython-311.pyc
-core/__pycache__/visualization.cpython-311.pyc
-data/__pycache__/__init__.cpython-311.pyc
-data/__pycache__/data_feature_engineer.cpython-311.pyc
-environment/__pycache__/__init__.cpython-311.pyc
-environment/__pycache__/trading_env.cpython-311.pyc
-metrics/__pycache__/__init__.cpython-311.pyc
-metrics/__pycache__/base_indicators.cpython-311.pyc
-metrics/__pycache__/metrics_calculator.cpython-311.pyc
-utils/__pycache__/__init__.cpython-311.pyc
-utils/__pycache__/callbacks.cpython-311.pyc
-utils/__pycache__/common.cpython-311.pyc
-utils/__pycache__/db_config.cpython-311.pyc
-utils/__pycache__/stock_utils.cpython-311.pyc
+app/components/__pycache__/analysis_tab.cpython-311.pyc
+app/components/__pycache__/database_tab.cpython-311.pyc
+app/components/__pycache__/training_tab.cpython-311.pyc
+src/core/__pycache__/__init__.cpython-311.pyc
+src/core/__pycache__/base_agent.cpython-311.pyc
+src/core/__pycache__/config.cpython-311.pyc
+src/core/__pycache__/hyperparameter_search.cpython-311.pyc
+src/core/__pycache__/portfolio_manager.cpython-311.pyc
+src/core/__pycache__/testing_functions.cpython-311.pyc
+src/core/__pycache__/training_functions.cpython-311.pyc
+src/core/__pycache__/visualization.cpython-311.pyc
+src/data/__pycache__/__init__.cpython-311.pyc
+src/data/__pycache__/data_feature_engineer.cpython-311.pyc
+src/environment/__pycache__/__init__.cpython-311.pyc
+src/environment/__pycache__/trading_env.cpython-311.pyc
+src/metrics/__pycache__/__init__.cpython-311.pyc
+src/metrics/__pycache__/base_indicators.cpython-311.pyc
+src/metrics/__pycache__/metrics_calculator.cpython-311.pyc
+src/utils/__pycache__/__init__.cpython-311.pyc
+src/utils/__pycache__/callbacks.cpython-311.pyc
+src/utils/__pycache__/common.cpython-311.pyc
+src/utils/__pycache__/db_config.cpython-311.pyc
+src/utils/__pycache__/stock_utils.cpython-311.pyc
 .streamlit/secrets.toml
 **/__init__.py
 __init__.py
 # allow validation package to export its public API
-!data/validation/__init__.py
+!src/data/validation/__init__.py
 
 # Streamlit secrets (never commit)
 .streamlit/secrets.toml
@@ -47,7 +47,7 @@ best_model/
 # Generic model + zip ignore
 *.zip
 
-data/__init__.py
+src/data/__init__.py
 .feature_cache/d70f7403e317fd21bbb9d00c269003e2.parquet
 .feature_cache/33914a951dbad6faba71ec1fa14d4e78.parquet
 .feature_cache/d719c551d1d19e0759e30224e31b31c2.parquet

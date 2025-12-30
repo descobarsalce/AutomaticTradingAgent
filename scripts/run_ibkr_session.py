@@ -16,9 +16,9 @@ import logging
 import sys
 from typing import Optional
 
-from core.brokers.base_adapter import OrderRequest
-from core.brokers.config_loader import load_ibkr_config
-from core.brokers.ibkr_adapter import IBKRAdapter
+from src.core.brokers.base_adapter import OrderRequest
+from src.core.brokers.config_loader import load_ibkr_config
+from src.core.brokers.ibkr_adapter import IBKRAdapter
 
 
 def parse_args() -> argparse.Namespace:

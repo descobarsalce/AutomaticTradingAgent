@@ -1,13 +1,15 @@
 """Tests for the FeatureEngineer orchestrator."""
 
 import pytest
-import numpy as np
-import pandas as pd
+import pytest
+
+np = pytest.importorskip("numpy")
+pd = pytest.importorskip("pandas")
 from datetime import datetime
 
-from data.feature_engineering import FeatureEngineer
-from data.feature_engineering.sources.market_data_source import MarketDataSource
-from data.feature_engineering.sources.technical_source import TechnicalSource
+from src.data.feature_engineering import FeatureEngineer
+from src.data.feature_engineering.sources.market_data_source import MarketDataSource
+from src.data.feature_engineering.sources.technical_source import TechnicalSource
 
 
 def create_sample_data(n_days: int = 100, symbols: list = None) -> pd.DataFrame:

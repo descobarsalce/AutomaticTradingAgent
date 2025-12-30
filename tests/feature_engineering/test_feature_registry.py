@@ -2,10 +2,12 @@
 
 import pytest
 from typing import List, Optional
-import pandas as pd
+import pytest
 
-from data.feature_engineering.core.feature_registry import FeatureRegistry
-from data.feature_engineering.sources.base_source import BaseFeatureSource
+pd = pytest.importorskip("pandas")
+
+from src.data.feature_engineering.core.feature_registry import FeatureRegistry
+from src.data.feature_engineering.sources.base_source import BaseFeatureSource
 
 
 class MockSource(BaseFeatureSource):

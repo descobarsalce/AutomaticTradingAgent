@@ -26,22 +26,22 @@ This README is the **single entry point** for onboarding. It explains the codeba
 When you make changes that affect behavior, configuration, dependencies, or workflow, you **must** update the relevant documentation in the same change. This keeps the README and the linked docs accurate and prevents drift.
 
 **Update docs when you change:**
-- **Dependencies or setup steps** → `docs/dependencies.md` and the setup section in this README.
-- **Feature engineering pipeline or API** → `docs/FeatureEngineerImprovementPlan.md` (roadmap/architecture) and the Feature Engineering section in this README if behavior changed.
-- **Database setup or storage behavior** → `docs/local_db_setup.md` and the Data sources/caching section in this README.
-- **Broker/Lean/IBKR workflows** → `docs/quantconnect_ibkr_overview.md`.
-- **Architecture/module boundaries** → `docs/section_b_architecture.md` and the Architecture/Repository layout sections here.
+- **Dependencies or setup steps** → `docs/reference/dependencies.md` and the setup section in this README.
+- **Feature engineering pipeline or API** → `docs/roadmap/feature_engineering_plan.md` (roadmap/architecture) and the Feature Engineering section in this README if behavior changed.
+- **Database setup or storage behavior** → `docs/onboarding/local_db_setup.md` and the Data sources/caching section in this README.
+- **Broker/Lean/IBKR workflows** → `docs/onboarding/quantconnect_ibkr_overview.md`.
+- **Architecture/module boundaries** → `docs/architecture/section_b_architecture.md` and the Architecture/Repository layout sections here.
 
 ## Documentation map (start here)
 Use this map to jump to the right instruction set quickly. Each document is authoritative for its topic.
 
 | Task / Topic | Go to | What you'll find there |
 | --- | --- | --- |
-| Feature engineering roadmap & architecture | `docs/FeatureEngineerImprovementPlan.md` | Full migration plan, plugin architecture, selection/competition, data sources, caching, and phased roadmap. |
-| Local database setup (SQLite/Postgres) | `docs/local_db_setup.md` | Mac-focused local DB instructions, `DATABASE_URL` guidance, and connectivity checks. |
-| Lean + IBKR integration | `docs/quantconnect_ibkr_overview.md` | Roles of Lean/IBKR, paper-first workflow, setup plan, and example commands. |
-| Architectural decomposition plan | `docs/section_b_architecture.md` | Module boundaries, responsibilities, and cross-module interaction rules. |
-| Dependency manifest & install options | `docs/dependencies.md` | Version list and full dependency install command (mirrors `pyproject.toml`). |
+| Feature engineering roadmap & architecture | `docs/roadmap/feature_engineering_plan.md` | Full migration plan, plugin architecture, selection/competition, data sources, caching, and phased roadmap. |
+| Local database setup (SQLite/Postgres) | `docs/onboarding/local_db_setup.md` | Mac-focused local DB instructions, `DATABASE_URL` guidance, and connectivity checks. |
+| Lean + IBKR integration | `docs/onboarding/quantconnect_ibkr_overview.md` | Roles of Lean/IBKR, paper-first workflow, setup plan, and example commands. |
+| Architectural decomposition plan | `docs/architecture/section_b_architecture.md` | Module boundaries, responsibilities, and cross-module interaction rules. |
+| Dependency manifest & install options | `docs/reference/dependencies.md` | Version list and full dependency install command (mirrors `pyproject.toml`). |
 
 ## Highlights
 - **Unified PPO agent** orchestrates environment creation, training, evaluation callbacks, manifests, and checkpoint integrity checks (`src/core/base_agent.py`).
@@ -67,6 +67,9 @@ Use this map to jump to the right instruction set quickly. Each document is auth
 ├── src/                       # Core library code (agent, data, env, metrics, utils)
 ├── config/                    # Configuration and example configs
 ├── scripts/                   # Utility scripts (e.g., IBKR session runner)
+├── integrations/              # Lean + IBKR adapters and integration notes
+├── artifacts/                 # Generated outputs (models/logs/reports)
+├── assets/                    # Static assets and screenshots
 ├── archive/                   # Legacy/unused files retained for reference
 ├── docs/                      # Additional documentation (architecture, broker integration, local DB)
 └── tests/                     # Pytest suite
@@ -93,8 +96,8 @@ Use this map to jump to the right instruction set quickly. Each document is auth
   - Common constants (`common.py`), data splits (`data_splitter.py`), progress callbacks (`callbacks.py`), DB config/pooling (`db_config.py`), logging helpers (`logging_utils.py`), and stock parsing (`stock_utils.py`).
 - **Scripts, configs, and plans**
   - `scripts/run_ibkr_session.py` smoke-tests IBKR connectivity using `config/ibkr.paper.example.yaml`.
-  - `docs/FeatureEngineerImprovementPlan.md` outlines the roadmap for the feature pipeline; `docs/dependencies.md` lists environment notes.
-  - `debug_training.py` offers a synthetic-data harness for debugging LSTM prediction features.
+  - `docs/roadmap/feature_engineering_plan.md` outlines the roadmap for the feature pipeline; `docs/reference/dependencies.md` lists environment notes.
+  - `scripts/debug_training.py` offers a synthetic-data harness for debugging LSTM prediction features.
 
 ## Requirements & environment setup
 - Python **3.11+**.
@@ -210,10 +213,10 @@ python -m pytest tests/ -v
 - Streamlit UI smoke tests are not automated; run the app locally to validate tab interactions when changing UI components.
 
 ## Additional docs
-- **Architecture decomposition**: `docs/section_b_architecture.md`
-- **Broker + Lean integration**: `docs/quantconnect_ibkr_overview.md`
-- **Local database setup**: `docs/local_db_setup.md`
-- **Feature engineering roadmap**: `docs/FeatureEngineerImprovementPlan.md`
+- **Architecture decomposition**: `docs/architecture/section_b_architecture.md`
+- **Broker + Lean integration**: `docs/onboarding/quantconnect_ibkr_overview.md`
+- **Local database setup**: `docs/onboarding/local_db_setup.md`
+- **Feature engineering roadmap**: `docs/roadmap/feature_engineering_plan.md`
 
 ## Limitations
 - Training can be compute-intensive; default config forces CPU-only Torch to avoid GPU portability issues.

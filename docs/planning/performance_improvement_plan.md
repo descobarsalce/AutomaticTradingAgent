@@ -2,6 +2,17 @@
 
 This plan focuses on improving financial performance through data quality, signal robustness, execution realism, and risk management. It is designed to be executed iteratively with measurable checkpoints.
 
+## MVP Focus (high-impact, low-effort)
+For a small-capital showcase, prioritize these first:
+
+1) **Data integrity & leakage checks** to avoid inflated backtests.
+2) **Risk-aware reward shaping** (small drawdown/volatility/turnover penalties).
+3) **Basic transaction cost model** (flat bps assumption).
+4) **Single benchmark comparison** (SPY buy-and-hold or equal-weight).
+5) **Hard risk caps** (max position size, max daily loss).
+
+Only expand to later phases once the MVP signals are stable and reproducible.
+
 ## Success Criteria (to track every phase)
 - Improve risk-adjusted performance (Sharpe/Sortino) vs baseline by a predefined threshold.
 - Maintain or reduce maximum drawdown while improving return.
@@ -115,6 +126,20 @@ This plan focuses on improving financial performance through data quality, signa
 18) What **order types** are safest to assume in backtests?
 19) What is a reasonable **capacity estimate** for this strategy?
 20) How should we monitor **transaction cost drift** over time?
+
+---
+
+# Minimal MVP Questions (use these if time/budget is limited)
+
+## Agent A (Signals & Strategy)
+1) Which 1–2 **short‑horizon signals** are most reliable for 1–5 day holds?
+2) What are the most common **leakage pitfalls** in OHLCV features?
+3) Should we optimize for **Sharpe or Sortino** for a small-capital demo?
+
+## Agent B (Execution, Risk & Portfolio)
+1) What is a reasonable **flat transaction cost** assumption for liquid U.S. equities?
+2) What **max position size** and **daily loss cap** would you recommend for a small account?
+3) What simple **kill‑switch** threshold is appropriate for a demo?
 
 ---
 

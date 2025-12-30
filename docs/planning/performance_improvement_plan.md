@@ -133,3 +133,40 @@ Use these as targeted research tasks for your finance agents.
 - Find studies on **liquidity proxies** for backtests without full order books.
 - Summarize effective **risk constraint frameworks** used in live trading systems.
 - Identify best practices for **kill‑switch criteria** and live monitoring.
+
+---
+
+# Research Synthesis Template (for Agent Reports)
+
+Use this structure when finance agents deliver findings so the plan can be updated consistently.
+
+## Signals & Strategy Summary
+- **Signal families with evidence:** (list signals, horizon, half‑life, and citations)
+- **Feature transformations that improve stability:** (e.g., log returns, vol scaling)
+- **Leakage pitfalls and mitigations:** (timestamping, corporate actions, lookahead)
+- **Recommended baselines/benchmarks:** (buy‑and‑hold, equal‑weight, volatility‑targeted)
+- **Primary risk‑adjusted metric(s):** (Sharpe/Sortino/Calmar rationale)
+- **Regime detection methods:** (volatility, macro, clustering)
+- **Cross‑asset or sector signals:** (if justified by evidence)
+- **Non‑stationarity handling:** (rolling normalization, retraining cadence)
+- **Signal validation protocol:** (IC, walk‑forward, bootstraps)
+- **Signal half‑life thresholds:** (minimum horizon vs holding period)
+
+## Execution, Risk & Portfolio Summary
+- **Transaction cost model:** (bps by ADV, spread model, options assumptions)
+- **Liquidity proxies:** (ADV, spreads, open interest)
+- **Risk constraints:** (max drawdown, leverage, exposure caps)
+- **Portfolio construction approach:** (risk parity, vol targeting, weight clipping)
+- **Stress tests:** (shock scenarios and expected behavior)
+- **Turnover constraints:** (target ranges and penalties)
+- **Borrow/short constraints:** (costs and limits)
+- **Live vs backtest drift checks:** (metrics + thresholds)
+- **Retraining cadence:** (recommended schedule and triggers)
+- **Kill‑switch criteria:** (explicit thresholds)
+
+## Open Questions (Need Agent Input)
+1) What is the most defensible **cost model** for daily equity trading with 1–5 day holding?
+2) Which **regime features** consistently improve out‑of‑sample results?
+3) What **turnover bounds** are realistic for our universe and execution stack?
+4) Which **benchmarks** will satisfy stakeholders for performance validation?
+5) What is the minimum **statistical threshold** to promote a model (e.g., Sharpe improvement, drawdown reduction)?

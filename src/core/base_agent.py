@@ -126,6 +126,9 @@ class UnifiedTradingAgent:
         cleaned_params = {
             'initial_balance': env_params.get('initial_balance', 10000),
             'transaction_cost': env_params.get('transaction_cost', 0.0),
+            'transaction_cost_bps': env_params.get('transaction_cost_bps', 0.0),
+            'slippage_bps': env_params.get('slippage_bps', 0.0),
+            'max_daily_loss_pct': env_params.get('max_daily_loss_pct', None),
             'max_pct_position_by_asset': env_params.get('max_pct_position_by_asset', 0.2),
             'use_position_profit': env_params.get('use_position_profit', False),
             'use_holding_bonus': env_params.get('use_holding_bonus', False),

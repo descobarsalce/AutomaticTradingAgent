@@ -76,12 +76,20 @@ class RiskBudgetManager:
 
 
 class PortfolioManager:
-    def __init__(self, initial_balance: float, transaction_cost: float = 0.0,
-                 risk_budget_params: Optional[Dict[str, float]] = None,
-                 metrics_sink: Optional[MetricsSink] = None):  # <-- new parameter
+    def __init__(
+        self,
+        initial_balance: float,
+        transaction_cost: float = 0.0,
+        transaction_cost_bps: float = 0.0,
+        slippage_bps: float = 0.0,
+        risk_budget_params: Optional[Dict[str, float]] = None,
+        metrics_sink: Optional[MetricsSink] = None,
+    ):  # <-- new parameter
         self.initial_balance = initial_balance
         self.current_balance = initial_balance
         self.transaction_cost = transaction_cost
+        self.transaction_cost_bps = transaction_cost_bps
+        self.slippage_bps = slippage_bps
 
         self.risk_budget_manager = RiskBudgetManager(**(risk_budget_params or {}))
         self.metrics_sink = metrics_sink or MetricsSink()
@@ -125,6 +133,14 @@ class PortfolioManager:
         try:
             old_position = self.positions.get(symbol, 0.0)
             new_position = old_position + quantity
+            if abs(new_position) > MAX_POSITION_SIZE:
+                logger.warning(
+                    "Buy rejected: %s position %.4f exceeds max allowed %.4f",
+                    symbol,
+                    new_position,
+                    MAX_POSITION_SIZE,
+                )
+                return False
             self.current_balance -= total_cost
             old_cost = self.cost_bases.get(symbol, 0.0) * old_position
             new_cost = price * quantity
@@ -141,12 +157,20 @@ class PortfolioManager:
             logger.error(f"Error in _handle_buy: {str(e)}")
             return False
 
-    def _handle_sell(self, symbol: str, quantity: float, price: float) -> bool:
+    def _handle_sell(self, symbol: str, quantity: float, price: float, trade_costs: float) -> bool:
         """Handle position and balance updates for a SELL."""
         try:
             old_position = self.positions.get(symbol, 0.0)
             new_position = old_position - quantity
-            self.current_balance += (quantity * price) - self.transaction_cost
+            if abs(new_position) > MAX_POSITION_SIZE:
+                logger.warning(
+                    "Sell rejected: %s position %.4f exceeds max allowed %.4f",
+                    symbol,
+                    new_position,
+                    MAX_POSITION_SIZE,
+                )
+                return False
+            self.current_balance += (quantity * price) - trade_costs
             realized_pnl = (price - self.cost_bases[symbol]) * quantity
             self.realized_pnl[symbol] += realized_pnl
             self.positions[symbol] = new_position  # Changed: use exact position value
@@ -158,6 +182,10 @@ class PortfolioManager:
         except Exception as e:
             logger.error(f"Error in _handle_sell: {str(e)}")
             return False
+
+    def _compute_trade_costs(self, notional: float) -> float:
+        bps_cost = notional * (self.transaction_cost_bps + self.slippage_bps)
+        return bps_cost + self.transaction_cost
 
     def _log_trade_entry(self, trade: Dict) -> None:
         # logger.info(f"Trade Executed - Timestamp: {trade['timestamp']}, Symbol: {trade['symbol']}, "
@@ -177,7 +205,9 @@ class PortfolioManager:
         quantity = float(quantity)
         price = float(price)
         trade_type = 'BUY' if quantity > 0 else 'SELL'
-        total_cost = (quantity * price) + self.transaction_cost
+        notional = abs(quantity * price)
+        trade_costs = self._compute_trade_costs(notional)
+        total_cost = notional + trade_costs
 
         if not isinstance(quantity, (int, float)) or not isinstance(price, (int, float)):
             logger.error(f"Trade for {symbol} failed: Invalid quantity or price (quantity={quantity}, price={price})")
@@ -191,7 +221,7 @@ class PortfolioManager:
                 return False
         else:
             sell_qty = abs(quantity)
-            prospective_balance = self.current_balance + (sell_qty * price) - self.transaction_cost
+            prospective_balance = self.current_balance + (sell_qty * price) - trade_costs
             if prospective_balance < 0:
                 if high_verbosity:
                     logger.warning(f"Sell trade for {symbol} rejected: Negative balance would result.")
@@ -209,7 +239,7 @@ class PortfolioManager:
         if is_buy:
             executed = self._handle_buy(symbol, quantity, price, total_cost)
         else:
-            executed = self._handle_sell(symbol, abs(quantity), price)
+            executed = self._handle_sell(symbol, abs(quantity), price, trade_costs)
 
         # Log a single structured summary for the trade execution.
         # logger.info(f"Trade Summary - {symbol}: Order {trade_type}, Qty {quantity}, Price {price}, "
@@ -225,6 +255,7 @@ class PortfolioManager:
             'price': price,
             'cost_basis': self.cost_bases[symbol],
             'total_cost': total_cost,
+            'trade_costs': trade_costs,
             'balance_after': self.current_balance
         }
         self.trades_history.append(trade_entry)
@@ -397,5 +428,57 @@ class PortfolioManager:
                     else:
                         if high_verbosity:
                             logger.error(f"Buy trade for {symbol} failed in execution.")
+
+        return trades_executed
+
+    def rebalance_to_weights(self, stock_names: List[str], target_weights: np.ndarray,
+                             prices: Dict[str, float], timestamp: datetime,
+                             risk_controls: Optional[Dict[str, float]] = None) -> Dict[str, bool]:
+        """Rebalance portfolio holdings to target weights using current prices."""
+        risk_controls = risk_controls or {}
+        trades_executed = {symbol: False for symbol in stock_names}
+
+        total_value = self.get_total_value()
+        if total_value <= 0:
+            return trades_executed
+
+        forecast_vol = float(risk_controls.get('forecast_volatility', 0.0))
+        corr_proxy = float(risk_controls.get('correlation_proxy', 0.0))
+        drawdown = float(risk_controls.get('drawdown', 0.0))
+
+        adjusted_weights, scale, per_asset_cap = self.risk_budget_manager.apply_risk_budget(
+            target_weights, forecast_vol, corr_proxy, drawdown
+        )
+        self.record_risk_event(
+            timestamp, forecast_vol, corr_proxy, drawdown, scale, per_asset_cap
+        )
+
+        deltas = {}
+        for symbol, target_weight in zip(stock_names, adjusted_weights):
+            price = prices.get(symbol, 0.0)
+            if price <= 0:
+                continue
+            current_value = self.positions.get(symbol, 0.0) * price
+            target_value = total_value * float(target_weight)
+            delta_value = target_value - current_value
+            deltas[symbol] = delta_value / price
+
+        # Execute sells first to free up cash.
+        for symbol in stock_names:
+            qty = deltas.get(symbol, 0.0)
+            price = prices.get(symbol, 0.0)
+            if qty < 0 and price > 0:
+                if self.execute_trade(symbol, qty, price, timestamp):
+                    trades_executed[symbol] = True
+                    self._update_metrics(price, symbol)
+
+        # Execute buys after sells.
+        for symbol in stock_names:
+            qty = deltas.get(symbol, 0.0)
+            price = prices.get(symbol, 0.0)
+            if qty > 0 and price > 0:
+                if self.execute_trade(symbol, qty, price, timestamp):
+                    trades_executed[symbol] = True
+                    self._update_metrics(price, symbol)
 
         return trades_executed

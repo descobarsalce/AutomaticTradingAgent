@@ -34,3 +34,26 @@ def annotate_availability(aligned: pd.DataFrame,
     aligned.attrs["availability"] = availability
     aligned.attrs["release_times"] = release_times
     return aligned
+
+
+def validate_availability_alignment(raw: pd.DataFrame,
+                                    aligned: pd.DataFrame,
+                                    symbols: List[str]) -> None:
+    """Ensure aligned data does not leak future information."""
+    if raw.empty or aligned.empty:
+        raise ValueError("Cannot validate availability on empty data")
+
+    expected_index = raw.index[1:]
+    if not aligned.index.equals(expected_index):
+        raise ValueError("Aligned index does not match expected shifted index")
+
+    for symbol in symbols:
+        open_col = f"Open_{symbol}"
+        if not aligned[open_col].equals(raw[open_col].iloc[1:]):
+            raise ValueError(f"Open alignment mismatch for {symbol}")
+
+        for col in ["High", "Low", "Close", "Volume"]:
+            col_name = f"{col}_{symbol}"
+            expected = raw[col_name].shift(1).iloc[1:]
+            if not aligned[col_name].equals(expected):
+                raise ValueError(f"{col} alignment mismatch for {symbol}")

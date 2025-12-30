@@ -12,6 +12,7 @@ from src.data.stock_downloader import StockDownloader
 from src.data.validation import (
     annotate_availability,
     ensure_utc_date_range,
+    validate_availability_alignment,
     validate_ohlcv_frame,
 )
 
@@ -41,6 +42,7 @@ class TradingDataManager:
         raw = self._provider.fetch(stock_names, start_ts, end_ts).copy()
         validated = validate_ohlcv_frame(raw, stock_names)
         aligned = self._apply_previous_day_alignment(validated, stock_names)
+        validate_availability_alignment(validated, aligned, stock_names)
         processed = annotate_availability(aligned, validated.index, stock_names)
         return processed
 
@@ -185,4 +187,3 @@ class DataHandler:
                 self._sql_handler._cleanup_session()
             except Exception:
                 logger.debug("SQLHandler cleanup failed", exc_info=True)
-

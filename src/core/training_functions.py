@@ -409,7 +409,7 @@ def _display_portfolio_evolution(dates: List, portfolio_values: List[float],
 
 
 def _display_benchmark_comparison(trade_history: List[Dict], portfolio_values: List[float],
-                                   stock_names: List[str]) -> None:
+                                  stock_names: List[str]) -> None:
     """Compare strategy performance against buy & hold benchmark."""
     st.markdown("### Buy & Hold Comparison")
 
@@ -447,8 +447,24 @@ def _display_benchmark_comparison(trade_history: List[Dict], portfolio_values: L
     equal_weight_return = np.mean([b['return'] for b in benchmark_data])
     strategy_return = (portfolio_values[-1] - portfolio_values[0]) / portfolio_values[0]
 
+    spy_price_key = "Close_SPY"
+    spy_available = spy_price_key in (first_info.get('current_data') or {})
+    spy_return = None
+    if spy_available:
+        spy_initial = float(first_info.get('current_data', {}).get(spy_price_key, 0))
+        spy_final = float(last_info.get('current_data', {}).get(spy_price_key, 0))
+        if spy_initial > 0:
+            spy_return = (spy_final - spy_initial) / spy_initial
+        else:
+            spy_available = False
+
     # Display comparison
-    col1, col2, col3 = st.columns(3)
+    if spy_available:
+        col1, col2, col3, col4 = st.columns(4)
+    else:
+        col1, col2, col3 = st.columns(3)
+        col4 = None
+
     with col1:
         st.metric("Strategy Return", f"{strategy_return:.2%}")
     with col2:
@@ -457,6 +473,9 @@ def _display_benchmark_comparison(trade_history: List[Dict], portfolio_values: L
         excess_return = strategy_return - equal_weight_return
         st.metric("Excess Return (Alpha)", f"{excess_return:.2%}",
                   delta=f"{excess_return:.2%}", delta_color="normal")
+    if spy_available and col4 is not None:
+        with col4:
+            st.metric("SPY Buy & Hold Return", f"{spy_return:.2%}")
 
     # Individual stock returns table
     st.markdown("### Individual Stock Returns")
@@ -485,6 +504,16 @@ def _display_benchmark_comparison(trade_history: List[Dict], portfolio_values: L
             total_bh_value += shares * current_price
         buy_hold_values.append(total_bh_value)
 
+    spy_buy_hold_values = None
+    if spy_available:
+        spy_buy_hold_values = []
+        spy_initial = float(first_info.get('current_data', {}).get(spy_price_key, 1))
+        spy_shares = initial_portfolio_value / spy_initial if spy_initial > 0 else 0
+        for info in trade_history:
+            current_data = info.get('current_data', {})
+            spy_price = float(current_data.get(spy_price_key, 0))
+            spy_buy_hold_values.append(spy_shares * spy_price)
+
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(x=dates, y=portfolio_values, name="Strategy",
@@ -494,6 +523,11 @@ def _display_benchmark_comparison(trade_history: List[Dict], portfolio_values: L
         go.Scatter(x=dates, y=buy_hold_values, name="Buy & Hold",
                    line=dict(color='#ff6b6b', width=2, dash='dash'))
     )
+    if spy_buy_hold_values is not None:
+        fig.add_trace(
+            go.Scatter(x=dates, y=spy_buy_hold_values, name="SPY Buy & Hold",
+                       line=dict(color='#5dade2', width=2, dash='dot'))
+        )
     fig.update_layout(
         title="Strategy vs Buy & Hold",
         yaxis_title="Portfolio Value ($)",

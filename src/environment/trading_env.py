@@ -44,6 +44,9 @@ class TradingEnv(gym.Env):
                  end_date: datetime,
                  initial_balance: float = 10000,
                  transaction_cost: float = 0.0,
+                 transaction_cost_bps: float = 0.0,
+                 slippage_bps: float = 0.0,
+                 max_daily_loss_pct: Optional[float] = None,
                  max_pct_position_by_asset: float = 0.2,
                  use_position_profit: bool = False,
                  use_holding_bonus: bool = False,
@@ -65,16 +68,22 @@ class TradingEnv(gym.Env):
         data = fetch_trading_data(stock_names, start_date, end_date, self.provider)
         # Data arrives fully preprocessed from the TradingDataManager.
         self._validate_init_params(data, initial_balance, transaction_cost,
+                                   transaction_cost_bps, slippage_bps,
+                                   max_daily_loss_pct,
                                    max_pct_position_by_asset)
         self._full_data = data.copy()
         self.data = data
         self.max_pct_position_by_asset = max_pct_position_by_asset
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
+        self.transaction_cost_bps = transaction_cost_bps
+        self.slippage_bps = slippage_bps
+        self.max_daily_loss_pct = max_daily_loss_pct
         self.stock_names = stock_names
         self.risk_budget_params = risk_budget_params or {}
         self.metrics_sink = metrics_sink or MetricsSink()
         self.risk_window = risk_window
+        self._leakage_warnings: set[str] = set()
 
         # Set reward shaping flags
         # Initialize rewards calculator
@@ -88,6 +97,8 @@ class TradingEnv(gym.Env):
         self.portfolio_manager = PortfolioManager(
             initial_balance,
             transaction_cost,
+            transaction_cost_bps=transaction_cost_bps,
+            slippage_bps=slippage_bps,
             risk_budget_params=self.risk_budget_params,
             metrics_sink=self.metrics_sink)
 
@@ -120,11 +131,19 @@ class TradingEnv(gym.Env):
     def _validate_init_params(self, data: Union[pd.DataFrame,
                                                 Dict[str, pd.DataFrame]],
                               initial_balance: float, transaction_cost: float,
+                              transaction_cost_bps: float, slippage_bps: float,
+                              max_daily_loss_pct: Optional[float],
                               max_pct_position_by_asset: float) -> None:
         if initial_balance <= 0:
             raise ValueError("Initial balance must be positive")
         if transaction_cost < 0:
             raise ValueError("Transaction cost cannot be negative")
+        if transaction_cost_bps < 0:
+            raise ValueError("Transaction cost bps cannot be negative")
+        if slippage_bps < 0:
+            raise ValueError("Slippage bps cannot be negative")
+        if max_daily_loss_pct is not None and max_daily_loss_pct < 0:
+            raise ValueError("Max daily loss pct cannot be negative")
         if not 0 < max_pct_position_by_asset <= 1:
             raise ValueError("Position size must be between 0 and 1")
         if isinstance(data, pd.DataFrame) and data.empty:
@@ -208,14 +227,23 @@ class TradingEnv(gym.Env):
         # Construct current observation
         if self.feature_processor is not None and self._processed_data is not None:
             # Use feature processor for rich observations
+            masked_data = self._processed_data
+            masked_row = self._mask_unavailable_features(
+                self._processed_data.iloc[self.current_step],
+                self.data.index[self.current_step],
+            )
+            if not masked_row.equals(self._processed_data.iloc[self.current_step]):
+                masked_data = self._processed_data.copy()
+                masked_data.iloc[self.current_step] = masked_row
             current_obs = self.feature_processor.get_observation_vector(
-                data=self._processed_data,
+                data=masked_data,
                 current_index=self.current_step,
                 positions=self.portfolio_manager.positions,
                 balance=self.portfolio_manager.current_balance,
             )
         elif self._processed_data is not None:
             feature_row = self._processed_data.iloc[self.current_step]
+            feature_row = self._mask_unavailable_features(feature_row, self.data.index[self.current_step])
             feature_array = feature_row.to_numpy(dtype=np.float32)
             positions = np.array(
                 [self.portfolio_manager.positions.get(symbol, 0.0) for symbol in self.stock_names],
@@ -277,10 +305,16 @@ class TradingEnv(gym.Env):
                 close_price = self._get_current_price(symbol, open_price=False)
                 self.portfolio_manager._update_metrics(close_price, symbol)
             history = self.portfolio_manager.portfolio_value_history
+            turnover = self.portfolio_manager.calculate_turnover()
+            portfolio_value = self.portfolio_manager.get_total_value()
             reward = self.rewards_calculator.compute_reward(
                 portfolio_history=history,
                 trades_executed=trades_executed,
-                transaction_cost=self.transaction_cost)
+                transaction_cost=self.transaction_cost,
+                transaction_cost_bps=self.transaction_cost_bps,
+                slippage_bps=self.slippage_bps,
+                turnover=turnover,
+                portfolio_value=portfolio_value)
             logger.debug(f"Computed reward: {reward}")
             return reward
         except Exception as e:
@@ -293,6 +327,7 @@ class TradingEnv(gym.Env):
         try:
             timestamp = self.data.index[self.current_step]
             actions_arr = np.array(action, dtype=np.float32).flatten()
+            risk_controls = self._compute_risk_controls()
 
             if actions_arr.shape[0] == len(self.stock_names) + 1:
                 gate_value = float(np.clip(actions_arr[-1], 0.0, 1.0))
@@ -323,8 +358,7 @@ class TradingEnv(gym.Env):
                 w_final = w_final * (max_weight * len(self.stock_names) / weight_norm)
 
             trades_executed = self.portfolio_manager.rebalance_to_weights(
-                self.stock_names, w_final, prices, self.max_pct_position_by_asset,
-                timestamp)
+                self.stock_names, w_final, prices, timestamp, risk_controls)
             self.gate_history.append(gate_value)
 
             # Calculate reward and update environment state.
@@ -332,6 +366,17 @@ class TradingEnv(gym.Env):
             self.current_step += 1
             obs = self._construct_observation()
             done = self.current_step >= len(self.data) - 1
+            hit_daily_loss_cap = False
+            if self.max_daily_loss_pct is not None:
+                history = self.portfolio_manager.portfolio_value_history
+                if len(history) > 1:
+                    prev_value = history[-2]
+                    current_value = history[-1]
+                    if prev_value > 0:
+                        daily_return = (current_value - prev_value) / prev_value
+                        if daily_return <= -self.max_daily_loss_pct:
+                            hit_daily_loss_cap = True
+                            done = True
 
             if log_verbosity == "High":
                 # Log one structured table summarizing the step.
@@ -365,7 +410,8 @@ class TradingEnv(gym.Env):
                 'forecast_volatility': risk_controls['forecast_volatility'],
                 'correlation_proxy': risk_controls['correlation_proxy'],
                 'risk_scale': self.portfolio_manager.risk_ledger[-1]['scale']
-                if self.portfolio_manager.risk_ledger else preview_scale,
+                if self.portfolio_manager.risk_ledger else 1.0,
+                'hit_daily_loss_cap': hit_daily_loss_cap,
             }
             return obs, reward, done, False, info
 
@@ -417,6 +463,8 @@ class TradingEnv(gym.Env):
         self.portfolio_manager = PortfolioManager(
             self.initial_balance,
             self.transaction_cost,
+            transaction_cost_bps=self.transaction_cost_bps,
+            slippage_bps=self.slippage_bps,
             risk_budget_params=self.risk_budget_params,
             metrics_sink=self.metrics_sink)
         self.portfolio_manager.portfolio_value_history = [self.initial_balance]
@@ -472,7 +520,9 @@ class TradingEnv(gym.Env):
             if not feature_pipeline.index.equals(data.index):
                 logger.warning(
                     "Provided feature data index does not match trading data; aligning via reindex.")
-            return feature_pipeline.reindex(data.index).copy()
+            aligned = feature_pipeline.reindex(data.index).copy()
+            filtered = self._filter_leaky_features(aligned)
+            return self._apply_availability_mask(filtered)
 
         if isinstance(feature_pipeline, dict):
             try:
@@ -482,7 +532,8 @@ class TradingEnv(gym.Env):
                 return None
             if not feature_frame.index.equals(data.index):
                 feature_frame = feature_frame.reindex(data.index)
-            return feature_frame
+            filtered = self._filter_leaky_features(feature_frame)
+            return self._apply_availability_mask(filtered)
 
         if isinstance(feature_pipeline, list):
             missing = [col for col in feature_pipeline if col not in data.columns]
@@ -491,8 +542,76 @@ class TradingEnv(gym.Env):
                     f"Requested feature columns missing from trading data: {missing}. Using available columns only.")
             available = [col for col in feature_pipeline if col in data.columns]
             if available:
-                return data[available].copy()
+                filtered = self._filter_leaky_features(data[available].copy())
+                return self._apply_availability_mask(filtered)
         return None
+
+    def _apply_availability_mask(self, feature_frame: pd.DataFrame) -> pd.DataFrame:
+        """Mask feature values that are not released at the corresponding timestamps."""
+        release_times = getattr(self._full_data, "attrs", {}).get("release_times", {})
+        if not release_times:
+            return feature_frame
+
+        masked = feature_frame.copy()
+        for column in masked.columns:
+            release_series = release_times.get(column)
+            if release_series is None:
+                continue
+            if not release_series.index.equals(masked.index):
+                release_series = release_series.reindex(masked.index)
+            mask = release_series > masked.index
+            if mask.any():
+                if column not in self._leakage_warnings:
+                    logger.warning(
+                        "Masking unavailable feature column %s for %d rows",
+                        column,
+                        int(mask.sum()),
+                    )
+                    self._leakage_warnings.add(column)
+                masked.loc[mask, column] = 0.0
+        return masked
+
+    def _mask_unavailable_features(self, feature_row: pd.Series,
+                                   timestamp: pd.Timestamp) -> pd.Series:
+        """Mask feature values that should not be available at the current timestamp."""
+        release_times = getattr(self._full_data, "attrs", {}).get("release_times", {})
+        if not release_times:
+            return feature_row
+
+        masked = feature_row.copy()
+        for column in feature_row.index:
+            release_series = release_times.get(column)
+            if release_series is None:
+                continue
+            if timestamp not in release_series.index:
+                continue
+            release_time = release_series.loc[timestamp]
+            if pd.notna(release_time) and release_time > timestamp:
+                if column not in self._leakage_warnings:
+                    logger.warning(
+                        "Masking feature %s with release time %s after timestamp %s",
+                        column,
+                        release_time,
+                        timestamp,
+                    )
+                    self._leakage_warnings.add(column)
+                masked[column] = 0.0
+        return masked
+
+    def _filter_leaky_features(self, feature_frame: pd.DataFrame) -> pd.DataFrame:
+        """Remove obvious look-ahead feature columns to reduce leakage risk."""
+        leak_keywords = ("future", "target", "label", "next", "lead")
+        leaky_cols = [
+            col for col in feature_frame.columns
+            if any(keyword in col.lower() for keyword in leak_keywords)
+        ]
+        if leaky_cols:
+            logger.warning(
+                "Dropping potential look-ahead feature columns: %s",
+                leaky_cols,
+            )
+            return feature_frame.drop(columns=leaky_cols)
+        return feature_frame
 
     def verify_env_state(self) -> Dict[str, Any]:
         """Verify environment state consistency"""

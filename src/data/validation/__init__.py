@@ -5,7 +5,7 @@ from src.data.validation.time_utils import (
     ensure_utc_timestamp,
 )
 from src.data.validation.ohlcv import validate_ohlcv_frame, REQUIRED_OHLCV_COLUMNS
-from src.data.validation.availability import annotate_availability
+from src.data.validation.availability import annotate_availability, validate_availability_alignment
 
 __all__ = [
     "ensure_utc_timestamp",
@@ -14,4 +14,5 @@ __all__ = [
     "validate_ohlcv_frame",
     "REQUIRED_OHLCV_COLUMNS",
     "annotate_availability",
+    "validate_availability_alignment",
 ]

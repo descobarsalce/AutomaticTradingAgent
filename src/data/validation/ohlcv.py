@@ -25,4 +25,20 @@ def validate_ohlcv_frame(frame: pd.DataFrame, symbols: List[str]) -> pd.DataFram
             if frame[col_name].isna().any():
                 raise ValueError(f"Column {col_name} contains null values")
 
+        open_col = f"Open_{symbol}"
+        high_col = f"High_{symbol}"
+        low_col = f"Low_{symbol}"
+        close_col = f"Close_{symbol}"
+        volume_col = f"Volume_{symbol}"
+
+        if (frame[[open_col, high_col, low_col, close_col]] <= 0).any().any():
+            raise ValueError(f"Non-positive price detected for {symbol}")
+        if (frame[volume_col] < 0).any():
+            raise ValueError(f"Negative volume detected for {symbol}")
+
+        if (frame[high_col] < frame[[open_col, close_col]].max(axis=1)).any():
+            raise ValueError(f"High price below open/close for {symbol}")
+        if (frame[low_col] > frame[[open_col, close_col]].min(axis=1)).any():
+            raise ValueError(f"Low price above open/close for {symbol}")
+
     return frame

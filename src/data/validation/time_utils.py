@@ -36,4 +36,8 @@ def ensure_datetime_index(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.sort_index()
     if frame.index.isna().any():
         raise ValueError("DataFrame index contains NaT values")
+    if frame.index.has_duplicates:
+        raise ValueError("DataFrame index contains duplicate timestamps")
+    if not frame.index.is_monotonic_increasing:
+        raise ValueError("DataFrame index is not strictly increasing")
     return frame
